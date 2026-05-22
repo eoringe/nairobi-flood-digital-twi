@@ -1,0 +1,1 @@
+Cached local basemap images for Pydeck canvas rendering.`nGenerate via: python -m src.ingestion.fetch_basemaps`nFormats: .png (full quality) or .webp (compressed, preferred).`nThese files are gitignored -- regenerate on each new machine.

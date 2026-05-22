@@ -1,0 +1,17 @@
+# ---------------------------------------------------------------
+# Project Configuration — Nairobi Flood Digital Twin
+# ---------------------------------------------------------------
+
+project:
+  name: nairobi-flood-digital-twin
+  version: 0.1.0
+
+map_styles:
+  mapbox_dark:  "mapbox://styles/mapbox/dark-v11"
+  mapbox_light: "mapbox://styles/mapbox/light-v11"
+  mapbox_satellite: "mapbox://styles/mapbox/satellite-streets-v12"
+
+environment:
+  profile: development        # development | staging | production
+  log_level: DEBUG
+  max_workers: 4

@@ -1,0 +1,40 @@
+# =============================================================================
+#  Nairobi Flood Digital Twin — .gitignore
+# =============================================================================
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ---- Virtual Environment ----
+.venv/
+venv/
+env/
+
+# ---- Environment secrets ----
+.env
+
+# ---- Data & Model artefacts (large files) ----
+data/raw/*
+data/processed/*
+data/spatial/*
+models/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/spatial/.gitkeep
+!models/.gitkeep
+
+# ---- IDE / OS ----
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+.DS_Store
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
