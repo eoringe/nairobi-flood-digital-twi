@@ -38,3 +38,10 @@ Thumbs.db
 
 # ---- Jupyter ----
 .ipynb_checkpoints/
+
+# ---- Generated debug artefacts ----
+test_map.html
+logs/*.log
+
+# ---- Local scenario database (see src/persistence/) ----
+data/scenarios.db

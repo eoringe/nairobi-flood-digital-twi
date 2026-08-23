@@ -1,0 +1,5 @@
+# Development-only dependencies (test suite, CI). Not needed to run the
+# dashboard or training pipeline — keep out of requirements.txt so the
+# production image doesn't carry test tooling.
+-r requirements.txt
+pytest>=8.0.0

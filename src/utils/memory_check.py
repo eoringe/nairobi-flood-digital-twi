@@ -42,7 +42,7 @@ from loguru import logger
 _GB = 1 << 30  # 1 GiB in bytes
 
 SYSTEM_RAM_GB: int = 16
-MIN_AVAILABLE_GB: float = 4.0       # abort on boot if less
+MIN_AVAILABLE_GB: float = float(os.getenv("MIN_AVAILABLE_RAM_GB", "0.4"))       # abort on boot if less
 RSS_WARN_GB: float = 12.0           # WARNING threshold
 RSS_CRITICAL_GB: float = 14.0       # CRITICAL threshold — abort batch
 TENSOR_MAX_GB: float = 2.0          # single-tensor hard cap

@@ -26,15 +26,22 @@ nairobi-flood-digital-twin/
 ├── data/
 │   ├── raw/            # Untouched source files
 │   ├── processed/      # Analysis-ready artefacts
-│   └── spatial/        # Shapefiles, GeoJSON, GeoPackages
+│   ├── spatial/        # Shapefiles, GeoJSON, GeoPackages
+│   └── scenarios.db    # SQLite scenario-run history (src/persistence/)
 ├── models/             # Trained weights & checkpoints
 ├── src/
+│   ├── grid_config.py  # Single source of truth for the Nairobi prediction grid
 │   ├── ingestion/      # Data download & caching modules
+│   ├── preprocessing/  # Terrain cropping, dataset assembly, buildings
 │   ├── models/         # PyTorch model definitions & training loops
 │   ├── dashboard/      # Dash app layout & callbacks
+│   ├── persistence/    # Scenario-run history store (PostGIS upgrade path documented inline)
 │   └── utils/          # Memory checks, logging, helpers
-├── tests/              # Unit & integration tests
-├── requirements.txt
+├── scripts/dev/        # One-off diagnostic scripts (not part of the test suite)
+├── tests/               # Unit & integration tests (pytest)
+├── .github/workflows/   # CI (runs the test suite on push/PR)
+├── Dockerfile, docker-compose.yml
+├── requirements.txt, requirements-dev.txt
 ├── setup_workspace.bat
 ├── .env.example
 └── README.md

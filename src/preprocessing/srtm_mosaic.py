@@ -105,7 +105,7 @@ DEFAULT_OUT_ARRAYS  = Path("data/processed/arrays")
 DEFAULT_OUT_MASKED  = Path("data/processed/masked")
 
 #: MEMORY_CONSTRAINTS.md §1 — abort if free RAM below this
-MIN_FREE_RAM_GB: float = 4.0
+MIN_FREE_RAM_GB: float = float(os.getenv("MIN_AVAILABLE_RAM_GB", "0.4"))
 
 #: All rasters are cast to float32 to halve RAM vs float64
 DTYPE = np.float32

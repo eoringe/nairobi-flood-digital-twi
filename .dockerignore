@@ -1,0 +1,17 @@
+.venv/
+venv/
+env/
+.git/
+.github/
+__pycache__/
+*.pyc
+data/
+models/
+logs/
+scripts/
+tests/
+*.log
+test_map.html
+*.pdf
+README.md
+.env

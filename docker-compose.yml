@@ -1,0 +1,36 @@
+# =============================================================================
+#  Nairobi Urban Flood Digital Twin — Local Docker Compose Stack
+#
+#  Runs the dashboard against the processed data/models already on disk.
+#  Run the ingestion + training pipeline on the host first (see README),
+#  then `docker compose up` to serve the container from that output.
+# =============================================================================
+
+services:
+  dashboard:
+    build: .
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # Upgrade path for src/persistence/scenario_store.py — swap the SQLite
+  # file store for real PostGIS once the ERD's spatial entities (beyond
+  # scenario runs) are needed. Commented out by default so `docker compose
+  # up` works with no extra services or credentials for a capstone demo.
+  # postgis:
+  #   image: postgis/postgis:16-3.4
+  #   environment:
+  #     - POSTGRES_DB=nairobi_flood_twin
+  #     - POSTGRES_USER=twin
+  #     - POSTGRES_PASSWORD=change-me
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+
+# volumes:
+#   pgdata:

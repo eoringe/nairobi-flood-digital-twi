@@ -69,6 +69,13 @@ import sys
 import time
 from pathlib import Path
 
+# Windows consoles often default to cp1252, which can't encode the arrows
+# and dashes used in this script's progress output — reconfigure stdout to
+# UTF-8 (available since Python 3.7) so a print() never crashes a download
+# mid-run over a purely cosmetic character.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 import psutil
 
 # ---------------------------------------------------------------------------
@@ -129,8 +136,11 @@ SPECKLE_RADIUS_M: float = 30.0
 #: Download resolution in metres (30 m balances detail vs memory per §2)
 DEFAULT_SCALE_M: int = 30
 
-#: Target years matching the 2020-2026 CHIRPS dataset profile
-DEFAULT_YEARS: list[int] = [2020, 2021, 2022, 2023, 2024, 2025, 2026]
+#: Target years — Sentinel-1 IW-mode coverage over Nairobi is usable back to
+#: 2015 (verified scene counts: 2015 = 16+14 scenes/season, 2017+ = 20-21/season;
+#: 2014 long_rains has 0 scenes, so 2015 is the practical floor). Matches the
+#: CHIRPS backfill in src.ingestion.fetch_chirps_archive.
+DEFAULT_YEARS: list[int] = [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
 #: Storm-season windows per year.
 #: East Africa receives two rainy seasons:
