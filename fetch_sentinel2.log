@@ -1,0 +1,22 @@
+[GRID ] -1.35..-1.23°N  36.72..36.9°E
+[RAIN ] Loaded 4138 daily rainfall records
+[S2   ] Querying Sentinel-2 L2A MSI 2015-2026 over Nairobi
+        Cloud threshold: <= 20%
+
+  2015: 0 scenes with cloud < 20%
+  2016: 6 scenes, 6 with water stats
+  2017: 6 scenes, 6 with water stats
+  2018: 8 scenes, 8 with water stats
+  2019: 16 scenes, 16 with water stats
+  2020: 13 scenes, 13 with water stats
+  2021: 18 scenes, 18 with water stats
+  2022: 16 scenes, 16 with water stats
+  2023: 17 scenes, 17 with water stats
+  2024: 22 scenes, 22 with water stats
+  2025: 23 scenes, 23 with water stats
+  2026: 11 scenes, 11 with water stats
+
+[SAVE ] 156 scenes → models/time_series/sentinel2_labels.json
+        Date range: 2016-02-04 to 2026-08-12
+        Water detection: mean=0.00 km², max=0.00 km²
+        Preceding rainfall: mean=8.2mm, max=138.4mm

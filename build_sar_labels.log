@@ -1,0 +1,41 @@
+C:\Users\Admin\Desktop\nairobi-flood-digital-twi\src\ingestion\build_sar_labels.py:197: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+  r_flood_rain = pearsonr([1.0 if s["flood_likely"] else 0.0 for s in scenes], rains)
+[GRID ] -1.35..-1.23°N  36.72..36.9°E
+[RAIN ] Loaded 4138 daily rainfall records
+[S1   ] Sentinel-1 change detection: orbit 57 ASCENDING
+        Drop threshold: 3.0 dB  |  Rain threshold: 30.0 mm (7-day)
+
+Building per-year dry-season baselines (Jan-Feb)...
+  2015: 2 baseline scenes → median composite
+           13 wet-season scenes processed
+  2016: 4 baseline scenes → median composite
+           7 wet-season scenes processed
+  2017: 4 baseline scenes → median composite
+           16 wet-season scenes processed
+  2018: 4 baseline scenes → median composite
+           13 wet-season scenes processed
+  2019: 5 baseline scenes → median composite
+           16 wet-season scenes processed
+  2020: 5 baseline scenes → median composite
+           15 wet-season scenes processed
+  2021: 5 baseline scenes → median composite
+           15 wet-season scenes processed
+  2022: 4 baseline scenes → median composite
+           14 wet-season scenes processed
+  2023: 4 baseline scenes → median composite
+           15 wet-season scenes processed
+  2024: 5 baseline scenes → median composite
+           16 wet-season scenes processed
+  2025: 5 baseline scenes → median composite
+           14 wet-season scenes processed
+  2026: 5 baseline scenes → median composite
+           8 wet-season scenes processed
+
+[SAVE ] 162 scenes → models\time_series\sar_change_labels.json
+        Date range: 2015-03-02 to 2026-05-27
+        Labeled as 'flood likely': 0/162 (0.0%)
+        Backscatter drop: mean=-0.30dB, max=0.51dB, min=-2.05dB
+        Preceding rainfall: mean=25.6mm, max=232.2mm, min=0.0mm
+
+        Correlation: backscatter drop vs rain: r=-0.399 (p=0.0000)
+        Correlation: flood label vs rain: r=+nan (p=nan)
