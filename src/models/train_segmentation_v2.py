@@ -39,7 +39,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-DATA_FILE = Path("data/processed/arrays/segmentation_dataset_v2.npz")
+DATA_FILE = Path("data/processed/arrays/segmentation_dataset_v2_forecast.npz")
 OUT_DIR = Path("models/time_series")
 MODEL_FILE = OUT_DIR / "segmentation_model_v2.pth"
 METRICS_FILE = OUT_DIR / "segmentation_metrics_v2.json"
@@ -167,23 +167,31 @@ class FocalTverskyLoss(nn.Module):
 
 
 class GpuDataset:
-    """Holds the whole dataset on-device and expands batches to (B, 13, H, W)."""
+    """
+    Holds the whole dataset on-device and expands batches to (B, C, H, W).
+
+    Every rainfall-derived feature is a scalar (CHIRPS was fetched as a single
+    point, so rainfall has no spatial variation), and terrain is shared across
+    all samples. Storing them that way and broadcasting on the GPU is what keeps
+    the file at ~2 MB and removes host-to-device traffic from the training loop.
+    """
 
     def __init__(self, npz, idx: np.ndarray, device):
-        self.rain = torch.from_numpy(npz["rain_seq"][idx] / RAIN_SCALE).float().to(device)
+        scale = npz["scalar_scale"]
+        self.scalars = torch.from_numpy(npz["rain_seq"][idx] / scale).float().to(device)
         self.y = torch.from_numpy(npz["y"][idx]).to(device)  # uint8
         static = npz["static"] / STATIC_SCALE[:, None, None]
         self.static = torch.from_numpy(static).float().to(device)
         self.n = len(idx)
+        self.k = self.scalars.shape[1]
         self.h, self.w = self.static.shape[-2:]
+        self.in_channels = self.k + self.static.shape[0]
 
     def batch(self, sel):
         b = len(sel)
-        rain = self.rain[sel]                                     # (b, 7)
-        rain_maps = rain[:, :, None, None].expand(b, 7, self.h, self.w)
+        maps = self.scalars[sel][:, :, None, None].expand(b, self.k, self.h, self.w)
         static_maps = self.static.unsqueeze(0).expand(b, -1, -1, -1)
-        x = torch.cat([rain_maps, static_maps], dim=1)            # (b, 13, H, W)
-        return x, self.y[sel].float()
+        return torch.cat([maps, static_maps], dim=1), self.y[sel].float()
 
 
 @torch.no_grad()
@@ -210,14 +218,23 @@ def main():
     ap.add_argument("--batch-size", type=int, default=16)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--base", type=int, default=32)
+    ap.add_argument("--data", type=str, default=str(DATA_FILE),
+                    help="dataset .npz (forecast = Model A, nwp = Model B)")
+    ap.add_argument("--tag", type=str, default="",
+                    help="suffix for output filenames, e.g. 'forecast' or 'nwp'")
     args = ap.parse_args()
+
+    data_file = Path(args.data)
+    suffix = f"_{args.tag}" if args.tag else ""
+    model_file = OUT_DIR / f"segmentation_model_v2{suffix}.pth"
+    metrics_file = OUT_DIR / f"segmentation_metrics_v2{suffix}.json"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[INIT] device={device}")
 
-    npz = np.load(DATA_FILE, allow_pickle=False)
+    npz = np.load(data_file, allow_pickle=False)
     params = json.loads(str(npz["params"][0]))
-    print(f"[DATA] {DATA_FILE.name}  label params: {params}")
+    print(f"[DATA] {data_file.name}  label params: {params}")
 
     train = GpuDataset(npz, npz["train_idx"], device)
     val = GpuDataset(npz, npz["val_idx"], device)
@@ -228,7 +245,7 @@ def main():
     if torch.cuda.is_available():
         print(f"[DATA] GPU memory held by data: {torch.cuda.memory_allocated()/1e6:.0f} MB")
 
-    model = UNet(in_ch=13, base=args.base).to(device)
+    model = UNet(in_ch=train.in_channels, base=args.base).to(device)
     n_params = sum(p.numel() for p in model.parameters())
     criterion = FocalTverskyLoss().to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -262,12 +279,12 @@ def main():
         tag = ""
         if m["f1"] > best_f1:
             best_f1 = m["f1"]
-            torch.save(model.state_dict(), MODEL_FILE)
+            torch.save(model.state_dict(), model_file)
             tag = "  <- saved"
         print(f"{epoch+1:<7}{train_loss:>11.4f}{m['f1']:>9.4f}{m['iou']:>9.4f}"
               f"{m['precision']:>9.4f}{m['recall']:>9.4f}{tag}")
 
-    model.load_state_dict(torch.load(MODEL_FILE))
+    model.load_state_dict(torch.load(model_file))
     test_m = evaluate(model, test, args.batch_size)
 
     print("\n" + "=" * 54)
@@ -276,15 +293,16 @@ def main():
     for k in ("f1", "iou", "precision", "recall"):
         print(f"  {k:<10}{test_m[k]:.4f}")
 
-    METRICS_FILE.write_text(json.dumps({
+    metrics_file.write_text(json.dumps({
         "label_params": params,
-        "model": {"base": args.base, "n_params": n_params, "in_channels": 13},
+        "model": {"base": args.base, "n_params": n_params,
+                  "in_channels": train.in_channels},
         "train": {"epochs": args.epochs, "batch_size": args.batch_size, "lr": args.lr},
         "history": history,
         "best_val_f1": best_f1,
         "test_metrics": test_m,
     }, indent=2))
-    print(f"\n[SAVE] {MODEL_FILE}\n[SAVE] {METRICS_FILE}")
+    print(f"\n[SAVE] {model_file}\n[SAVE] {metrics_file}")
 
 
 if __name__ == "__main__":

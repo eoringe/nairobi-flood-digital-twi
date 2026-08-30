@@ -40,7 +40,7 @@ models/*
 # which sweeps in ~6.5 GB of intermediate .npy arrays.
 !data/processed/arrays/
 data/processed/arrays/*
-!data/processed/arrays/segmentation_dataset_v2.npz
+!data/processed/arrays/segmentation_dataset_v2*.npz
 
 # ---- IDE / OS ----
 .vscode/
