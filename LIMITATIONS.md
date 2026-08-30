@@ -183,26 +183,44 @@ The labels have been checked against independently documented Nairobi flood
 events (`src/validation/validate_documented_events.py`). Sources are Copernicus
 EMS, ReliefWeb situation reports and contemporaneous news.
 
+Events are graded by how directly they evidence flooding *in Nairobi*. Sources
+reporting dated Nairobi flooding are stronger evidence than Kenya-wide episodes
+in which Nairobi is merely named among affected areas — heavy rain in western
+Kenya says little about this catchment.
+
+**Nairobi-specific events**
+
 | documented event | 3-day rainfall | labels flag it? |
 |---|---|---|
-| April 2024 long rains (Mathare, ~147,000 affected in Nairobi County) | 62.3 mm | yes — 8/8 days in window |
-| November 2023 El Niño short rains (rivers burst banks) | 39.6 mm | yes — 3/15 days in window |
+| March 2026 — Nairobi River burst its banks, 37 deaths in Nairobi | 41.5 mm | yes, 2/10 days |
+| April 2024 — Mathare, ~147,000 affected in Nairobi County | 62.3 mm | yes, 8/8 days |
+| November 2023 — El Niño, rivers burst banks | 39.6 mm | yes, 3/15 days |
 
-**Detected 2/2. Dry-season controls produced false alarms on 3 of 126 days (2.4%).**
+**Kenya-wide episodes including Nairobi**
 
-This supports the rainfall threshold as a flood indicator: reported floods
-coincide with days the labels flag, and quiet periods largely stay quiet.
+| documented event | 3-day rainfall | labels flag it? |
+|---|---|---|
+| Oct–Dec 2019 — wettest short rains on record, ~400% of average | 77.7 mm | yes, 16/40 days |
+| Apr–May 2020 — ~194 deaths, 100,000 displaced nationally | 92.3 mm | yes, 11/26 days |
+| Mar–May 2018 — long rains ~145% of average, 310,000 displaced | 81.8 mm | yes, 15/40 days |
+
+**Detected 6/6 (3/3 Nairobi-specific). Dry-season controls produced false alarms
+on 3 of 126 days (2.4%).**
+
+This supports the rainfall threshold as a flood indicator: every documented
+flood coincides with days the labels flag, and dry periods stay quiet 97.6% of
+the time.
 
 **What remains unvalidated.** This checks the temporal trigger only. Whether the
 predicted *spatial extent* matches where flooding actually occurred is still
 unverified — reports name affected settlements (Mathare, Ongata Rongai) but give
-no inundation polygons to compare against. So the claim "flooding occurred on
-this date" is now externally supported, while "flooding occurred in these
-pixels" rests entirely on the terrain-susceptibility model (§1).
+no inundation polygons to compare against. So "flooding occurred on this date"
+is now externally supported, while "flooding occurred in these pixels" rests
+entirely on the terrain-susceptibility model (§1).
 
-Two documented events is also a thin sample. Extending the list to ten or twenty
-events would materially strengthen the temporal claim, and is the cheapest
-remaining improvement to the project.
+Six events is still a modest sample, and three of them are Kenya-wide rather
+than Nairobi-specific. Sources are recorded per event in the script so a reader
+can audit them.
 
 ### 9a. A real event that shows the forecasting limit
 
