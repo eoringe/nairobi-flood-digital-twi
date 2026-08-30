@@ -28,6 +28,20 @@ models/*
 !data/spatial/.gitkeep
 !models/.gitkeep
 
+# The v2 segmentation dataset is deliberately tracked (~1.8 MB), so Colab can
+# pull it with the repo instead of needing a Google Drive upload. It is small
+# because rainfall is stored as 7 scalars per sample and terrain as one shared
+# array, rather than 77 channels of mostly duplicated maps.
+#
+# Three lines are required, in this order. Git cannot re-include a file whose
+# parent directory is excluded, so the directory must first be un-ignored to let
+# git descend into it; its contents are then re-ignored, and finally the single
+# file is allowed. Omitting the middle line un-ignores the entire directory,
+# which sweeps in ~6.5 GB of intermediate .npy arrays.
+!data/processed/arrays/
+data/processed/arrays/*
+!data/processed/arrays/segmentation_dataset_v2.npz
+
 # ---- IDE / OS ----
 .vscode/
 .idea/
