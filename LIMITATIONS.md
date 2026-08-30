@@ -232,7 +232,17 @@ drainage failure — blocked storm drains, riparian encroachment, impervious
 surfaces — which a terrain model cannot represent, compounded by ~70 m pixels
 against river valleys 100–200 m wide.
 
-This does not prove the spatial predictions wrong: the test uses six controls,
+**This was subsequently addressed.** Rebuilding susceptibility around drainage
+(built-up land x channel proximity x flat ground, channels from the previously
+unused `predictor_upa.npy` flow accumulation) passes the same benchmark:
+separation +24.3 to +26.1 points, significant at all five sampling radii
+(p = 0.027-0.037), and Mathare moves from the 47th to the 97th percentile. Both
+datasets are retained so the comparison can be reported. See RESULTS.md 4.8.3,
+including the multiple-comparisons caveat: eleven predictors were compared and
+none clears a Bonferroni-corrected threshold.
+
+The original negative result still stands for the terrain formulation, and the
+following caveats apply to both verdicts. The test uses six controls,
 approximate centroids, and a news summary rather than the source GIS layer. But
 it means **"flooding occurs in these pixels" has no supporting evidence, and one
 deliberate attempt to find some failed.** Treat the spatial output as

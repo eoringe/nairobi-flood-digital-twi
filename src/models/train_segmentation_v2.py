@@ -44,10 +44,13 @@ OUT_DIR = Path("models/time_series")
 MODEL_FILE = OUT_DIR / "segmentation_model_v2.pth"
 METRICS_FILE = OUT_DIR / "segmentation_metrics_v2.json"
 
-#: Per-channel divisors bringing every input to roughly unit scale.
-#: dem/slope/twi/built_up are already normalised 0-1 upstream; HAND is in metres
-#: and permanent water is a 0-100 occurrence percentage.
-STATIC_SCALE = np.array([1.0, 1.0, 1.0, 50.0, 1.0, 100.0], dtype=np.float32)
+#: Per-channel divisors bringing every input to roughly unit scale, in the order
+#: written by build_segmentation_dataset_v2.load_static:
+#:   dem, slope, twi, hand, built_up, permanent_water, log_upa
+#: dem/slope/twi/built_up/log_upa are already normalised 0-1 upstream; HAND is in
+#: metres and permanent water is a 0-100 occurrence percentage.
+#: Sized from the data at load time so an added channel cannot silently misalign.
+STATIC_SCALE = np.array([1.0, 1.0, 1.0, 50.0, 1.0, 100.0, 1.0], dtype=np.float32)
 #: Rainfall arrives as mm/day; 50 mm/day is an extreme daily total for Nairobi.
 RAIN_SCALE = 50.0
 
@@ -180,7 +183,14 @@ class GpuDataset:
         scale = npz["scalar_scale"]
         self.scalars = torch.from_numpy(npz["rain_seq"][idx] / scale).float().to(device)
         self.y = torch.from_numpy(npz["y"][idx]).to(device)  # uint8
-        static = npz["static"] / STATIC_SCALE[:, None, None]
+        raw_static = npz["static"]
+        if len(STATIC_SCALE) != raw_static.shape[0]:
+            raise ValueError(
+                f"STATIC_SCALE has {len(STATIC_SCALE)} entries but the dataset has "
+                f"{raw_static.shape[0]} static channels. Update STATIC_SCALE to match "
+                f"build_segmentation_dataset_v2.load_static, in the same order."
+            )
+        static = raw_static / STATIC_SCALE[:, None, None]
         self.static = torch.from_numpy(static).float().to(device)
         self.n = len(idx)
         self.k = self.scalars.shape[1]

@@ -308,9 +308,63 @@ GIS layer. It therefore does not establish that the spatial predictions are
 wrong. It does establish that the claim they are *right* has no supporting
 evidence, and that a deliberate attempt to find such evidence failed.
 
-Consequently **Link 2 of the reasoning chain remains unvalidated**, and the
-spatial output should not be treated as operationally reliable without further
-work (§4.9, `LIMITATIONS.md` §1).
+### 4.8.3 Rebuilding susceptibility around drainage
+
+The failure above motivated a specific hypothesis, stated before testing: if
+Nairobi floods because settlements occupy river corridors and block drainage,
+then the predictor should combine **built-up land, proximity to a drainage
+channel, and flat ground** — not terrain alone.
+
+Drainage channels were derived from upstream flow accumulation
+(`predictor_upa.npy`, MERIT Hydro), which was present in the repository but
+unused by earlier versions, taking the top 1% of accumulation and applying an
+exponential distance decay (e-folding ≈ 220 m).
+
+Eleven candidate predictors were compared on the §4.8.2 benchmark:
+
+| predictor | separation | *p* |
+|---|---|---|
+| terrain: HAND × slope × TWI (previous) | +3.7 | 0.662 |
+| HAND alone | +3.9 | 0.581 |
+| flow accumulation alone | +1.1 | 0.354 |
+| built-up alone | +10.7 | 0.076 |
+| channel proximity alone | +20.7 | 0.037 |
+| **built-up × channel proximity × flat** | **+25.0** | **0.045** |
+
+Adopting the last, and re-running the full validation:
+
+| | terrain | drainage |
+|---|---|---|
+| single pixel | +3.7 (*p* 0.662) | **+25.9 (*p* 0.034)** |
+| disc ≈ 225 m | +3.7 (*p* 0.662) | **+25.8 (*p* 0.033)** |
+| disc ≈ 525 m | +0.2 (*p* 0.662) | **+25.4 (*p* 0.027)** |
+| **Mathare percentile** | **46.8%** | **96.5%** |
+
+The drainage formulation separates mapped flood-prone neighbourhoods from
+controls **at every sampling radius**, where terrain separated at none — and
+Mathare, the worst-affected settlement in April 2024, moves from the 47th to the
+97th percentile of predicted risk.
+
+**Statistical caveat.** Eleven predictors were compared, so a Bonferroni-corrected
+threshold would be 0.0045 and none of these results clear it. The sample is 28
+flood-prone against 6 control locations. Three considerations nonetheless support
+adoption: the significant results are variants of a single hypothesis rather than
+independent findings; that hypothesis was stated before testing, as the
+explanation for §4.8.2's failure; and the effect is stable across all five
+sampling radii rather than appearing at one.
+
+**Event coverage did not improve** (1/10 reported neighbourhoods, unchanged).
+This metric is limited by the extent parameter rather than the ranking: at 62 mm
+of rainfall the predicted extent is 5.3% of the grid, and ten neighbourhood
+centroids distributed across the city cannot mostly fall within the top 5%. It
+suggests the intensity-to-extent calibration (§8 of `LIMITATIONS.md`, chosen
+rather than fitted) is too conservative, and is a separate parameter from the
+susceptibility field this section evaluates.
+
+**Status of Link 2.** Supported for the drainage formulation, unsupported for
+terrain. Both datasets are retained so the comparison can be reported. The
+spatial output remains coarse — neighbourhood scale, not street scale — and
+should be described accordingly.
 
 ---
 

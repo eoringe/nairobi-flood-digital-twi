@@ -130,24 +130,91 @@ def load_rainfall() -> tuple[list[date], np.ndarray]:
 
 
 def load_static() -> tuple[np.ndarray, dict]:
-    """Stack the six unique static predictors. No duplicates, no constant channel."""
+    """
+    Stack the unique static predictors. No duplicates, no constant channel.
+
+    Includes upstream drainage area (MERIT Hydro flow accumulation), which was
+    present in the repository but unused by earlier versions. It identifies where
+    water concentrates and is the basis of the drainage susceptibility model --
+    the only formulation that passes spatial validation
+    (src/validation/validate_spatial_neighbourhoods.py).
+
+    UPA spans 0.01-292 and is heavily right-skewed, so it is stored as a
+    normalised log to keep every channel on a comparable scale.
+    """
     terrain = np.load(PROCESSED_DIR / "static_terrain_features.npy")  # (3, H, W) dem, slope, twi
     hand = np.load(PROCESSED_DIR / "predictor_hand.npy")
     built_up = np.load(PROCESSED_DIR / "predictor_built_up.npy")
     perm_water = np.load(PROCESSED_DIR / "predictor_permanent_water.npy")
+    upa = np.load(PROCESSED_DIR / "predictor_upa.npy")
+
+    log_upa = np.log1p(np.nan_to_num(upa, nan=0.0))
+    log_upa = log_upa / max(float(log_upa.max()), 1e-9)
 
     static = np.stack([
-        terrain[0],   # dem   (normalised 0-1)
-        terrain[1],   # slope (normalised 0-1)
-        terrain[2],   # twi   (normalised 0-1)
+        terrain[0],   # dem      (normalised 0-1)
+        terrain[1],   # slope    (normalised 0-1)
+        terrain[2],   # twi      (normalised 0-1)
         hand,         # metres
         built_up,     # fraction 0-1
         perm_water,   # GSW occurrence %
+        log_upa,      # normalised log flow accumulation 0-1
     ], axis=0).astype(np.float32)
     static = np.nan_to_num(static, nan=0.0, posinf=0.0, neginf=0.0)
 
-    names = ["dem", "slope", "twi", "hand", "built_up", "permanent_water"]
+    names = ["dem", "slope", "twi", "hand", "built_up", "permanent_water", "log_upa"]
     return static, {"channel_names": names}
+
+
+def channel_proximity(log_upa: np.ndarray, pct: float = 99.0,
+                      decay_px: float = 3.0) -> np.ndarray:
+    """
+    Distance-decayed proximity to a drainage channel.
+
+    Channels are the top `pct` of flow accumulation; proximity then decays
+    exponentially with distance. At ~70-79 m per pixel, decay_px=3 gives an
+    e-folding distance of roughly 220 m, which is the scale over which riparian
+    settlement sits relative to a watercourse.
+    """
+    channel = log_upa >= np.percentile(log_upa, pct)
+    try:
+        from scipy.ndimage import distance_transform_edt
+        dist = distance_transform_edt(~channel)
+    except ImportError:                      # degrade to the bare channel mask
+        return channel.astype(np.float32)
+    return np.exp(-dist / decay_px).astype(np.float32)
+
+
+def build_susceptibility_drainage(static: np.ndarray) -> np.ndarray:
+    """
+    Drainage-aware susceptibility: built-up land, close to a drainage channel,
+    on flat ground.
+
+    The terrain-only formulation below failed spatial validation -- it did not
+    separate independently mapped flood-prone neighbourhoods from controls
+    (separation +3.7 points, p=0.662). This one does (+25.0 points, p=0.045)
+    against the same benchmark.
+
+    The mechanism is riparian encroachment, which is the documented cause of
+    flooding in Nairobi: informal settlements built inside river corridors, where
+    the watercourse is constricted and drainage blocked. Mathare, Kibera and
+    Mukuru are exactly this. A terrain-only model describes where water would
+    collect on undeveloped ground and so cannot represent it.
+
+    Caveat: the validation supporting this rests on 28 flood-prone against 6
+    control locations, and p=0.045 does not survive correction for the eleven
+    predictors that were compared. It is the best-supported option available,
+    not an established one. See LIMITATIONS.md.
+    """
+    slope, built_up, perm_water, log_upa = static[1], static[4], static[5], static[6]
+
+    prox = channel_proximity(log_upa)
+    score = built_up * prox * np.exp(-slope / SLOPE_DECAY)
+    score[perm_water >= PW_THRESH] = 0.0
+
+    if score.max() > 0:
+        score = score / score.max()
+    return score.astype(np.float32)
 
 
 def build_susceptibility(static: np.ndarray) -> np.ndarray:
@@ -275,12 +342,16 @@ def main() -> None:
                     help="forecast = Model A (anticipate the storm); "
                          "nwp = Model B (rainfall forecast supplied as input)")
     ap.add_argument("--forecast-days", type=int, default=FORECAST_DAYS)
+    ap.add_argument("--susceptibility", choices=["terrain", "drainage"], default="terrain",
+                    help="terrain = HAND/slope/TWI (fails spatial validation); "
+                         "drainage = built-up x channel proximity x flat (passes)")
     ap.add_argument("--out", type=str, default=None)
     args = ap.parse_args()
 
     forecast_days = args.forecast_days
+    susc_suffix = "" if args.susceptibility == "terrain" else "_drainage"
     out_file = Path(args.out) if args.out else \
-        PROCESSED_DIR / f"segmentation_dataset_v2_{args.mode}.npz"
+        PROCESSED_DIR / f"segmentation_dataset_v2_{args.mode}{susc_suffix}.npz"
 
     print("=" * 72)
     print(f"REBUILDING SEGMENTATION DATASET (v2)  mode={args.mode}")
@@ -297,10 +368,11 @@ def main() -> None:
     static, meta = load_static()
     print(f"[LOAD] Static predictors: {static.shape} {meta['channel_names']}")
 
-    score = build_susceptibility(static)
+    score = (build_susceptibility_drainage(static) if args.susceptibility == "drainage"
+             else build_susceptibility(static))
     live = int((score > 0).sum())
-    print(f"[MASK] Susceptibility score: {live:,}/{score.size:,} pixels non-zero "
-          f"({100*live/score.size:.1f}%), permanent water excluded")
+    print(f"[MASK] Susceptibility ({args.susceptibility}): {live:,}/{score.size:,} "
+          f"pixels non-zero ({100*live/score.size:.1f}%), permanent water excluded")
     print(f"       Extent grows {EXTENT_MIN_PCT}% -> {EXTENT_MAX_PCT}% of grid as "
           f"{RAIN_THRESH_MM:.0f}mm -> {RAIN_SATURATION_MM:.0f}mm falls in {FORECAST_DAYS} days")
 
@@ -391,6 +463,7 @@ def main() -> None:
         susceptibility=score,
         params=np.asarray([json.dumps({
             "mode": args.mode,
+            "susceptibility": args.susceptibility,
             "n_scalar_features": int(rain_arr.shape[1]),
             "forecast_days": forecast_days,
             "rain_thresh_mm": RAIN_THRESH_MM,
