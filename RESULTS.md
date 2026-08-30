@@ -265,6 +265,53 @@ model conditioned on antecedent rainfall would have anticipated five of these
 six events; the one it would have missed is the one that arrived without
 warning.
 
+### 4.8.2 Spatial validation: a negative result
+
+The validation above is temporal. A second test asked whether the model floods
+the right *places*, using two references independent of the HAND/slope/TWI field:
+37 flood-prone neighbourhoods mapped under the Nairobi Rivers Regeneration
+Programme from river-corridor proximity, and neighbourhoods named in reporting
+of the April 2024 floods. Controls are Nairobi neighbourhoods absent from both.
+
+| sampling | mapped flood-prone | control | separation | *p* |
+|---|---|---|---|---|
+| single pixel | 47.4% | 61.5% | −14.0 | 0.818 |
+| disc r ≈ 225 m | 83.8% | 82.3% | +1.5 | 0.613 |
+| disc r ≈ 525 m | 98.5% | 97.7% | +0.8 | 0.589 |
+
+**No separation at any sampling radius.** Percentiles are city-wide ranks of the
+susceptibility score; a disc takes the maximum within the radius, since at ~70 m
+resolution a neighbourhood centroid can fall on a valley shoulder rather than
+its floor.
+
+For the April 2024 event the predicted mask covered **1 of 10** reported
+neighbourhoods at 7.7% grid coverage, against a random expectation of 0.8 — no
+better than chance. Mathare, the worst-affected settlement with over 7,000
+displaced, sits at the 47th percentile of susceptibility and is not predicted
+flooded.
+
+**Raster misalignment was ruled out** as an explanation: HAND correlates
+positively with elevation in the stored orientation (r = +0.275) and worse under
+every flip (horizontal −0.233, 180° −0.195), and the layers cross-check as
+expected (slope–TWI r = −0.749).
+
+**Interpretation.** The most likely explanation is that Nairobi's urban flooding
+is driven substantially by drainage failure — blocked storm drains, riparian
+encroachment, impervious surfaces — rather than natural topography alone. HAND
+describes where water collects on undeveloped terrain, not where a built
+drainage system fails. Grid resolution (~70 m against river valleys 100–200 m
+wide) plausibly contributes.
+
+**Weight of this evidence.** The test has real limits: six controls, approximate
+centroids rather than boundaries, and a news summary rather than the underlying
+GIS layer. It therefore does not establish that the spatial predictions are
+wrong. It does establish that the claim they are *right* has no supporting
+evidence, and that a deliberate attempt to find such evidence failed.
+
+Consequently **Link 2 of the reasoning chain remains unvalidated**, and the
+spatial output should not be treated as operationally reliable without further
+work (§4.9, `LIMITATIONS.md` §1).
+
 ---
 
 ## 4.9 Summary of findings
@@ -283,18 +330,34 @@ warning.
    is worth +0.77 F1. No architecture, loss function, or feature engineering
    recovers information absent from the data (§4.6).
 
-4. **Rainfall-derived labels agree with documented reality.** All six
+4. **Rainfall-derived labels agree with documented reality — in time.** All six
    independently reported flood events coincide with flagged days, with a 2.4%
    dry-season false-alarm rate (§4.8).
 
-5. **Forecast failure concentrates in flash floods.** Five of six documented
+5. **They do not demonstrably agree in space.** The terrain susceptibility field
+   fails to separate independently mapped flood-prone neighbourhoods from
+   controls at any sampling radius (*p* ≥ 0.589), and covers 1 of 10
+   neighbourhoods reported flooded in April 2024 against a chance expectation of
+   0.8. Raster misalignment was excluded. Nairobi's flooding appears to be
+   driven substantially by drainage failure rather than natural topography, which
+   a HAND-based model cannot represent (§4.8.2).
+
+6. **Forecast failure concentrates in flash floods.** Five of six documented
    events followed a wet spell and were plausibly foreseeable; the exception
    arrived after a dry week (§4.8.1).
 
 **Implication for design.** An operational flood early-warning system for
 Nairobi should consume a numerical weather prediction rainfall forecast rather
-than extrapolate from rainfall history. The hydrological component is solved;
-investment belongs in the meteorological input.
+than extrapolate from rainfall history: the timing component is where the
+information is missing (§4.6).
+
+That recommendation concerns *timing*. Finding 5 constrains what can be claimed
+about *location*: the system can indicate when flooding is likely with external
+support, but its map of where flooding will occur is not yet corroborated. The
+terrain-only susceptibility model is the weakest link in the chain, and
+improving it — with drainage-network data, riparian-encroachment mapping, or the
+Nairobi Rivers Regeneration Programme's underlying GIS layer — would do more for
+operational value than any further work on the model itself.
 
 **Revised success criterion.** The project proposal set validation F1 > 0.60.
 That target is unattainable for Model A, and §4.6 establishes why: the

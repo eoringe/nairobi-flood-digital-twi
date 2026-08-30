@@ -211,12 +211,32 @@ This supports the rainfall threshold as a flood indicator: every documented
 flood coincides with days the labels flag, and dry periods stay quiet 97.6% of
 the time.
 
-**What remains unvalidated.** This checks the temporal trigger only. Whether the
-predicted *spatial extent* matches where flooding actually occurred is still
-unverified — reports name affected settlements (Mathare, Ongata Rongai) but give
-no inundation polygons to compare against. So "flooding occurred on this date"
-is now externally supported, while "flooding occurred in these pixels" rests
-entirely on the terrain-susceptibility model (§1).
+**What remains unvalidated — and a negative result.** The above checks the
+temporal trigger only. A separate test of the *spatial* claim
+(`src/validation/validate_spatial_neighbourhoods.py`) compared the susceptibility
+field against 37 flood-prone neighbourhoods mapped under the Nairobi Rivers
+Regeneration Programme, plus neighbourhoods reported flooded in April 2024.
+
+**It found no agreement.** Mapped flood-prone areas do not score higher than
+control neighbourhoods at any sampling radius (single pixel −14.0 points,
+*p* = 0.818; disc up to ~525 m, *p* ≥ 0.589), and the April 2024 predicted mask
+covered 1 of 10 reported neighbourhoods against a chance expectation of 0.8.
+Mathare — worst affected, over 7,000 displaced — sits at the 47th percentile of
+susceptibility and is not predicted flooded.
+
+Raster misalignment was ruled out: HAND correlates positively with elevation as
+stored (r = +0.275) and worse under every flip.
+
+The likely explanation is that Nairobi's flooding is driven substantially by
+drainage failure — blocked storm drains, riparian encroachment, impervious
+surfaces — which a terrain model cannot represent, compounded by ~70 m pixels
+against river valleys 100–200 m wide.
+
+This does not prove the spatial predictions wrong: the test uses six controls,
+approximate centroids, and a news summary rather than the source GIS layer. But
+it means **"flooding occurs in these pixels" has no supporting evidence, and one
+deliberate attempt to find some failed.** Treat the spatial output as
+unvalidated, and do not present flood maps as operationally reliable.
 
 Six events is still a modest sample, and three of them are Kenya-wide rather
 than Nairobi-specific. Sources are recorded per event in the script so a reader
