@@ -177,19 +177,43 @@ seconds.
 
 ---
 
-## 9. No in-situ or independent validation
+## 9. Independent validation: partial, temporal only
 
-Nothing in this work has been checked against a real, documented flood. This is
-the gap that most limits the strength of the conclusions.
+The labels have been checked against independently documented Nairobi flood
+events (`src/validation/validate_documented_events.py`). Sources are Copernicus
+EMS, ReliefWeb situation reports and contemporaneous news.
 
-The available remedy, not yet carried out: cross-reference predictions against
-Copernicus EMS activations, ReliefWeb reports, and news-documented Nairobi
-flood events for 2015–2026. Ten to twenty confirmed events would be far too few
-to train on, but sufficient to *validate* against — converting the claim from
-"the model reproduces my labels" to "my labels agree with documented reality."
+| documented event | 3-day rainfall | labels flag it? |
+|---|---|---|
+| April 2024 long rains (Mathare, ~147,000 affected in Nairobi County) | 62.3 mm | yes — 8/8 days in window |
+| November 2023 El Niño short rains (rivers burst banks) | 39.6 mm | yes — 3/15 days in window |
 
-Until that is done, all reported metrics measure internal consistency with a
-constructed target, not predictive accuracy against the world.
+**Detected 2/2. Dry-season controls produced false alarms on 3 of 126 days (2.4%).**
+
+This supports the rainfall threshold as a flood indicator: reported floods
+coincide with days the labels flag, and quiet periods largely stay quiet.
+
+**What remains unvalidated.** This checks the temporal trigger only. Whether the
+predicted *spatial extent* matches where flooding actually occurred is still
+unverified — reports name affected settlements (Mathare, Ongata Rongai) but give
+no inundation polygons to compare against. So the claim "flooding occurred on
+this date" is now externally supported, while "flooding occurred in these
+pixels" rests entirely on the terrain-susceptibility model (§1).
+
+Two documented events is also a thin sample. Extending the list to ten or twenty
+events would materially strengthen the temporal claim, and is the cheapest
+remaining improvement to the project.
+
+### 9a. A real event that shows the forecasting limit
+
+The November 2023 flood is a worked illustration of §10. In the seven days
+before the peak, only **2.2 mm** of rain fell — the antecedent record looked
+like a dry spell — and then **39.6 mm** arrived. Model A sees only that
+antecedent window, so it could not have anticipated this flood, and no model
+restricted to rainfall history could. Model B, given the rainfall, handles it.
+
+This single event demonstrates the argument more convincingly than the aggregate
+metrics: the constraint is meteorological information, not model capacity.
 
 ---
 
