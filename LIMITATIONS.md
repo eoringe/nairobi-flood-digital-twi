@@ -15,18 +15,24 @@ The training labels are constructed, not measured:
 ```
 flood(t)     = storm(t) AND susceptible(pixel)
 storm(t)     = accumulated rainfall over [t, t+2] >= 30 mm
-susceptible  = f(HAND, slope, TWI), permanent water excluded
+susceptible  = terrain  : f(HAND, slope, TWI)          -- fails validation (§9)
+               drainage : built_up x channel_proximity x flat   -- passes (§9)
+               permanent water excluded in both
 ```
 
 No pixel in the training set was ever confirmed flooded by observation. The
 model therefore does not learn *where Nairobi floods* from ground truth. It
-learns to reproduce a terrain-based susceptibility field, gated by a rainfall
-threshold.
+learns to reproduce a susceptibility field, gated by a rainfall threshold.
+
+Two susceptibility formulations exist and both are retained. The terrain one
+fails spatial validation; the drainage one passes. Any reported result must
+state which was used — they produce different labels and therefore different
+models.
 
 **What can honestly be claimed:** the model anticipates storm-driven flood
 timing from antecedent rainfall, and distributes the resulting water according
-to terrain controls that are standard in the flood-mapping literature (HAND as
-the dominant control, modulated by slope and topographic convergence).
+to a susceptibility field that, in the drainage formulation, agrees with
+independently mapped flood-prone areas at neighbourhood scale.
 
 **What cannot be claimed:** that predicted flood extents correspond to real
 inundation. That requires independent validation (§9).
