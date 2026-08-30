@@ -51,10 +51,19 @@ STATIC_SCALE = np.array([1.0, 1.0, 1.0, 50.0, 1.0, 100.0], dtype=np.float32)
 #: Rainfall arrives as mm/day; 50 mm/day is an extreme daily total for Nairobi.
 RAIN_SCALE = 50.0
 
-# Focal Tversky parameters. BETA > ALPHA penalises missed floods over false alarms.
-TVERSKY_ALPHA = 0.3
-TVERSKY_BETA = 0.7
+# Focal Tversky parameters. ALPHA weights false negatives, BETA weights false
+# positives, so ALPHA > BETA makes a missed flood cost more than a false alarm --
+# the right asymmetry for early warning, and the reason precision will read lower
+# than recall in the results.
+TVERSKY_ALPHA = 0.7
+TVERSKY_BETA = 0.3
 TVERSKY_GAMMA = 0.75
+#: Share of the loss taken by pos-weighted BCE. The Tversky term carries almost
+#: no gradient on the ~86% of samples with no flood; BCE covers those.
+BCE_WEIGHT = 0.5
+#: Positive-class weight inside BCE, roughly the inverse of the ~0.9% base rate
+#: damped toward 1 so it does not overwhelm the Tversky term.
+BCE_POS_WEIGHT = 20.0
 
 
 class ConvBlock(nn.Module):
@@ -115,18 +124,46 @@ class UNet(nn.Module):
 
 
 class FocalTverskyLoss(nn.Module):
-    def __init__(self, alpha=TVERSKY_ALPHA, beta=TVERSKY_BETA, gamma=TVERSKY_GAMMA):
+    """
+    Pos-weighted BCE + batch-level Focal Tversky.
+
+    Two details matter, and getting either wrong stalls training:
+
+    1. Tversky is aggregated over the WHOLE BATCH, not per sample. About 86% of
+       samples contain no flood at all; for those, per-sample Tversky has tp=0,
+       so the numerator collapses to the smoothing constant while fp accumulates
+       small probabilities over all 49,896 pixels. The index then sits near zero
+       no matter what the model predicts, pinning the loss near 1 and drowning
+       out the samples that do contain floods. Measured on this dataset, the
+       per-sample form separated a perfect prediction from total collapse by
+       only 0.08 - too flat to optimise. Batch aggregation widens that to 0.67.
+
+    2. In the Tversky index ALPHA weights false negatives and BETA weights false
+       positives. For flood early warning a missed flood costs more than a false
+       alarm, so ALPHA > BETA. (An earlier version had these reversed.)
+
+    BCE supplies a well-behaved per-pixel gradient on the all-negative samples,
+    where the Tversky term alone carries almost no information.
+    """
+
+    def __init__(self, alpha=TVERSKY_ALPHA, beta=TVERSKY_BETA, gamma=TVERSKY_GAMMA,
+                 bce_weight=BCE_WEIGHT, pos_weight=BCE_POS_WEIGHT):
         super().__init__()
         self.alpha, self.beta, self.gamma = alpha, beta, gamma
+        self.bce_weight = bce_weight
+        self.register_buffer("pos_weight", torch.tensor(pos_weight))
 
     def forward(self, logits, target):
+        bce = nn.functional.binary_cross_entropy_with_logits(
+            logits, target, pos_weight=self.pos_weight
+        )
         p = torch.sigmoid(logits)
-        dims = (1, 2, 3)
-        tp = (p * target).sum(dims)
-        fn = ((1 - p) * target).sum(dims)
-        fp = (p * (1 - target)).sum(dims)
+        tp = (p * target).sum()
+        fn = ((1 - p) * target).sum()
+        fp = (p * (1 - target)).sum()
         tversky = (tp + 1.0) / (tp + self.alpha * fn + self.beta * fp + 1.0)
-        return ((1 - tversky) ** self.gamma).mean()
+        focal = (1 - tversky) ** self.gamma
+        return self.bce_weight * bce + (1 - self.bce_weight) * focal
 
 
 class GpuDataset:
@@ -193,7 +230,7 @@ def main():
 
     model = UNet(in_ch=13, base=args.base).to(device)
     n_params = sum(p.numel() for p in model.parameters())
-    criterion = FocalTverskyLoss()
+    criterion = FocalTverskyLoss().to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     print(f"[MODEL] U-Net base={args.base}, {n_params/1e6:.2f}M params\n")
