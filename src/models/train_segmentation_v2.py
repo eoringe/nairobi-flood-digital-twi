@@ -212,6 +212,63 @@ def evaluate(model, ds, batch_size, threshold=0.5):
     return {"f1": f1, "iou": iou, "precision": precision, "recall": recall}
 
 
+def run_training(train, val, test, device, *, epochs, batch_size, lr, base,
+                 ckpt_path, verbose=True):
+    """
+    Train one model and return (best_val_f1, test_metrics, history).
+
+    Shared by the single-run path in main() and by the k-fold runner in
+    src.models.crossvalidate_v2, so the two cannot drift apart.
+    """
+    model = UNet(in_ch=train.in_channels, base=base).to(device)
+    n_params = sum(p.numel() for p in model.parameters())
+    criterion = FocalTverskyLoss().to(device)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+
+    if verbose:
+        print(f"[MODEL] U-Net in_ch={train.in_channels} base={base}, "
+              f"{n_params/1e6:.2f}M params\n")
+        print(f"{'Epoch':<7}{'TrainLoss':>11}{'ValF1':>9}{'ValIoU':>9}"
+              f"{'ValPrec':>9}{'ValRec':>9}")
+        print("-" * 54)
+
+    ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+    best_f1, history = 0.0, []
+
+    for epoch in range(epochs):
+        model.train()
+        perm = torch.randperm(train.n, device=device)
+        total = 0.0
+        for i in range(0, train.n, batch_size):
+            sel = perm[i:i + batch_size]
+            x, y = train.batch(sel)
+            optimizer.zero_grad(set_to_none=True)
+            loss = criterion(model(x), y)
+            loss.backward()
+            optimizer.step()
+            total += loss.item() * len(sel)
+        train_loss = total / train.n
+        scheduler.step()
+
+        m = evaluate(model, val, batch_size)
+        history.append({"epoch": epoch + 1, "train_loss": train_loss, **m})
+
+        tag = ""
+        if m["f1"] > best_f1:
+            best_f1 = m["f1"]
+            torch.save(model.state_dict(), ckpt_path)
+            tag = "  <- saved"
+        if verbose:
+            print(f"{epoch+1:<7}{train_loss:>11.4f}{m['f1']:>9.4f}{m['iou']:>9.4f}"
+                  f"{m['precision']:>9.4f}{m['recall']:>9.4f}{tag}")
+
+    if best_f1 == 0.0:                      # never improved; keep final weights
+        torch.save(model.state_dict(), ckpt_path)
+    model.load_state_dict(torch.load(ckpt_path))
+    return best_f1, evaluate(model, test, batch_size), history, n_params
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--epochs", type=int, default=60)
@@ -245,47 +302,11 @@ def main():
     if torch.cuda.is_available():
         print(f"[DATA] GPU memory held by data: {torch.cuda.memory_allocated()/1e6:.0f} MB")
 
-    model = UNet(in_ch=train.in_channels, base=args.base).to(device)
-    n_params = sum(p.numel() for p in model.parameters())
-    criterion = FocalTverskyLoss().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
-    print(f"[MODEL] U-Net base={args.base}, {n_params/1e6:.2f}M params\n")
-
-    print(f"{'Epoch':<7}{'TrainLoss':>11}{'ValF1':>9}{'ValIoU':>9}{'ValPrec':>9}{'ValRec':>9}")
-    print("-" * 54)
-
-    best_f1, history = 0.0, []
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    for epoch in range(args.epochs):
-        model.train()
-        perm = torch.randperm(train.n, device=device)
-        total = 0.0
-        for i in range(0, train.n, args.batch_size):
-            sel = perm[i:i + args.batch_size]
-            x, y = train.batch(sel)
-            optimizer.zero_grad(set_to_none=True)
-            loss = criterion(model(x), y)
-            loss.backward()
-            optimizer.step()
-            total += loss.item() * len(sel)
-        train_loss = total / train.n
-        scheduler.step()
-
-        m = evaluate(model, val, args.batch_size)
-        history.append({"epoch": epoch + 1, "train_loss": train_loss, **m})
-
-        tag = ""
-        if m["f1"] > best_f1:
-            best_f1 = m["f1"]
-            torch.save(model.state_dict(), model_file)
-            tag = "  <- saved"
-        print(f"{epoch+1:<7}{train_loss:>11.4f}{m['f1']:>9.4f}{m['iou']:>9.4f}"
-              f"{m['precision']:>9.4f}{m['recall']:>9.4f}{tag}")
-
-    model.load_state_dict(torch.load(model_file))
-    test_m = evaluate(model, test, args.batch_size)
+    best_f1, test_m, history, n_params = run_training(
+        train, val, test, device,
+        epochs=args.epochs, batch_size=args.batch_size, lr=args.lr,
+        base=args.base, ckpt_path=model_file,
+    )
 
     print("\n" + "=" * 54)
     print("TEST (held-out storm seasons, never seen in training)")
