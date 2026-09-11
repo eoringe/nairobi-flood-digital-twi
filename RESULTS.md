@@ -15,8 +15,8 @@ deliberate: it separates two questions that a single model conflates.
 
 | | inputs | channels | question it answers |
 |---|---|---|---|
-| **Model A** | rainfall *t−7…t−1*, seasonality, 14/30-day antecedent totals, terrain | 17 | Can flooding be *anticipated* from rainfall history? |
-| **Model B** | the above **plus** rainfall over *t…t+2* | 20 | Given rainfall, can flood extent be predicted? |
+| **Model A** | rainfall *t−7…t−1*, seasonality, 14/30-day antecedent totals, terrain | 18 | Can flooding be *anticipated* from rainfall history? |
+| **Model B** | the above **plus** rainfall over *t…t+2* | 21 | Given rainfall, can flood extent be predicted? |
 
 Model A never sees rainfall from the label window, so the target cannot be
 recovered arithmetically from an input channel. Model B receives that rainfall,
@@ -45,20 +45,26 @@ than one partition.
 | property | value |
 |---|---|
 | Samples | 2,024 |
-| Storm seasons (events) | 22 (2015–2026, long and short rains) |
+| Storm seasons (events) | 22 (2015–2025, long and short rains) |
 | Grid | 198 × 252 (≈ 67 m × 79 m per pixel) |
 | Train / validation / test | 1,380 / 276 / 368 samples |
 | Train / validation / test seasons | 15 / 3 / 4 |
 | Storm-positive scenes | 282 (13.9%) |
-| Positive pixel rate | 0.90% |
 | Distinct flood masks | 243 |
 
-Flood extent is intensity-graded rather than a single repeated footprint: it
-spans 2.0% of the grid for a storm just clearing the 30 mm threshold to 18.0%
-at 120 mm, with a median of 5.3% across flood-positive scenes.
+Storm occurrence is identical across both label definitions; they differ only in
+which cells a storm floods:
 
-The 0.90% positive rate means accuracy is uninformative — a model predicting no
-flooding anywhere scores 99.1% — so only F1, IoU, precision and recall are
+| | positive pixel rate | extent when flooded (min / median / max) |
+|---|---|---|
+| terrain labels | 0.90% | 2.0% / 5.3% / 18.0% |
+| **drainage labels (reported)** | **0.62%** | **1.4% / 3.6% / 12.3%** |
+
+Flood extent is intensity-graded rather than a single repeated footprint,
+widening as accumulated rainfall rises from the 30 mm threshold to 120 mm.
+
+At a 0.62% positive rate accuracy is uninformative — a model predicting no
+flooding anywhere scores 99.4% — so only F1, IoU, precision and recall are
 reported.
 
 ---
@@ -88,45 +94,61 @@ solved; storm timing is not.
 
 ## 4.4 Model A — forecasting from rainfall history
 
-| metric | validation (best) | test |
+| metric | validation (best, epoch 23) | test |
 |---|---|---|
-| F1 | 0.2515 | **0.1718** |
-| IoU | 0.1438 | 0.0940 |
-| Precision | 0.1598 | 0.1133 |
-| Recall | 0.5900 | 0.3550 |
+| F1 | 0.2349 | **0.1757** |
+| IoU | 0.1331 | 0.0963 |
+| Precision | 0.1436 | 0.1059 |
+| Recall | 0.6448 | 0.5148 |
 
-Model A exceeds both the terrain-only stencil (0.1434, +19.8% relative) and the
-linear rainfall baseline (0.1592, +7.9%), confirming that it extracts genuine
+Model A exceeds both the terrain-only stencil (0.1434, +22.5% relative) and the
+linear rainfall baseline (0.1592, +10.4%), confirming that it extracts genuine
 non-linear signal. The absolute value nevertheless remains low.
 
-Training loss fell steadily from 0.770 to 0.431 over 60 epochs with no collapse,
-and validation F1 plateaued near 0.22 from roughly epoch 22 onward. The
-validation-test discrepancy (0.25 against 0.17) reflects the test partition's
+Training loss fell steadily from 0.703 to 0.401 over 60 epochs with no collapse,
+and validation F1 plateaued near 0.22 from roughly epoch 23 onward. The
+validation-test discrepancy (0.23 against 0.18) reflects the test partition's
 lower storm frequency (10.1% against 15.2%) and its small positive sample — 37
 storm-positive samples drawn from four seasons.
 
-Recall (0.355) exceeds precision (0.113) by design: the loss weights false
+Recall (0.515) exceeds precision (0.106) as intended: the loss weights false
 negatives above false positives, which is the appropriate asymmetry for early
-warning, where a missed flood is costlier than a false alarm.
+warning, where a missed flood is costlier than a false alarm. This behaviour was
+verified rather than assumed, discharging NFR-15.
+
+**The ceiling is independent of the label definition.** Trained on terrain labels
+instead, Model A reaches test F1 0.1767 — within 0.001 of the drainage result.
+Since the two label definitions produce different targets, different positive
+rates and different spatial fields, near-identical scores indicate that what
+limits Model A is neither the target nor the model but the predictability of the
+rainfall itself.
 
 ---
 
 ## 4.5 Model B — rainfall-conditioned extent mapping
 
-| metric | validation (best) | test |
+| metric | validation (best, epoch 60) | test |
 |---|---|---|
-| F1 | 0.9133 | **0.9442** |
-| IoU | 0.8405 | 0.8942 |
-| Precision | 0.8966 | 0.9067 |
-| Recall | 0.9307 | 0.9848 |
+| F1 | 0.9084 | **0.9370** |
+| IoU | 0.8322 | 0.8815 |
+| Precision | 0.8947 | 0.9244 |
+| Recall | 0.9226 | 0.9500 |
 
-Model B converged smoothly, training loss falling from 0.756 to 0.072, and
+Model B converged smoothly, training loss falling from 0.684 to 0.065, and
 generalised to storm seasons never seen during training. Test performance
 slightly exceeding validation indicates no overfitting.
 
-At F1 0.944 the network approaches the analytic oracle (0.9997), demonstrating
+At F1 0.937 the network approaches the analytic oracle (0.9997), demonstrating
 that the rainfall-to-extent mapping is not merely solvable in principle but
 learnable from data by this architecture.
+
+Trained on terrain labels the same architecture reaches 0.9555. The drainage
+target is marginally harder — its positive rate is lower (0.62% against 0.90%)
+and its flooded extents smaller — so a slightly lower score is expected. **These
+two figures must not be read as evidence that terrain labels are better.** They
+are scores against different targets, and comparing them says nothing about
+which target is correct. That question is settled by spatial validation
+(§4.8.2, §4.8.3), where the terrain field fails and the drainage field passes.
 
 **Interpretation.** Model B's labels are a deterministic function of its inputs,
 so this result establishes a *capability* — that the network learns the
@@ -145,11 +167,11 @@ Placing all results on one scale:
 | Predict nothing | 0.0000 |
 | Fixed terrain stencil | 0.1434 |
 | Logistic regression on rainfall | 0.1592 |
-| **Model A — must forecast rainfall** | **0.1718** |
-| **Model B — given rainfall** | **0.9442** |
+| **Model A — must forecast rainfall** | **0.1757** |
+| **Model B — given rainfall** | **0.9370** |
 | Oracle — perfect storm knowledge | 0.9997 |
 
-Knowing the rainfall is worth **+0.77 F1**. Every method required to forecast it
+Knowing the rainfall is worth **+0.761 F1**. Every method required to forecast it
 clusters between 0.14 and 0.17, irrespective of whether it is a fixed stencil, a
 linear model, or a 7.85 M-parameter convolutional network.
 
@@ -372,16 +394,16 @@ should be described accordingly.
 
 1. **Flood extent over Nairobi is near-deterministically recoverable from
    terrain given rainfall.** An oracle supplied with storm occurrence and
-   magnitude reaches F1 0.9997, and a U-Net learns this mapping to F1 0.944 on
+   magnitude reaches F1 0.9997, and a U-Net learns this mapping to F1 0.937 on
    held-out storm seasons (§4.5).
 
 2. **Forecasting that rainfall from rainfall history is the binding
    constraint.** Storm-detection AUC remains 0.58–0.68 across all feature sets
-   and classifiers, capping flood-forecast F1 at 0.172 — only marginally above a
+   and classifiers, capping flood-forecast F1 at 0.176 — only marginally above a
    terrain-only baseline of 0.143 (§4.4, §4.6).
 
 3. **The bottleneck is meteorological, not hydrological.** Knowing the rainfall
-   is worth +0.77 F1. No architecture, loss function, or feature engineering
+   is worth +0.761 F1. No architecture, loss function, or feature engineering
    recovers information absent from the data (§4.6).
 
 4. **Rainfall-derived labels agree with documented reality — in time.** All six
