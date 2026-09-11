@@ -50,7 +50,8 @@ def main(host: str = "127.0.0.1", port: int = 8050, debug: bool = False) -> None
     logger.info("============================================================")
     logger.info("🌊 Starting Nairobi Urban Flood Digital Twin Web Server...")
     logger.info(f"   URL  : http://{host}:{port}/")
-    logger.info("   Stack: Dash + Pydeck WebGL + PyTorch ConvLSTM")
+    logger.info("   Stack: Dash + Pydeck WebGL + PyTorch U-Net (Model B)")
+    logger.info("   Output: flood EXTENT as per-cell probability, not depth")
     logger.info("============================================================")
     app.run(host=host, port=port, debug=debug)
 
