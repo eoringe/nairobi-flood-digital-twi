@@ -152,12 +152,23 @@ def _region_risks_from_probability(prob_grid: np.ndarray, threshold: float) -> d
         patch = prob_grid[r1:r2, c1:c2]
         flooded_pct = round(100.0 * float((patch > threshold).mean()), 1)
         peak = round(100.0 * float(patch.max()), 1)
+        # Key and vocabulary must match RISK_COLORS and the severity_order map
+        # in _build_region_risk_cards: CRITICAL, HIGH, MODERATE, LOW, SAFE.
+        if flooded_pct >= 40:
+            level = "CRITICAL"
+        elif flooded_pct >= 15:
+            level = "HIGH"
+        elif flooded_pct >= 5:
+            level = "MODERATE"
+        elif flooded_pct > 0:
+            level = "LOW"
+        else:
+            level = "SAFE"
+
         out[name] = {
             "peak_probability_pct": peak,
             "flooded_pct": flooded_pct,
-            "level": ("Severe" if flooded_pct >= 40 else
-                      "High" if flooded_pct >= 15 else
-                      "Moderate" if flooded_pct > 0 else "Low"),
+            "risk_level": level,
         }
     return out
 
@@ -446,7 +457,7 @@ def register_callbacks(app) -> None:
             showlegend=True,
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=9)),
             yaxis=dict(title="Rainfall (mm)", showgrid=True, gridcolor="#202b38", zeroline=False, title_font=dict(color="#35c2d1")),
-            yaxis2=dict(title="Depth (m)", overlaying="y", side="right", showgrid=False, zeroline=False, title_font=dict(color="#ef4459")),
+            yaxis2=dict(title="Flooded Area (%)", overlaying="y", side="right", showgrid=False, zeroline=False, title_font=dict(color="#ef4459")),
             xaxis=dict(showgrid=False),
         )
 
