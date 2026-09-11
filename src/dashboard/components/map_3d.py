@@ -83,7 +83,8 @@ def generate_flood_contour_geojson(
     depth_grid: np.ndarray,
     lats: np.ndarray,
     lons: np.ndarray,
-    display_mode: str = "DEPTH"
+    display_mode: str = "DEPTH",
+    value_is_probability: bool = False,
 ) -> tuple[dict, dict]:
     """
     Extract precise, street-only flood polygons with building footprints subtracted.
@@ -97,7 +98,9 @@ def generate_flood_contour_geojson(
     """
     h, w = depth_grid.shape
     empty = {"type": "FeatureCollection", "features": []}
-    if np.max(depth_grid) < 0.2:
+    # The bail-out threshold depends on what the field means: 0.2 m of water,
+    # or a 5% flood probability.
+    if np.max(depth_grid) < (0.05 if value_is_probability else 0.2):
         return empty, empty
 
     # Wider smoothing than the raw 30m grid so contours read as organic
@@ -112,7 +115,13 @@ def generate_flood_contour_geojson(
     # elsewhere in the UI. Alpha stays low enough that streets and terrain
     # under the CARTO_DARK basemap remain visible through the fill.
     if display_mode == "PROBABILITY":
-        prob_grid = np.clip((smooth_grid / 2.2) * 100.0, 0.0, 99.0)
+        # The U-Net emits a probability directly. The /2.2 path below is the
+        # legacy conversion from the depth-regression model and is retained only
+        # for fields that really are depths.
+        if value_is_probability:
+            prob_grid = np.clip(smooth_grid * 100.0, 0.0, 100.0)
+        else:
+            prob_grid = np.clip((smooth_grid / 2.2) * 100.0, 0.0, 99.0)
         risk_mask[prob_grid >= 25.0] = 1
         risk_mask[prob_grid >= 55.0] = 2
         risk_mask[prob_grid >= 82.0] = 3
@@ -238,6 +247,7 @@ def generate_flood_contour_geojson(
 
 def create_3d_digital_twin_deck(
     depth_grid: np.ndarray | None = None,
+    value_is_probability: bool = False,
     center_lat: float = -1.2787,
     center_lon: float = 36.8213,
     zoom: float = 13.0,
@@ -262,6 +272,7 @@ def create_3d_digital_twin_deck(
     # 1. Street-accurate Vector GeoJSON Flood Polygon Layer (renders ground water on streets)
     flood_geojson, halo_geojson = generate_flood_contour_geojson(
         depth_grid=depth_grid,
+        value_is_probability=value_is_probability,
         lats=lats,
         lons=lons,
         display_mode=display_mode,

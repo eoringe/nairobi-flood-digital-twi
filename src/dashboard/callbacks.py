@@ -20,12 +20,16 @@ from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 from loguru import logger
 
-from src.models.predict import FloodSurrogatePredictor, NAIROBI_LOCATIONS
+from src.models.predict import NAIROBI_LOCATIONS
+from src.models.predict_v2 import FloodPredictor
 from src.dashboard.components.map_3d import create_3d_digital_twin_deck, get_deck_html_with_embedded_legend
 from src.ingestion.live_weather import fetch_live_nairobi_weather
 from src.persistence import scenario_store
 
-predictor = FloodSurrogatePredictor()
+# Model B on drainage labels: test F1 0.937 on held-out storm seasons.
+# Replaces the ConvLSTM, which was trained on the dataset whose rainfall
+# join left only 6 of 703 samples flood-positive (see RESULTS.md 4.1).
+predictor = FloodPredictor()
 scenario_store.init_db()
 
 RISK_COLORS = {
@@ -71,7 +75,7 @@ def _build_region_risk_cards(region_risks: dict, filter_mode: str = "ALL", selec
                                     className="twin-region-name",
                                 ),
                                 html.Span(
-                                    f"{rr['max_depth']}m max · {rr['flooded_pct']}% area flooded",
+                                    f"{rr['peak_probability_pct']}% peak likelihood · {rr['flooded_pct']}% of area",
                                     className="twin-region-meta",
                                 ),
                             ]),
@@ -114,14 +118,50 @@ def _build_alert_log(region_risks: dict) -> list:
                         className="twin-alert-label",
                         style={"color": risk_info["bg"]},
                     ),
-                    html.Span(f"{rr['max_depth']}m · {rr['flooded_pct']}%", className="twin-mono-meta"),
+                    html.Span(f"{rr['peak_probability_pct']}% · {rr['flooded_pct']}%", className="twin-mono-meta"),
                 ],
             )
         )
     return rows
 
 
-def _build_flood_probability_label(depth_grid: np.ndarray) -> str:
+#: Nairobi County population density, used to translate flooded area into an
+#: order-of-magnitude exposure figure. ~4.4M people over ~700 km2.
+NAIROBI_POP_PER_KM2 = 6300
+
+
+def _region_risks_from_probability(prob_grid: np.ndarray, threshold: float) -> dict:
+    """
+    Per-region summary from a probability field.
+
+    Reports the flooded share of each region and its peak probability. It does
+    NOT report a depth: the model predicts extent, and no depth is estimated
+    anywhere in the pipeline.
+    """
+    from src.models.predict import NAIROBI_LOCATIONS
+    from src.grid_config import GRID_H, GRID_W, LAT_NORTH, LAT_SOUTH, LON_WEST, LON_EAST
+
+    lats = np.linspace(LAT_NORTH, LAT_SOUTH, GRID_H)
+    lons = np.linspace(LON_WEST, LON_EAST, GRID_W)
+    out = {}
+    for name, (lat_t, lon_t, _zoom) in NAIROBI_LOCATIONS.items():
+        r_c = int(np.abs(lats - lat_t).argmin())
+        c_c = int(np.abs(lons - lon_t).argmin())
+        r1, r2 = max(0, r_c - 4), min(GRID_H, r_c + 5)
+        c1, c2 = max(0, c_c - 4), min(GRID_W, c_c + 5)
+        patch = prob_grid[r1:r2, c1:c2]
+        flooded_pct = round(100.0 * float((patch > threshold).mean()), 1)
+        peak = round(100.0 * float(patch.max()), 1)
+        out[name] = {
+            "peak_probability_pct": peak,
+            "flooded_pct": flooded_pct,
+            "level": ("Severe" if flooded_pct >= 40 else
+                      "High" if flooded_pct >= 15 else
+                      "Moderate" if flooded_pct > 0 else "Low"),
+        }
+    return out
+
+def _build_flood_probability_label(prob_grid: np.ndarray, threshold: float = 0.5) -> str:
     """
     Headline flood-probability KPI, using the same depth->probability scaling
     src.dashboard.components.map_3d applies in PROBABILITY display mode
@@ -129,7 +169,7 @@ def _build_flood_probability_label(depth_grid: np.ndarray) -> str:
     already at or above the moderate-depth threshold rather than just the
     single peak pixel.
     """
-    flooded = depth_grid[depth_grid >= 0.2]
+    flooded = prob_grid[prob_grid >= threshold]
     if flooded.size == 0:
         return "0%"
     mean_prob = float(np.clip((flooded.mean() / 2.2) * 100.0, 0.0, 99.0))
@@ -154,7 +194,7 @@ def _build_scenario_history() -> list:
                         [html.Span(className=f"status-dot {dot} me-2"), f"{ts} UTC · {row['rainfall_mm_day']:.0f}mm/day"],
                         className="d-flex align-items-center",
                     ),
-                    html.Span(f"{row['max_depth_m']:.2f}m · {row['critical_zone_count']} critical", className="twin-mono-meta"),
+                    html.Span(f"{row['max_depth_m']:.1f}% · {row['critical_zone_count']} critical", className="twin-mono-meta"),
                 ],
             )
         )
@@ -352,18 +392,21 @@ def register_callbacks(app) -> None:
         time_factor = float(np.sin(np.pi * (time_hour / 24.0))) ** 0.8
         effective_rain = max(5.0, rainfall_val * (0.3 + 0.7 * time_factor))
 
-        # Run 100% dynamic AI prediction
-        res = predictor.predict_scenario(rainfall_mm_day=effective_rain)
+        # U-Net inference. The output is a per-cell flood PROBABILITY in [0, 1],
+        # not a depth in metres - the model predicts extent, and satellites
+        # cannot measure depth (RESULTS.md 4.9).
+        res = predictor.predict(rainfall_mm=effective_rain)
 
-        depth_grid = res["depth_grid"]
-        max_depth = res["max_depth_m"]
+        prob_grid = res["probability_grid"]
+        flooded_pct = 100.0 * res["flooded_fraction"]
         area_km2 = res["flooded_area_km2"]
-        pop = res["est_affected_pop"]
-        region_risks = res.get("region_risks", {})
+        pop = int(area_km2 * NAIROBI_POP_PER_KM2)
+        region_risks = _region_risks_from_probability(prob_grid, res["threshold"])
 
         # Generate Pydeck 3D map with embedded legend
         deck = create_3d_digital_twin_deck(
-            depth_grid=depth_grid,
+            depth_grid=prob_grid,
+            value_is_probability=True,
             center_lat=lat_c,
             center_lon=lon_c,
             zoom=zoom_c,
@@ -388,11 +431,12 @@ def register_callbacks(app) -> None:
         # Hydrograph chart
         hours = ["04:00", "08:00", "12:00", "16:00", "20:00", "24:00", "+4h"]
         rain_hist = [round(effective_rain * (0.15 + 0.12 * i), 1) for i in range(7)]
-        depths = [round(max_depth * (i / 6.0) ** 1.3, 2) for i in range(7)]
+        # Flooded EXTENT through the storm, not depth. Depth is never estimated.
+        depths = [round(flooded_pct * (i / 6.0) ** 1.3, 2) for i in range(7)]
 
         fig = go.Figure()
         fig.add_trace(go.Bar(x=hours, y=rain_hist, name="Rainfall (mm)", marker_color="#35c2d1", opacity=0.85))
-        fig.add_trace(go.Scatter(x=hours, y=depths, name="Water Depth (m)", mode="lines+markers",
+        fig.add_trace(go.Scatter(x=hours, y=depths, name="Flooded Area (%)", mode="lines+markers",
                                  line=dict(color="#ef4459", width=3),
                                  marker=dict(size=5, color="#ef4459"), yaxis="y2"))
         fig.update_layout(
@@ -409,15 +453,15 @@ def register_callbacks(app) -> None:
         if should_persist:
             scenario_store.save_scenario_run(
                 rainfall_mm_day=rainfall_val, time_hour=time_hour, display_mode=display_mode,
-                max_depth_m=max_depth, flooded_area_km2=area_km2, est_affected_pop=pop,
+                max_depth_m=flooded_pct, flooded_area_km2=area_km2, est_affected_pop=pop,
                 region_risks=region_risks,
             )
 
         return (
             map_html,
             f"{rainfall_val:.0f} mm",
-            f"{max_depth:.2f} m",
-            _build_flood_probability_label(depth_grid),
+            f"{flooded_pct:.1f} %",
+            _build_flood_probability_label(prob_grid, res["threshold"]),
             f"{area_km2:.2f} km²",
             f"{pop:,}",
             fig,
