@@ -118,7 +118,7 @@ def build_dashboard_layout() -> html.Div:
                                         html.Ol([
                                             html.Li([html.Strong("Live forecast — "), "sync real Nairobi weather to drive the model from today's conditions."]),
                                             html.Li([html.Strong("Click a location — "), "any card in the risk list zooms the map to that exact spot."]),
-                                            html.Li([html.Strong("Simulate a storm — "), "drag the rainfall slider or pick a return-period preset."]),
+                                            html.Li([html.Strong("Simulate a storm — "), "drag the rainfall slider to set accumulated rainfall."]),
                                         ]),
                                     ],
                                 ),
@@ -187,17 +187,6 @@ def build_dashboard_layout() -> html.Div:
                                             interval=1200,
                                             n_intervals=0,
                                             disabled=True,
-                                        ),
-
-                                        html.Label("Preset Return Periods", className="twin-field-label"),
-                                        dbc.ButtonGroup(
-                                            className="w-100 mb-3",
-                                            children=[
-                                                dbc.Button("10-YR", id="btn-10yr", color="outline-info", size="sm"),
-                                                dbc.Button("25-YR", id="btn-25yr", color="outline-info", size="sm"),
-                                                dbc.Button("50-YR", id="btn-50yr", color="outline-warning", size="sm"),
-                                                dbc.Button("100-YR", id="btn-100yr", color="outline-danger", size="sm"),
-                                            ],
                                         ),
 
                                         html.Label("Map Overlay Mode", className="twin-field-label"),

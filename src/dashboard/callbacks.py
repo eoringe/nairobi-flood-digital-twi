@@ -279,21 +279,14 @@ def register_callbacks(app) -> None:
         prevent_initial_call=True,
     )
 
-    # 1. Preset return period buttons
-    @app.callback(
-        Output("rain-slider", "value"),
-        [
-            Input("btn-10yr", "n_clicks"),
-            Input("btn-25yr", "n_clicks"),
-            Input("btn-50yr", "n_clicks"),
-            Input("btn-100yr", "n_clicks"),
-        ],
-        prevent_initial_call=True,
-    )
-    def update_slider_preset(*args):
-        triggered = ctx.triggered_id
-        presets = {"btn-10yr": 40, "btn-25yr": 65, "btn-50yr": 95, "btn-100yr": 135}
-        return presets.get(triggered, 65)
+    # Return-period presets were removed. They mapped labels to fixed slider
+    # positions (10-YR -> 40mm ... 100-YR -> 135mm) that no analysis supported.
+    # Fitting a Gumbel distribution to the 12 annual maxima of 3-day rainfall in
+    # the CHIRPS record puts the 2-year level at 99mm and the 10-year at 133mm,
+    # so the "100-YR" button was roughly a 10-year storm and "10-YR" was below a
+    # 2-year one. Separately, return periods beyond about 10 years cannot be
+    # estimated from 12 years of record at all. The slider states a rainfall
+    # depth, which is a fact; a return-period label is a statistical claim.
 
     # 2. Live Weather Sync Callback (Open-Meteo API)
     @app.callback(
