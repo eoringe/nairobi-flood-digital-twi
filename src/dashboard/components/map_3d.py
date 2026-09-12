@@ -204,12 +204,25 @@ def _split_by_place(poly):
 
     tree, cells, names = _PLACE_PARTITION
     out = []
-    for idx in tree.query(poly):
+    # Splitting produces slivers where a polygon clips the corner of a cell.
+    # They carry no information, are invisible at any usable zoom, and each one
+    # costs a geometry serialised into the map document, so the floor for a
+    # split piece is higher than for a whole polygon.
+    min_piece = MIN_AREA_DEG2 * 8
+    # predicate="intersects" makes the index return only cells that genuinely
+    # touch the polygon. Without it the query returns every cell whose bounding
+    # box overlaps, which for a long river-corridor ribbon is most of the county,
+    # and each one costs a full intersection that returns empty.
+    try:
+        candidates = tree.query(poly, predicate="intersects")
+    except TypeError:                                      # older shapely
+        candidates = tree.query(poly)
+    for idx in candidates:
         piece = poly.intersection(cells[int(idx)])
-        if piece.is_empty or piece.area < MIN_AREA_DEG2:
+        if piece.is_empty or piece.area < min_piece:
             continue
         for part in _iter_polys(piece):
-            if part.area >= MIN_AREA_DEG2:
+            if part.area >= min_piece:
                 out.append((part, names[int(idx)]))
     if not out:
         c = poly.representative_point()
@@ -268,18 +281,87 @@ def _band_value_in(poly, grid: np.ndarray, lats: np.ndarray, lons: np.ndarray,
         return (lo + hi) / 2.0
 
     window = grid[r0:r1, c0:c1]
-    try:
-        from shapely import contains_xy
-        gy, gx = np.meshgrid(lats[r0:r1], lons[c0:c1], indexing="ij")
-        inside = contains_xy(poly, gx, gy)
-        vals = window[inside] if inside.any() else window.ravel()
-    except Exception:                                      # noqa: BLE001
+    # Point-in-polygon over a mesh is the expensive part, and splitting by place
+    # produces many small pieces. Below a few dozen cells the window is
+    # essentially the piece already, so the containment test buys accuracy that
+    # the band filter below would impose anyway.
+    if window.size <= 48:
         vals = window.ravel()
+    else:
+        try:
+            from shapely import contains_xy
+            gy, gx = np.meshgrid(lats[r0:r1], lons[c0:c1], indexing="ij")
+            inside = contains_xy(poly, gx, gy)
+            vals = window[inside] if inside.any() else window.ravel()
+        except Exception:                                  # noqa: BLE001
+            vals = window.ravel()
 
     in_band = vals[(vals >= lo) & (vals <= hi)]
     if in_band.size:
         return float(np.median(in_band))
     return float(np.clip(np.median(vals), lo, hi))
+
+
+#: Square kilometres per square degree at Nairobi's latitude, for converting
+#: polygon areas. 1 deg latitude ~ 110.57 km; 1 deg longitude ~ 111.32*cos(1.29) km.
+_KM2_PER_DEG2 = 110.57 * 111.32 * 0.99975
+
+
+def summarise_flooded_regions(features: list[dict]) -> dict:
+    """
+    Per-place summary built from the polygons actually drawn on the map.
+
+    The side panel previously listed ten hard-coded locations and sampled a
+    fixed patch around each, so it could report a place as safe while the map
+    drew water across it, and could not mention anywhere outside its shortlist.
+    Aggregating the rendered pieces instead means the panel and the map always
+    describe the same flooding.
+
+    `flooded_pct` is the share of that place's Voronoi cell covered by water,
+    which is what "how much of this area is flooded" means when places are
+    points rather than boundaries.
+    """
+    cell_area: dict[str, float] = {}
+    if _PLACE_PARTITION is not None:
+        _tree, cells, names = _PLACE_PARTITION
+        for cell, nm in zip(cells, names):
+            cell_area[nm] = cell_area.get(nm, 0.0) + cell.area
+
+    agg: dict[str, dict] = {}
+    for f in features:
+        pr = f["properties"]
+        region = pr.get("region", "Unmonitored area")
+        try:
+            area = shape(f["geometry"]).area
+        except Exception:                                  # noqa: BLE001
+            continue
+        rec = agg.setdefault(region, {"area_deg2": 0.0, "peak": 0.0, "level": 0})
+        rec["area_deg2"] += area
+        rec["peak"] = max(rec["peak"], float(pr.get("value", 0.0)))
+        rec["level"] = max(rec["level"], int(pr.get("level", 0)))
+
+    out: dict[str, dict] = {}
+    for region, rec in agg.items():
+        denom = cell_area.get(region, 0.0)
+        pct = 100.0 * rec["area_deg2"] / denom if denom > 0 else 0.0
+        pct = min(pct, 100.0)
+        # Severity follows the band the polygons reached, so a place shaded red
+        # on the map cannot be listed as MODERATE in the panel beside it.
+        level = {3: "CRITICAL", 2: "HIGH", 1: "MODERATE"}.get(rec["level"], "LOW")
+        out[region] = {
+            "risk_level": level,
+            "peak_probability_pct": round(100.0 * rec["peak"], 1),
+            "flooded_pct": round(pct, 1),
+            "flooded_area_km2": round(rec["area_deg2"] * _KM2_PER_DEG2, 3),
+        }
+
+    # Every flooded place is returned, ranked by severity then area. Capping
+    # here would make the count of at-risk zones equal the cap, so display
+    # limits belong in the components that render, not in the summary.
+    order = {"CRITICAL": 0, "HIGH": 1, "MODERATE": 2, "LOW": 3}
+    return dict(sorted(out.items(),
+                       key=lambda kv: (order.get(kv[1]["risk_level"], 4),
+                                       -kv[1]["flooded_area_km2"])))
 
 
 def generate_flood_contour_geojson(
@@ -439,6 +521,7 @@ def generate_flood_contour_geojson(
                         "name": style["name"],
                         "region": region,
                         "value_label": value_label,
+                        "value": float(val),
                     },
                 })
 
@@ -607,6 +690,10 @@ def create_3d_digital_twin_deck(
             },
         },
     )
+    # The side panel summarises the polygons that were actually drawn, so they
+    # travel with the deck rather than being recomputed and risking divergence
+    # between what the map shows and what the panel reports.
+    deck._flood_features = flood_geojson.get("features", [])
     return deck
 
 

@@ -22,7 +22,7 @@ from loguru import logger
 
 from src.models.predict import NAIROBI_LOCATIONS
 from src.models.predict_v2 import FloodPredictor
-from src.dashboard.components.map_3d import create_3d_digital_twin_deck, get_deck_html_with_embedded_legend
+from src.dashboard.components.map_3d import summarise_flooded_regions, create_3d_digital_twin_deck, get_deck_html_with_embedded_legend
 from src.ingestion.live_weather import fetch_live_nairobi_weather
 from src.persistence import scenario_store
 
@@ -41,10 +41,17 @@ RISK_COLORS = {
 }
 
 
+#: Most flooded places to list in the side panel. The map may cover a hundred
+#: places in a heavy scenario; a scrolling list that long is not readable, and
+#: the ones below the cut are by construction the least affected.
+MAX_REGION_CARDS = 12
+MAX_ALERTS = 8
+
+
 def _build_region_risk_cards(region_risks: dict, filter_mode: str = "ALL", selected_region: str | None = None) -> list:
     """Build clickable hotspot cards with html.Div wrapper for pattern matching."""
     severity_order = {"CRITICAL": 0, "HIGH": 1, "MODERATE": 2, "LOW": 3, "SAFE": 4}
-    sorted_regions = sorted(region_risks.items(), key=lambda x: severity_order.get(x[1]["risk_level"], 5))
+    sorted_regions = sorted(region_risks.items(), key=lambda x: severity_order.get(x[1]["risk_level"], 5))[:MAX_REGION_CARDS]
 
     cards = []
     for reg_name, rr in sorted_regions:
@@ -101,7 +108,7 @@ def _build_alert_log(region_risks: dict) -> list:
     alerts = sorted(
         (item for item in region_risks.items() if item[1]["risk_level"] in severity_order),
         key=lambda x: severity_order[x[1]["risk_level"]],
-    )
+    )[:MAX_ALERTS]
 
     if not alerts:
         return [html.P("No active alerts — no zone exceeds HIGH risk under this scenario.", className="twin-empty-state is-good")]
@@ -416,7 +423,7 @@ def register_callbacks(app) -> None:
         flooded_pct = 100.0 * res["flooded_fraction"]
         area_km2 = res["flooded_area_km2"]
         pop = int(area_km2 * NAIROBI_POP_PER_KM2)
-        region_risks = _region_risks_from_probability(prob_grid, res["threshold"])
+        # region_risks is derived below, from the polygons actually drawn.
 
         # Generate Pydeck 3D map with embedded legend
         deck = create_3d_digital_twin_deck(
@@ -432,6 +439,10 @@ def register_callbacks(app) -> None:
             highlight_coords=highlight_coords,
         )
         map_html = get_deck_html_with_embedded_legend(deck)
+
+        # The panel lists the places the map drew water over, ranked by severity
+        # then flooded area, rather than a fixed shortlist sampled independently.
+        region_risks = summarise_flooded_regions(getattr(deck, "_flood_features", []))
 
         # Build region risk cards
         region_cards = _build_region_risk_cards(
@@ -478,6 +489,7 @@ def register_callbacks(app) -> None:
         # at ~98% for every scenario and so carried no information.
         at_risk = sum(1 for v in region_risks.values()
                       if v["risk_level"] in ("CRITICAL", "HIGH"))
+        flooded_places = len(region_risks)
         worst_name, worst = max(region_risks.items(),
                                 key=lambda kv: kv[1]["flooded_pct"],
                                 default=("--", {"flooded_pct": 0.0}))
@@ -487,7 +499,7 @@ def register_callbacks(app) -> None:
         return (
             map_html,
             f"{rainfall_val:.0f} mm",
-            f"{at_risk} of {len(region_risks)}",
+            f"{at_risk} of {flooded_places}",
             worst_label,
             f"{area_km2:.2f} km²",
             f"{pop:,}",
