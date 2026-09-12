@@ -174,17 +174,21 @@ def _region_risks_from_probability(prob_grid: np.ndarray, threshold: float) -> d
 
 def _build_flood_probability_label(prob_grid: np.ndarray, threshold: float = 0.5) -> str:
     """
-    Headline flood-probability KPI, using the same depth->probability scaling
-    src.dashboard.components.map_3d applies in PROBABILITY display mode
-    (depth / 2.2m reference clipped to 99%), area-weighted over pixels
-    already at or above the moderate-depth threshold rather than just the
-    single peak pixel.
+    Headline KPI: mean predicted probability across the cells reported flooded.
+
+    The model emits a probability directly, so no conversion is applied. An
+    earlier version divided by a 2.2 m depth reference - the scaling the old
+    depth-regression model needed - which under-reported this figure by a factor
+    of 2.2 and pinned it near 44% regardless of the scenario.
+
+    Averaged over flooded cells rather than the whole grid, since the 99% of
+    cells that are dry would drag any grid-wide mean to nearly zero and say
+    nothing about the flooding being displayed.
     """
     flooded = prob_grid[prob_grid >= threshold]
     if flooded.size == 0:
         return "0%"
-    mean_prob = float(np.clip((flooded.mean() / 2.2) * 100.0, 0.0, 99.0))
-    return f"{mean_prob:.0f}%"
+    return f"{100.0 * float(flooded.mean()):.0f}%"
 
 
 def _build_scenario_history() -> list:
