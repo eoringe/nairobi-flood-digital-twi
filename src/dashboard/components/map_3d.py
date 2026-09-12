@@ -196,7 +196,7 @@ def generate_flood_contour_geojson(
     depth_grid: np.ndarray,
     lats: np.ndarray,
     lons: np.ndarray,
-    display_mode: str = "DEPTH",
+    display_mode: str = "PROBABILITY",
     value_is_probability: bool = False,
 ) -> tuple[dict, dict]:
     """
@@ -396,7 +396,7 @@ def create_3d_digital_twin_deck(
     zoom: float = 13.0,
     pitch: float = 45.0,
     bearing: float = -15.0,
-    display_mode: str = "DEPTH",
+    display_mode: str = "PROBABILITY",
     highlight_region: str | None = None,
     highlight_coords: tuple[float, float] | None = None,
 ) -> pdk.Deck:
