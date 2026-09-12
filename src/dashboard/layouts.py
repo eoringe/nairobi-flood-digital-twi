@@ -205,10 +205,14 @@ def build_dashboard_layout() -> html.Div:
                                             id="display-mode-radio",
                                             className="twin-toggle-group mb-3",
                                             options=[
-                                                {"label": "Water Depth", "value": "DEPTH"},
-                                                {"label": "Flood Probability", "value": "PROBABILITY"},
+                                                # No depth option: the model predicts flood
+                                                # EXTENT, and no depth is estimated anywhere
+                                                # in the pipeline. Offering "Water Depth"
+                                                # invited reading a probability as metres.
+                                                {"label": "Likelihood", "value": "PROBABILITY"},
+                                                {"label": "Flooded Area", "value": "EXTENT"},
                                             ],
-                                            value="DEPTH",
+                                            value="PROBABILITY",
                                             inline=True,
                                         ),
 

@@ -227,31 +227,35 @@ def generate_flood_contour_geojson(
     # not the amber/orange/red risk-severity ramp used for badges and alerts
     # elsewhere in the UI. Alpha stays low enough that streets and terrain
     # under the CARTO_DARK basemap remain visible through the fill.
-    if display_mode == "PROBABILITY":
-        # The U-Net emits a probability directly. The /2.2 path below is the
-        # legacy conversion from the depth-regression model and is retained only
-        # for fields that really are depths.
-        if value_is_probability:
-            prob_grid = np.clip(smooth_grid * 100.0, 0.0, 100.0)
-        else:
-            prob_grid = np.clip((smooth_grid / 2.2) * 100.0, 0.0, 99.0)
+    # The model outputs a per-cell probability. There is no depth mode: depth is
+    # not estimated anywhere in the pipeline, and rendering probability through a
+    # metre-scaled ramp invented a quantity the system cannot produce.
+    #
+    # PROBABILITY : graded likelihood bands
+    # EXTENT      : binary - flooded or not at the operating threshold
+    if display_mode == "EXTENT":
+        prob_grid = np.clip(smooth_grid * 100.0, 0.0, 100.0)
+        risk_mask[prob_grid >= 50.0] = 3
+        names = {1: "", 2: "", 3: "Flooded (>50% likelihood)"}
+        bands = {1: (0.0, 0.0), 2: (0.0, 0.0), 3: (0.50, 1.00)}
+    else:
+        prob_grid = np.clip(smooth_grid * 100.0, 0.0, 100.0)
         risk_mask[prob_grid >= 25.0] = 1
         risk_mask[prob_grid >= 55.0] = 2
         risk_mask[prob_grid >= 82.0] = 3
-        names = {1: "Moderate Risk (25-55%)", 2: "High Risk (55-82%)", 3: "Severe Risk (>82%)"}
+        names = {1: "MODERATE (25-55%)", 2: "HIGH (55-82%)", 3: "CRITICAL (>82%)"}
         bands = {1: (0.25, 0.55), 2: (0.55, 0.82), 3: (0.82, 1.00)}
-    else:
-        risk_mask[smooth_grid >= 0.35] = 1
-        risk_mask[smooth_grid >= 1.1] = 2
-        risk_mask[smooth_grid >= 1.85] = 3
-        names = {1: "Shallow (0.35-1.1m)", 2: "Deep (1.1-1.85m)", 3: "Critical (>1.85m)"}
-        bands = {1: (0.35, 1.1), 2: (1.1, 1.85), 3: (1.85, 4.5)}
 
+    # Same palette as RISK_COLORS in src/dashboard/callbacks.py, so a region card
+    # reading CRITICAL in red corresponds to a red polygon rather than a blue one.
+    # This trades the "water is blue" convention for agreement between the map and
+    # the panel beside it; the map communicates risk, not the presence of a lake.
     styles = {
-        1: {"fillColor": [53, 194, 209, 85],  "lineColor": [110, 220, 230, 90],  "name": names[1]},
-        2: {"fillColor": [35, 138, 205, 120], "lineColor": [90, 180, 230, 110],  "name": names[2]},
-        3: {"fillColor": [21, 82, 176, 160],  "lineColor": [70, 130, 220, 130],  "name": names[3]},
+        1: {"fillColor": [240, 185, 63, 90],  "lineColor": [245, 205, 110, 110], "name": names[1]},   # MODERATE amber
+        2: {"fillColor": [240, 138, 60, 120], "lineColor": [245, 170, 105, 125], "name": names[2]},   # HIGH orange
+        3: {"fillColor": [239, 68, 89, 155],  "lineColor": [245, 120, 135, 140], "name": names[3]},   # CRITICAL red
     }
+
     halo_styles = {
         1: [53, 194, 209, 26],
         2: [35, 138, 205, 32],
@@ -573,19 +577,20 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
         align-items: center;
         gap: 14px;
     ">
-        <span style="color: #5c6b7a; text-transform: uppercase; letter-spacing: 0.6px; font-size: 9.5px;">Water Depth</span>
+        <span style="color: #5c6b7a; text-transform: uppercase; letter-spacing: 0.6px; font-size: 9.5px;">Flood Likelihood</span>
         <span style="display:flex; align-items:center; gap:6px;">
-            <span style="width:8px; height:8px; border-radius:2px; background:#35c2d1; display:inline-block;"></span>
-            Shallow <span style="color:#5c6b7a;">0.35&ndash;1.1m</span>
+            <span style="width:8px; height:8px; border-radius:2px; background:#f0b93f; display:inline-block;"></span>
+            Moderate <span style="color:#5c6b7a;">25&ndash;55%</span>
         </span>
         <span style="display:flex; align-items:center; gap:6px;">
-            <span style="width:8px; height:8px; border-radius:2px; background:#238acd; display:inline-block;"></span>
-            Deep <span style="color:#5c6b7a;">1.1&ndash;1.85m</span>
+            <span style="width:8px; height:8px; border-radius:2px; background:#f08a3c; display:inline-block;"></span>
+            High <span style="color:#5c6b7a;">55&ndash;82%</span>
         </span>
         <span style="display:flex; align-items:center; gap:6px;">
-            <span style="width:8px; height:8px; border-radius:2px; background:#1552b0; display:inline-block;"></span>
-            Critical <span style="color:#5c6b7a;">&gt;1.85m</span>
+            <span style="width:8px; height:8px; border-radius:2px; background:#ef4459; display:inline-block;"></span>
+            Critical <span style="color:#5c6b7a;">&gt;82%</span>
         </span>
+        <span style="color:#5c6b7a; font-size:9px; margin-top:2px;">Likelihood of flooding, not depth</span>
         <span style="display:flex; align-items:center; gap:6px; color:#5c6b7a;">
             <span style="width:8px; height:8px; border-radius:2px; background:#5a6473; display:inline-block;"></span>
             3D Buildings

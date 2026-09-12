@@ -383,7 +383,7 @@ def register_callbacks(app) -> None:
     def update_simulation(n_clicks, rainfall_val, time_hour, display_mode, filter_mode, selected_region):
         rainfall_val = float(rainfall_val or 10.0)
         time_hour = float(time_hour or 12.0)
-        display_mode = display_mode or "DEPTH"
+        display_mode = display_mode or "PROBABILITY"
         filter_mode = filter_mode or "ALL"
 
         # Determine center focus based on selected location card
