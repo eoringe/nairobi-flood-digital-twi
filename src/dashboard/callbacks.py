@@ -472,11 +472,23 @@ def register_callbacks(app) -> None:
                 region_risks=region_risks,
             )
 
+        # Each readout reports a distinct quantity. Flooded extent appears once,
+        # in km2; the percentage tile previously beside it was the same number in
+        # other units, and the tile before that reported a probability that sat
+        # at ~98% for every scenario and so carried no information.
+        at_risk = sum(1 for v in region_risks.values()
+                      if v["risk_level"] in ("CRITICAL", "HIGH"))
+        worst_name, worst = max(region_risks.items(),
+                                key=lambda kv: kv[1]["flooded_pct"],
+                                default=("--", {"flooded_pct": 0.0}))
+        worst_label = ("--" if worst["flooded_pct"] <= 0
+                       else f"{worst_name.split(' &')[0].split(' (')[0][:18]} {worst['flooded_pct']:.0f}%")
+
         return (
             map_html,
             f"{rainfall_val:.0f} mm",
-            f"{flooded_pct:.1f} %",
-            _build_flood_probability_label(prob_grid, res["threshold"]),
+            f"{at_risk} of {len(region_risks)}",
+            worst_label,
             f"{area_km2:.2f} km²",
             f"{pop:,}",
             fig,

@@ -299,11 +299,11 @@ def build_dashboard_layout() -> html.Div:
                                             html.Span("10 mm", id="metric-rainfall", className="twin-readout-value"),
                                         ]),
                                         html.Div(className="twin-readout-cell rc-depth", children=[
-                                            html.Span("Max Depth", className="twin-readout-label"),
-                                            html.Span("0.00 m", id="metric-max-depth", className="twin-readout-value"),
+                                            html.Span("Zones At Risk", className="twin-readout-label"),
+                                            html.Span("0 of 10", id="metric-max-depth", className="twin-readout-value"),
                                         ]),
                                         html.Div(className="twin-readout-cell rc-prob", children=[
-                                            html.Span("Flood Prob", className="twin-readout-label"),
+                                            html.Span("Worst Zone", className="twin-readout-label"),
                                             html.Span("--", id="metric-flood-prob", className="twin-readout-value"),
                                         ]),
                                         html.Div(className="twin-readout-cell rc-area", children=[
