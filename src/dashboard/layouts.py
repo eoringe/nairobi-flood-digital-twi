@@ -209,7 +209,7 @@ def build_dashboard_layout() -> html.Div:
                                                 # EXTENT, and no depth is estimated anywhere
                                                 # in the pipeline. Offering "Water Depth"
                                                 # invited reading a probability as metres.
-                                                {"label": "Likelihood", "value": "PROBABILITY"},
+                                                {"label": "Flood Probability", "value": "PROBABILITY"},
                                                 {"label": "Flooded Area", "value": "EXTENT"},
                                             ],
                                             value="PROBABILITY",

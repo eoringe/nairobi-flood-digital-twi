@@ -231,12 +231,12 @@ def generate_flood_contour_geojson(
     # not estimated anywhere in the pipeline, and rendering probability through a
     # metre-scaled ramp invented a quantity the system cannot produce.
     #
-    # PROBABILITY : graded likelihood bands
+    # PROBABILITY : graded probability bands
     # EXTENT      : binary - flooded or not at the operating threshold
     if display_mode == "EXTENT":
         prob_grid = np.clip(smooth_grid * 100.0, 0.0, 100.0)
         risk_mask[prob_grid >= 50.0] = 3
-        names = {1: "", 2: "", 3: "Flooded (>50% likelihood)"}
+        names = {1: "", 2: "", 3: "Flooded (>50% probability)"}
         bands = {1: (0.0, 0.0), 2: (0.0, 0.0), 3: (0.50, 1.00)}
     else:
         prob_grid = np.clip(smooth_grid * 100.0, 0.0, 100.0)
@@ -356,7 +356,7 @@ def generate_flood_contour_geojson(
             lo, hi = bands[level]
             val = _band_value_in(poly, smooth_grid, lats, lons, lo, hi)
             if value_is_probability:
-                value_label = f"{100.0 * val:.0f}% likelihood"
+                value_label = f"{100.0 * val:.0f}% probability"
             else:
                 value_label = f"{val:.2f} m"
 
@@ -577,7 +577,7 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
         align-items: center;
         gap: 14px;
     ">
-        <span style="color: #5c6b7a; text-transform: uppercase; letter-spacing: 0.6px; font-size: 9.5px;">Flood Likelihood</span>
+        <span style="color: #5c6b7a; text-transform: uppercase; letter-spacing: 0.6px; font-size: 9.5px;">Flood Probability</span>
         <span style="display:flex; align-items:center; gap:6px;">
             <span style="width:8px; height:8px; border-radius:2px; background:#f0b93f; display:inline-block;"></span>
             Moderate <span style="color:#5c6b7a;">25&ndash;55%</span>
@@ -590,7 +590,7 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
             <span style="width:8px; height:8px; border-radius:2px; background:#ef4459; display:inline-block;"></span>
             Critical <span style="color:#5c6b7a;">&gt;82%</span>
         </span>
-        <span style="color:#5c6b7a; font-size:9px; margin-top:2px;">Likelihood of flooding, not depth</span>
+        <span style="color:#5c6b7a; font-size:9px; margin-top:2px;">Probability of flooding, not depth</span>
         <span style="display:flex; align-items:center; gap:6px; color:#5c6b7a;">
             <span style="width:8px; height:8px; border-radius:2px; background:#5a6473; display:inline-block;"></span>
             3D Buildings

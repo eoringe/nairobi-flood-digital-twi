@@ -75,7 +75,7 @@ def _build_region_risk_cards(region_risks: dict, filter_mode: str = "ALL", selec
                                     className="twin-region-name",
                                 ),
                                 html.Span(
-                                    f"{rr['peak_probability_pct']}% peak likelihood · {rr['flooded_pct']}% of area",
+                                    f"{rr['peak_probability_pct']}% peak probability · {rr['flooded_pct']}% of area",
                                     className="twin-region-meta",
                                 ),
                             ]),

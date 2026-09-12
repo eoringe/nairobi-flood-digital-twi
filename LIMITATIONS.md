@@ -271,7 +271,55 @@ metrics: the constraint is meteorological information, not model capacity.
 
 ---
 
-## 10. Performance is bounded by rainfall predictability, not by the model
+## 10. Predicted probabilities are overconfident in the uncertain middle
+
+The model emits a per-cell value in [0, 1] and the interface presents it as a
+probability. Whether that word is earned depends on calibration: a cell the model
+calls 80% should flood about 80% of the time.
+
+Measured on the held-out storm seasons:
+
+| predicted band | observed frequency | predicted mean | gap |
+|---|---|---|---|
+| 0.0–0.1 | 0.0% | 0.0% | 0 |
+| 0.1–0.2 | 24.8% | 14.5% | −10 |
+| 0.3–0.4 | 37.1% | 34.8% | −2 |
+| 0.6–0.7 | 50.5% | 65.2% | **+15** |
+| 0.7–0.8 | 55.1% | 75.2% | **+20** |
+| 0.8–0.9 | 61.8% | 85.5% | **+24** |
+| 0.9–1.0 | 95.5% | 99.6% | +4 |
+
+**99.92% of cells fall in the two extreme bands, where calibration is good.** The
+middle bands hold 0.08% of cells but are overconfident by 15–24 percentage
+points: a cell the model calls 85% floods about 62% of the time.
+
+**Do not quote a cell-weighted expected calibration error for this model.** It
+computes to 0.000, which is an artefact: 18.2 million of 18.4 million cells sit
+in the trivial 0.0–0.1 background band where the model is exactly right, and
+they swamp the average. Weighting each band equally gives 0.092, and restricting
+to the mid-range bands gives 0.109. The unweighted figures are the informative
+ones.
+
+This matters where it is least convenient. The well-calibrated extremes are the
+cells whose classification was never in doubt; the overconfident middle is
+precisely the borderline zone where a warning decision is marginal. A displayed
+"85% probability" on a mid-range polygon overstates the true frequency.
+
+Overconfidence of this kind is common in neural networks trained with a
+cross-entropy component and does not indicate a defect in training. It is
+correctable by post-hoc calibration — Platt scaling or isotonic regression fitted
+on the validation partition — which has not been done here and is the cheapest
+remaining improvement to the interface's honesty.
+
+**Terminology.** "Probability" and "likelihood" are used interchangeably in
+casual speech but denote different things in statistics: probability is
+P(outcome | model), likelihood is L(model | data). The quantity here is
+P(cell floods | rainfall, terrain), a probability. The interface previously
+mixed both words for the same number; it now uses "probability" throughout.
+
+---
+
+## 11. Performance is bounded by rainfall predictability, not by the model
 
 The task decomposes into a temporal half (will a storm arrive?) and a spatial
 half (given a storm, which pixels flood?). Measured on the held-out test
@@ -322,7 +370,7 @@ mapping is solved; the meteorological input is the binding constraint.
 
 ---
 
-## 11. Temporal coverage
+## 12. Temporal coverage
 
 The CHIRPS series spans 2015-01-01 to 2026-04-30 (4,138 days). Eleven years is
 modest for characterising climate variability, and the period may not represent
