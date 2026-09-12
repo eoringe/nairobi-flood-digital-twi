@@ -162,32 +162,6 @@ def build_dashboard_layout() -> html.Div:
                                             children="SAFE — no flooding expected (< 15 mm/day)",
                                         ),
 
-                                        html.Label("Storm Progression", className="twin-field-label"),
-                                        dcc.Slider(
-                                            id="time-slider",
-                                            min=1,
-                                            max=24,
-                                            step=1,
-                                            value=12,
-                                            marks={1: "1h", 6: "6h", 12: "12h", 18: "18h", 24: "24h"},
-                                            tooltip={"placement": "top", "always_visible": True},
-                                            className="mb-2",
-                                        ),
-
-                                        dbc.Button(
-                                            "▶ Play Live Storm Simulation",
-                                            id="btn-play-sim",
-                                            color="outline-success",
-                                            size="sm",
-                                            className="w-100 mb-3 twin-glyph-btn",
-                                        ),
-
-                                        dcc.Interval(
-                                            id="simulation-interval",
-                                            interval=1200,
-                                            n_intervals=0,
-                                            disabled=True,
-                                        ),
 
                                         html.Label("Map Overlay Mode", className="twin-field-label"),
                                         dbc.RadioItems(

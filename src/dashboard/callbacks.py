@@ -179,6 +179,31 @@ def _region_risks_from_probability(prob_grid: np.ndarray, threshold: float) -> d
         }
     return out
 
+_RESPONSE_CURVE: tuple[list[float], list[float]] | None = None
+
+
+def _rainfall_response_curve() -> tuple[list[float], list[float]]:
+    """
+    Predicted flooded extent across the rainfall range, computed once.
+
+    A genuine characteristic of the model rather than a fabricated time series:
+    it answers "how much of the city floods at each rainfall depth", which is
+    what the scenario slider is exploring. Cached because it costs one inference
+    per point and does not change between requests.
+    """
+    global _RESPONSE_CURVE
+    if _RESPONSE_CURVE is None:
+        xs = list(range(0, 201, 10))
+        ys = []
+        for mm in xs:
+            try:
+                ys.append(round(100.0 * predictor.predict(rainfall_mm=float(mm))["flooded_fraction"], 2))
+            except Exception:                              # noqa: BLE001
+                ys.append(0.0)
+        _RESPONSE_CURVE = (xs, ys)
+    return _RESPONSE_CURVE
+
+
 def _build_flood_probability_label(prob_grid: np.ndarray, threshold: float = 0.5) -> str:
     """
     Headline KPI: mean predicted probability across the cells reported flooded.
@@ -359,33 +384,14 @@ def register_callbacks(app) -> None:
         return no_update
 
     # 4. Simulation play/pause
-    @app.callback(
-        [
-            Output("simulation-interval", "disabled"),
-            Output("btn-play-sim", "children"),
-            Output("btn-play-sim", "color"),
-        ],
-        Input("btn-play-sim", "n_clicks"),
-        State("simulation-interval", "disabled"),
-        prevent_initial_call=True,
-    )
-    def toggle_play(n_clicks, is_disabled):
-        if is_disabled:
-            return False, "⏸ Pause Simulation", "danger"
-        return True, "▶ Play Live Storm Simulation", "outline-success"
+    # The storm-progression slider and its play button were removed. They scaled
+    # the rainfall input by sin(pi * hour/24) ** 0.8, a bell curve peaking at
+    # noon that bottoms out at BOTH ends of the slider. At 55 mm that left
+    # 16.5 mm at hour 24, below the 30 mm that defines a flood, so the map
+    # emptied at one end of the slider and filled in the middle for no
+    # hydrological reason. The model has no sub-daily resolution at all - CHIRPS
+    # is daily - so intra-day progression is not something it can represent.
 
-    # 5. Interval step
-    @app.callback(
-        Output("time-slider", "value"),
-        Input("simulation-interval", "n_intervals"),
-        State("time-slider", "value"),
-        prevent_initial_call=True,
-    )
-    def step_time(n_intervals, current_hr):
-        next_hr = int(current_hr or 1) + 1
-        return 1 if next_hr > 24 else next_hr
-
-    # 6. Main forecast callback — FIRES ON PAGE LOAD & REGION SELECTION & FILTERS
     @app.callback(
         [
             Output("3d-map-frame", "srcDoc"),
@@ -405,17 +411,15 @@ def register_callbacks(app) -> None:
         [
             Input("btn-run", "n_clicks"),
             Input("rain-slider", "value"),
-            Input("time-slider", "value"),
             Input("display-mode-radio", "value"),
             Input("region-filter-radio", "value"),
             Input("selected-region-store", "data"),
         ],
         [State("map-built-store", "data")],
     )
-    def update_simulation(n_clicks, rainfall_val, time_hour, display_mode, filter_mode,
+    def update_simulation(n_clicks, rainfall_val, display_mode, filter_mode,
                           selected_region, map_built):
         rainfall_val = float(rainfall_val or 10.0)
-        time_hour = float(time_hour or 12.0)
         display_mode = display_mode or "PROBABILITY"
         filter_mode = filter_mode or "ALL"
 
@@ -433,8 +437,8 @@ def register_callbacks(app) -> None:
         should_persist = ctx.triggered_id == "btn-run"
 
         # Time progression
-        time_factor = float(np.sin(np.pi * (time_hour / 24.0))) ** 0.8
-        effective_rain = max(5.0, rainfall_val * (0.3 + 0.7 * time_factor))
+        # The slider value is the scenario, used as given.
+        effective_rain = float(rainfall_val)
 
         # U-Net inference. The output is a per-cell flood PROBABILITY in [0, 1],
         # not a depth in metres - the model predicts extent, and satellites
@@ -490,30 +494,36 @@ def register_callbacks(app) -> None:
         rain_label, rain_class = _get_rain_context(rainfall_val)
 
         # Hydrograph chart
-        hours = ["04:00", "08:00", "12:00", "16:00", "20:00", "24:00", "+4h"]
-        rain_hist = [round(effective_rain * (0.15 + 0.12 * i), 1) for i in range(7)]
-        # Flooded EXTENT through the storm, not depth. Depth is never estimated.
-        depths = [round(flooded_pct * (i / 6.0) ** 1.3, 2) for i in range(7)]
-
+        # Response curve: how predicted flooded extent varies with rainfall,
+        # with a marker at the current scenario. This replaces a 24-hour
+        # hydrograph whose bars and curve were both invented - the model has no
+        # sub-daily resolution, so it could not have produced them. The curve is
+        # computed once at import and is a genuine property of the model.
+        curve_x, curve_y = _rainfall_response_curve()
         fig = go.Figure()
-        fig.add_trace(go.Bar(x=hours, y=rain_hist, name="Rainfall (mm)", marker_color="#35c2d1", opacity=0.85))
-        fig.add_trace(go.Scatter(x=hours, y=depths, name="Flooded Area (%)", mode="lines+markers",
-                                 line=dict(color="#ef4459", width=3),
-                                 marker=dict(size=5, color="#ef4459"), yaxis="y2"))
+        fig.add_trace(go.Scatter(
+            x=curve_x, y=curve_y, name="Flooded area", mode="lines",
+            line=dict(color="#35c2d1", width=2.5),
+            fill="tozeroy", fillcolor="rgba(53,194,209,0.12)"))
+        fig.add_trace(go.Scatter(
+            x=[rainfall_val], y=[flooded_pct], name="This scenario",
+            mode="markers", marker=dict(size=11, color="#ef4459",
+                                        line=dict(color="#10161f", width=2))))
         fig.update_layout(
             paper_bgcolor="#10161f", plot_bgcolor="#10161f",
             font=dict(color="#93a2b3", size=10, family="IBM Plex Mono, Consolas, monospace"),
-            margin=dict(l=35, r=35, t=20, b=25),
+            margin=dict(l=45, r=20, t=20, b=35),
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=9)),
-            yaxis=dict(title="Rainfall (mm)", showgrid=True, gridcolor="#202b38", zeroline=False, title_font=dict(color="#35c2d1")),
-            yaxis2=dict(title="Flooded Area (%)", overlaying="y", side="right", showgrid=False, zeroline=False, title_font=dict(color="#ef4459")),
-            xaxis=dict(showgrid=False),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+                        font=dict(size=9)),
+            xaxis=dict(title="Rainfall over 3 days (mm)", showgrid=False, zeroline=False),
+            yaxis=dict(title="Flooded area (%)", showgrid=True, gridcolor="#202b38",
+                       zeroline=False, title_font=dict(color="#35c2d1")),
         )
 
         if should_persist:
             scenario_store.save_scenario_run(
-                rainfall_mm_day=rainfall_val, time_hour=time_hour, display_mode=display_mode,
+                rainfall_mm_day=rainfall_val, time_hour=0.0, display_mode=display_mode,
                 max_depth_m=flooded_pct, flooded_area_km2=area_km2, est_affected_pop=pop,
                 region_risks=region_risks,
             )
