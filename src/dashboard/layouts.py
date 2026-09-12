@@ -360,6 +360,13 @@ def build_dashboard_layout() -> html.Div:
                 ),
 
                 dcc.Store(id="selected-region-store", data=None),
+                # Flood geometry for the live-update path. Only this crosses the
+                # wire on a slider move; the ~4 MB basemap and building document
+                # stays in the iframe untouched.
+                dcc.Store(id="flood-geojson-store", data=None),
+                # Tracks whether the map document has been built, and for which
+                # region, so it is rebuilt only when the camera must move.
+                dcc.Store(id="map-built-store", data=None),
             ]),
         ],
     )

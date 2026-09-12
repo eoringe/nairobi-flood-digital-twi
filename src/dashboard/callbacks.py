@@ -288,6 +288,31 @@ def register_callbacks(app) -> None:
     # estimated from 12 years of record at all. The slider states a rainfall
     # depth, which is a fact; a return-period label is a statistical claim.
 
+    # Push flood geometry into the map iframe without replacing the document.
+    # A full srcDoc swap reloads deck.gl, flickers, and resets the viewer's zoom
+    # and pan; postMessage patches the two flood layers in place. If the iframe
+    # has not signalled readiness the message is simply dropped - the server
+    # still sends a full document on the next camera change.
+    app.clientside_callback(
+        """
+        function(payload) {
+            if (!payload) { return window.dash_clientside.no_update; }
+            var frame = document.getElementById("3d-map-frame");
+            if (!frame || !frame.contentWindow) { return window.dash_clientside.no_update; }
+            try {
+                frame.contentWindow.postMessage(
+                    {type: "floodUpdate", main: payload.main, halo: payload.halo}, "*");
+            } catch (e) {
+                console.warn("flood map live update failed:", e);
+            }
+            return window.dash_clientside.no_update;
+        }
+        """,
+        Output("flood-geojson-store", "data", allow_duplicate=True),
+        Input("flood-geojson-store", "data"),
+        prevent_initial_call=True,
+    )
+
     # 2. Live Weather Sync Callback (Open-Meteo API)
     @app.callback(
         [
@@ -364,6 +389,8 @@ def register_callbacks(app) -> None:
     @app.callback(
         [
             Output("3d-map-frame", "srcDoc"),
+            Output("flood-geojson-store", "data"),
+            Output("map-built-store", "data"),
             Output("metric-rainfall", "children"),
             Output("metric-max-depth", "children"),
             Output("metric-flood-prob", "children"),
@@ -383,8 +410,10 @@ def register_callbacks(app) -> None:
             Input("region-filter-radio", "value"),
             Input("selected-region-store", "data"),
         ],
+        [State("map-built-store", "data")],
     )
-    def update_simulation(n_clicks, rainfall_val, time_hour, display_mode, filter_mode, selected_region):
+    def update_simulation(n_clicks, rainfall_val, time_hour, display_mode, filter_mode,
+                          selected_region, map_built):
         rainfall_val = float(rainfall_val or 10.0)
         time_hour = float(time_hour or 12.0)
         display_mode = display_mode or "PROBABILITY"
@@ -431,7 +460,20 @@ def register_callbacks(app) -> None:
             highlight_region=selected_region,
             highlight_coords=highlight_coords,
         )
-        map_html = get_deck_html_with_embedded_legend(deck)
+        # The document carries the basemap and building extrusions, which never
+        # change. It is rebuilt only on first render or when the selected region
+        # moves the camera; every other update ships geometry alone, which is
+        # ~0.7 MB against ~4.6 MB and leaves the viewer's zoom and pan intact.
+        view_key = f"{selected_region}|{display_mode}"
+        needs_rebuild = (map_built != view_key)
+        map_html = get_deck_html_with_embedded_legend(deck) if needs_rebuild else no_update
+
+        flood_payload = {
+            "main": {"type": "FeatureCollection",
+                     "features": getattr(deck, "_flood_features", [])},
+            "halo": {"type": "FeatureCollection",
+                     "features": getattr(deck, "_halo_features", [])},
+        }
 
         # The panel lists the places the map drew water over, ranked by severity
         # then flooded area, rather than a fixed shortlist sampled independently.
@@ -491,6 +533,8 @@ def register_callbacks(app) -> None:
 
         return (
             map_html,
+            flood_payload,
+            view_key,
             f"{rainfall_val:.0f} mm",
             f"{at_risk} of {flooded_places}",
             worst_label,

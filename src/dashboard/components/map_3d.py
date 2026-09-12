@@ -579,6 +579,7 @@ def create_3d_digital_twin_deck(
         halo_layer = pdk.Layer(
             "GeoJsonLayer",
             halo_geojson,
+            id="flood-halo",
             opacity=1.0,
             stroked=False,
             filled=True,
@@ -591,10 +592,13 @@ def create_3d_digital_twin_deck(
     # 1b. The readable water fill itself — translucent so streets and
     # terrain stay visible underneath, thin low-alpha edge instead of a
     # bright hazard-stripe outline.
-    if flood_geojson["features"]:
+    # Created unconditionally: an absent layer cannot be updated by id, so a
+    # scenario that starts with no flooding would leave nothing to patch.
+    if True:
         geojson_layer = pdk.Layer(
             "GeoJsonLayer",
             flood_geojson,
+            id="flood-main",
             opacity=1.0,
             stroked=True,
             filled=True,
@@ -694,6 +698,7 @@ def create_3d_digital_twin_deck(
     # travel with the deck rather than being recomputed and risking divergence
     # between what the map shows and what the panel reports.
     deck._flood_features = flood_geojson.get("features", [])
+    deck._halo_features = halo_geojson.get("features", [])
     return deck
 
 
@@ -754,6 +759,56 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
     </div>
     """
 
+    # Live-update bridge. Without this the whole ~4.6 MB document is rebuilt
+    # and the iframe reloaded on every slider move, which flickers and discards
+    # the viewer's zoom and pan. Flood geometry is ~0.7 MB of that document; the
+    # basemap and building extrusions are byte-identical every time. The parent
+    # page now posts only the geometry and this patches the two flood layers.
+    updater_js = """
+<script>
+(function () {
+  function findDeck() {
+    // pydeck names the instance deckInstance; fall back to a scan if that changes.
+    if (typeof deckInstance !== "undefined" && deckInstance) return deckInstance;
+    for (var k in window) {
+      try {
+        var v = window[k];
+        if (v && typeof v.setProps === "function" && v.props && v.props.layers) return v;
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  window.addEventListener("message", function (ev) {
+    var msg = ev.data;
+    if (!msg || msg.type !== "floodUpdate") return;
+    var d = findDeck();
+    if (!d || !d.props || !d.props.layers) {
+      window.parent.postMessage({ type: "floodUpdateAck", ok: false, error: "no deck" }, "*");
+      return;
+    }
+    try {
+      var layers = d.props.layers.map(function (layer) {
+        if (layer.id === "flood-main" && msg.main) return layer.clone({ data: msg.main });
+        if (layer.id === "flood-halo" && msg.halo) return layer.clone({ data: msg.halo });
+        return layer;
+      });
+      // setProps leaves viewState untouched, so zoom and pan survive the update.
+      d.setProps({ layers: layers });
+      window.parent.postMessage({ type: "floodUpdateAck", ok: true }, "*");
+    } catch (e) {
+      // Report failure so the parent can fall back to a full document swap
+      // rather than silently leaving stale geometry on screen.
+      window.parent.postMessage({ type: "floodUpdateAck", ok: false, error: String(e) }, "*");
+    }
+  });
+
+  window.parent.postMessage({ type: "floodMapReady" }, "*");
+})();
+</script>
+"""
+
+    extra = legend_html + updater_js
     if "</body>" in base_html:
-        return base_html.replace("</body>", f"{legend_html}\n</body>")
-    return base_html + legend_html
+        return base_html.replace("</body>", f"{extra}\n</body>")
+    return base_html + extra
