@@ -25,7 +25,9 @@ from shapely.validation import make_valid
 import pydeck as pdk
 from loguru import logger
 
-from src.models.predict import LAT_NORTH, LAT_SOUTH, LON_WEST, LON_EAST, GRID_H, GRID_W
+from src.models.predict import (
+    LAT_NORTH, LAT_SOUTH, LON_WEST, LON_EAST, GRID_H, GRID_W, NAIROBI_LOCATIONS,
+)
 
 BUILDINGS_JSON = Path("data/processed/nairobi_buildings_3d.json")
 
@@ -77,6 +79,40 @@ if BUILDINGS_JSON.exists():
         logger.info(f"Pre-computed 3D building footprint union ({len(_b_polys)} structures >= {_BUILDING_AREA_MIN_M2:.0f}m2) for street-only flood overlay.")
     except Exception as _e:
         logger.warning(f"Could not pre-compute building footprints: {_e}")
+
+
+#: Only ten locations are monitored across the county, so most water sits
+#: between them rather than on one. Rather than either claiming a polygon IS in
+#: a region when it is two kilometres away, or refusing to name it at all, the
+#: label states proximity honestly. ~0.015 deg is roughly 1.7 km, ~0.05 deg
+#: roughly 5.5 km at this latitude.
+_REGION_EXACT_DEG = 0.015
+_REGION_NEAR_DEG = 0.05
+
+
+def _nearest_region(lat: float, lon: float) -> str:
+    """
+    Name the monitored area a flood polygon sits in or beside.
+
+    Returns the bare name when the polygon is essentially on the location, a
+    "Near X" form when it is in the vicinity, and declines to guess beyond that.
+    Returning the nearest name unconditionally would label water on the far side
+    of the county after whichever monitored point happened to be least distant,
+    which reads as authoritative while being wrong.
+    """
+    best, best_d2 = None, float("inf")
+    for name, (lat_t, lon_t, _zoom) in NAIROBI_LOCATIONS.items():
+        d2 = (lat - lat_t) ** 2 + (lon - lon_t) ** 2
+        if d2 < best_d2:
+            best, best_d2 = name, d2
+    if best is None:
+        return "Unmonitored area"
+    d = best_d2 ** 0.5
+    if d <= _REGION_EXACT_DEG:
+        return best
+    if d <= _REGION_NEAR_DEG:
+        return f"Near {best}"
+    return "Unmonitored area"
 
 
 def generate_flood_contour_geojson(
@@ -219,6 +255,23 @@ def generate_flood_contour_geojson(
         for poly in _iter_polys(smoothed):
             if poly.area < MIN_AREA_DEG2:
                 continue
+
+            # Name the area this polygon sits in, and read the underlying value
+            # at its centroid so the tooltip reports this patch of water rather
+            # than the scenario as a whole.
+            # representative_point() is guaranteed to fall inside the polygon;
+            # centroid() is not, and on a concave or ring-shaped patch it lands
+            # in the gap, reporting a value that contradicts the polygon's own
+            # risk band.
+            c = poly.representative_point()
+            region = _nearest_region(c.y, c.x)
+            r_i = int(np.abs(lats - c.y).argmin())
+            c_i = int(np.abs(lons - c.x).argmin())
+            if value_is_probability:
+                value_label = f"{100.0 * float(smooth_grid[r_i, c_i]):.0f}% likelihood"
+            else:
+                value_label = f"{float(smooth_grid[r_i, c_i]):.2f} m"
+
             features.append({
                 "type": "Feature",
                 "geometry": mapping(poly),
@@ -227,6 +280,8 @@ def generate_flood_contour_geojson(
                     "fillColor": style["fillColor"],
                     "lineColor": style["lineColor"],
                     "name": style["name"],
+                    "region": region,
+                    "value_label": value_label,
                 },
             })
 
@@ -380,7 +435,9 @@ def create_3d_digital_twin_deck(
         map_provider="carto",
         map_style=pdk.map_styles.CARTO_DARK,
         tooltip={
-            "html": "<b>Zone:</b> {name}",
+            "html": ("<div style='font-weight:600;font-size:13px;margin-bottom:3px'>{region}</div>"
+                     "<div style='opacity:0.85'>{name}</div>"
+                     "<div style='opacity:0.7;font-size:11.5px;margin-top:2px'>{value_label}</div>"),
             "style": {
                 "backgroundColor": "#151d28",
                 "color": "#eaf0f6",
