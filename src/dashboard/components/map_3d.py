@@ -124,7 +124,97 @@ def _load_places() -> tuple[np.ndarray, np.ndarray, list[str]]:
                 names)
 
 
+def _iter_polys(geom):
+    """Yield the Polygon parts of any geometry, ignoring lines and points."""
+    if geom is None or geom.is_empty:
+        return []
+    if geom.geom_type == "MultiPolygon":
+        return list(geom.geoms)
+    if geom.geom_type == "Polygon":
+        return [geom]
+    if geom.geom_type == "GeometryCollection":
+        return [g for g in geom.geoms if g.geom_type == "Polygon"]
+    return []
+
+
+#: Minimum polygon area to render, in square degrees. Defined at module
+#: scope because the place-splitter needs it too.
+MIN_AREA_DEG2 = 4.0e-6  # ~25m x 25m — drops stray single-pixel speckle
+
 _PLACE_LATS, _PLACE_LONS, _PLACE_NAMES = _load_places()
+
+
+def _build_place_partition():
+    """
+    Partition Nairobi into one cell per named place (a Voronoi diagram).
+
+    Flood contours follow river corridors and can run many kilometres. Naming
+    such a polygon from a single interior point labels its entire length after
+    one place, so hovering the Mathare end of a ribbon that reaches Kariobangi
+    returned "Kariobangi South". Splitting each polygon against this partition
+    gives every piece the name of the place it actually sits in.
+
+    Returns (STRtree over the cells, cell list, name per cell) or None if the
+    geometry libraries are unavailable, in which case labelling falls back to
+    one name per polygon.
+    """
+    try:
+        from shapely.ops import voronoi_diagram
+        from shapely.geometry import MultiPoint, Point
+        from shapely import STRtree
+
+        pts = MultiPoint([(lon, lat) for lon, lat in zip(_PLACE_LONS, _PLACE_LATS)])
+        cells = list(voronoi_diagram(pts, envelope=pts.buffer(0.05)).geoms)
+
+        # voronoi_diagram does not preserve input order, so each cell is matched
+        # to the place it was generated from by containment.
+        names = []
+        for cell in cells:
+            hit = "Unmonitored area"
+            for lat, lon, nm in zip(_PLACE_LATS, _PLACE_LONS, _PLACE_NAMES):
+                if cell.contains(Point(lon, lat)):
+                    hit = nm
+                    break
+            names.append(hit)
+
+        logger.info(f"Region labelling: place partition built ({len(cells)} cells)")
+        return STRtree(cells), cells, names
+    except Exception as exc:                                   # noqa: BLE001
+        logger.warning(
+            f"Region labelling: place partition unavailable ({exc}); each flood "
+            f"polygon will carry a single name along its whole length."
+        )
+        return None
+
+
+_PLACE_PARTITION = _build_place_partition()
+
+
+def _split_by_place(poly):
+    """
+    Split a flood polygon into (piece, place name) parts.
+
+    Pieces below a minimum area are dropped rather than rendered as slivers at
+    cell boundaries. Falls back to the whole polygon under its nearest place if
+    no partition is available.
+    """
+    if _PLACE_PARTITION is None:
+        c = poly.representative_point()
+        return [(poly, _nearest_region(c.y, c.x))]
+
+    tree, cells, names = _PLACE_PARTITION
+    out = []
+    for idx in tree.query(poly):
+        piece = poly.intersection(cells[int(idx)])
+        if piece.is_empty or piece.area < MIN_AREA_DEG2:
+            continue
+        for part in _iter_polys(piece):
+            if part.area >= MIN_AREA_DEG2:
+                out.append((part, names[int(idx)]))
+    if not out:
+        c = poly.representative_point()
+        return [(poly, _nearest_region(c.y, c.x))]
+    return out
 
 
 def _nearest_region(lat: float, lon: float) -> str:
@@ -265,8 +355,6 @@ def generate_flood_contour_geojson(
     transform = rasterio.transform.from_bounds(
         LON_WEST, LAT_SOUTH, LON_EAST, LAT_NORTH, w, h
     )
-
-    MIN_AREA_DEG2 = 4.0e-6  # ~25m x 25m — drops stray single-pixel speckle
     BUFFER_R = 0.0011       # ~120m open/close radius — real rounded water edges,
                             # not a street-precise vector trace (see module docstring)
     SIMPLIFY_TOL = 0.00022  # Reduce vertex count along the now-rounded curve
@@ -323,55 +411,36 @@ def generate_flood_contour_geojson(
         except Exception:
             halo_geom = None
 
-        def _iter_polys(geom):
-            if geom is None or geom.is_empty:
-                return []
-            if geom.geom_type == "MultiPolygon":
-                return list(geom.geoms)
-            if geom.geom_type == "Polygon":
-                return [geom]
-            if geom.geom_type == "GeometryCollection":
-                return [g for g in geom.geoms if g.geom_type == "Polygon"]
-            return []
 
         style = styles[level]
         for poly in _iter_polys(smoothed):
             if poly.area < MIN_AREA_DEG2:
                 continue
 
-            # Name the area this polygon sits in, and read the underlying value
-            # at its centroid so the tooltip reports this patch of water rather
-            # than the scenario as a whole.
-            # representative_point() is guaranteed to fall inside the polygon;
-            # centroid() is not, and on a concave or ring-shaped patch it lands
-            # in the gap.
-            c = poly.representative_point()
-            region = _nearest_region(c.y, c.x)
+            # One label per polygon is wrong for these shapes: contours follow
+            # river corridors and can run kilometres across several places. Each
+            # polygon is split against the place partition so every piece is
+            # named after the place it actually covers.
+            for piece, region in _split_by_place(poly):
+                lo, hi = bands[level]
+                val = _band_value_in(piece, smooth_grid, lats, lons, lo, hi)
+                if value_is_probability:
+                    value_label = f"{100.0 * val:.0f}% probability"
+                else:
+                    value_label = f"{val:.2f} m"
 
-            # Report the peak value within the polygon rather than the value at
-            # one point. Contours are smoothed and have building footprints
-            # subtracted after classification, so a single interior sample can
-            # land just below the band that named the polygon and contradict its
-            # own label.
-            lo, hi = bands[level]
-            val = _band_value_in(poly, smooth_grid, lats, lons, lo, hi)
-            if value_is_probability:
-                value_label = f"{100.0 * val:.0f}% probability"
-            else:
-                value_label = f"{val:.2f} m"
-
-            features.append({
-                "type": "Feature",
-                "geometry": mapping(poly),
-                "properties": {
-                    "level": level,
-                    "fillColor": style["fillColor"],
-                    "lineColor": style["lineColor"],
-                    "name": style["name"],
-                    "region": region,
-                    "value_label": value_label,
-                },
-            })
+                features.append({
+                    "type": "Feature",
+                    "geometry": mapping(piece),
+                    "properties": {
+                        "level": level,
+                        "fillColor": style["fillColor"],
+                        "lineColor": style["lineColor"],
+                        "name": style["name"],
+                        "region": region,
+                        "value_label": value_label,
+                    },
+                })
 
         for poly in _iter_polys(halo_geom):
             if poly.area < MIN_AREA_DEG2:
