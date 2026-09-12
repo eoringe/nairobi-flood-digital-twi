@@ -81,38 +81,115 @@ if BUILDINGS_JSON.exists():
         logger.warning(f"Could not pre-compute building footprints: {_e}")
 
 
-#: Only ten locations are monitored across the county, so most water sits
-#: between them rather than on one. Rather than either claiming a polygon IS in
-#: a region when it is two kilometres away, or refusing to name it at all, the
-#: label states proximity honestly. ~0.015 deg is roughly 1.7 km, ~0.05 deg
-#: roughly 5.5 km at this latitude.
+#: Named places across Nairobi, from OpenStreetMap via
+#: src/ingestion/fetch_place_names.py. Several hundred suburbs, neighbourhoods,
+#: quarters and villages, so a flooded patch anywhere on the prediction grid can
+#: be named rather than only those near a handful of curated points.
+_PLACES_FILE = Path("data/processed/nairobi_places.json")
+
+#: With places this dense the nearest one is almost always the right one, so the
+#: bare name is used out to ~1.7 km and a "Near X" form to ~3.3 km. Beyond that
+#: the polygon really is between named places and no claim is made.
 _REGION_EXACT_DEG = 0.015
-_REGION_NEAR_DEG = 0.05
+_REGION_NEAR_DEG = 0.03
+
+
+def _load_places() -> tuple[np.ndarray, np.ndarray, list[str]]:
+    """
+    Load the gazetteer as parallel arrays for vectorised nearest-neighbour.
+
+    Falls back to the ten curated monitoring points if the cache is absent, so
+    a fresh clone still labels regions - just more coarsely - rather than
+    failing to render.
+    """
+    try:
+        data = json.loads(_PLACES_FILE.read_text(encoding="utf-8"))
+        pl = data["places"]
+        logger.info(
+            f"Region labelling: {len(pl)} OpenStreetMap places "
+            f"(fetched {data.get('fetched', 'unknown')})"
+        )
+        return (np.array([p["lat"] for p in pl], dtype=np.float64),
+                np.array([p["lon"] for p in pl], dtype=np.float64),
+                [p["name"] for p in pl])
+    except Exception as exc:                                   # noqa: BLE001
+        logger.warning(
+            f"Region labelling: {_PLACES_FILE} unavailable ({exc}); falling back "
+            f"to the {len(NAIROBI_LOCATIONS)} curated monitoring points. "
+            f"Run `python -m src.ingestion.fetch_place_names` for full coverage."
+        )
+        names = list(NAIROBI_LOCATIONS.keys())
+        return (np.array([NAIROBI_LOCATIONS[n][0] for n in names]),
+                np.array([NAIROBI_LOCATIONS[n][1] for n in names]),
+                names)
+
+
+_PLACE_LATS, _PLACE_LONS, _PLACE_NAMES = _load_places()
 
 
 def _nearest_region(lat: float, lon: float) -> str:
     """
-    Name the monitored area a flood polygon sits in or beside.
+    Name the place a flood polygon sits in or beside.
 
-    Returns the bare name when the polygon is essentially on the location, a
+    Returns the bare name when the polygon is essentially on the place, a
     "Near X" form when it is in the vicinity, and declines to guess beyond that.
-    Returning the nearest name unconditionally would label water on the far side
-    of the county after whichever monitored point happened to be least distant,
-    which reads as authoritative while being wrong.
+    Naming the nearest place unconditionally would attribute water to somewhere
+    kilometres away whenever it fell in a genuinely unnamed gap, which reads as
+    authoritative while being wrong.
     """
-    best, best_d2 = None, float("inf")
-    for name, (lat_t, lon_t, _zoom) in NAIROBI_LOCATIONS.items():
-        d2 = (lat - lat_t) ** 2 + (lon - lon_t) ** 2
-        if d2 < best_d2:
-            best, best_d2 = name, d2
-    if best is None:
+    if not len(_PLACE_NAMES):
         return "Unmonitored area"
+    d2 = (_PLACE_LATS - lat) ** 2 + (_PLACE_LONS - lon) ** 2
+    i = int(np.argmin(d2))
+    d = float(d2[i]) ** 0.5
+    if d <= _REGION_EXACT_DEG:
+        return _PLACE_NAMES[i]
+    if d <= _REGION_NEAR_DEG:
+        return f"Near {_PLACE_NAMES[i]}"
+    return "Unmonitored area"
     d = best_d2 ** 0.5
     if d <= _REGION_EXACT_DEG:
         return best
     if d <= _REGION_NEAR_DEG:
         return f"Near {best}"
     return "Unmonitored area"
+
+
+def _band_value_in(poly, grid: np.ndarray, lats: np.ndarray, lons: np.ndarray,
+                   lo: float, hi: float) -> float:
+    """
+    Representative value for a polygon, within its own band.
+
+    The risk bands are nested: the polygon for the moderate band covers every
+    cell at or above the moderate threshold, including the severe core drawn on
+    top of it. So the maximum inside a moderate polygon is legitimately a severe
+    value, and reporting it contradicts the polygon's own label.
+
+    This takes the cells inside the polygon whose values fall within [lo, hi] -
+    the annulus the band actually describes - and reports their median. Falls
+    back to the midpoint of the band if containment testing is unavailable.
+    """
+    minx, miny, maxx, maxy = poly.bounds
+    r0, r1 = np.searchsorted(-lats, -maxy), np.searchsorted(-lats, -miny)
+    c0, c1 = np.searchsorted(lons, minx), np.searchsorted(lons, maxx)
+    r0, r1 = max(0, r0 - 1), min(len(lats), r1 + 1)
+    c0, c1 = max(0, c0 - 1), min(len(lons), c1 + 1)
+    if r1 <= r0 or c1 <= c0:
+        return (lo + hi) / 2.0
+
+    window = grid[r0:r1, c0:c1]
+    try:
+        from shapely import contains_xy
+        gy, gx = np.meshgrid(lats[r0:r1], lons[c0:c1], indexing="ij")
+        inside = contains_xy(poly, gx, gy)
+        vals = window[inside] if inside.any() else window.ravel()
+    except Exception:                                      # noqa: BLE001
+        vals = window.ravel()
+
+    in_band = vals[(vals >= lo) & (vals <= hi)]
+    if in_band.size:
+        return float(np.median(in_band))
+    return float(np.clip(np.median(vals), lo, hi))
 
 
 def generate_flood_contour_geojson(
@@ -162,11 +239,13 @@ def generate_flood_contour_geojson(
         risk_mask[prob_grid >= 55.0] = 2
         risk_mask[prob_grid >= 82.0] = 3
         names = {1: "Moderate Risk (25-55%)", 2: "High Risk (55-82%)", 3: "Severe Risk (>82%)"}
+        bands = {1: (0.25, 0.55), 2: (0.55, 0.82), 3: (0.82, 1.00)}
     else:
         risk_mask[smooth_grid >= 0.35] = 1
         risk_mask[smooth_grid >= 1.1] = 2
         risk_mask[smooth_grid >= 1.85] = 3
         names = {1: "Shallow (0.35-1.1m)", 2: "Deep (1.1-1.85m)", 3: "Critical (>1.85m)"}
+        bands = {1: (0.35, 1.1), 2: (1.1, 1.85), 3: (1.85, 4.5)}
 
     styles = {
         1: {"fillColor": [53, 194, 209, 85],  "lineColor": [110, 220, 230, 90],  "name": names[1]},
@@ -261,16 +340,21 @@ def generate_flood_contour_geojson(
             # than the scenario as a whole.
             # representative_point() is guaranteed to fall inside the polygon;
             # centroid() is not, and on a concave or ring-shaped patch it lands
-            # in the gap, reporting a value that contradicts the polygon's own
-            # risk band.
+            # in the gap.
             c = poly.representative_point()
             region = _nearest_region(c.y, c.x)
-            r_i = int(np.abs(lats - c.y).argmin())
-            c_i = int(np.abs(lons - c.x).argmin())
+
+            # Report the peak value within the polygon rather than the value at
+            # one point. Contours are smoothed and have building footprints
+            # subtracted after classification, so a single interior sample can
+            # land just below the band that named the polygon and contradict its
+            # own label.
+            lo, hi = bands[level]
+            val = _band_value_in(poly, smooth_grid, lats, lons, lo, hi)
             if value_is_probability:
-                value_label = f"{100.0 * float(smooth_grid[r_i, c_i]):.0f}% likelihood"
+                value_label = f"{100.0 * val:.0f}% likelihood"
             else:
-                value_label = f"{float(smooth_grid[r_i, c_i]):.2f} m"
+                value_label = f"{val:.2f} m"
 
             features.append({
                 "type": "Feature",
