@@ -20,7 +20,7 @@ import dash_bootstrap_components as dbc
 from loguru import logger
 
 from src.dashboard.layouts import build_dashboard_layout
-from src.dashboard.callbacks import register_callbacks
+from src.dashboard.callbacks import register_callbacks, start_background_warmup
 
 GOOGLE_FONTS_URL = (
     "https://fonts.googleapis.com/css2?"
@@ -52,7 +52,12 @@ def main(host: str = "127.0.0.1", port: int = 8050, debug: bool = False) -> None
     logger.info(f"   URL  : http://{host}:{port}/")
     logger.info("   Stack: Dash + Pydeck WebGL + PyTorch U-Net (Model B)")
     logger.info("   Output: flood EXTENT as per-cell probability, not depth")
+    logger.info("   Loading road network and outlooks in the background...")
     logger.info("============================================================")
+    # Not started in debug mode's reloader parent, which would warm up twice.
+    import os
+    if not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        start_background_warmup()
     app.run(host=host, port=port, debug=debug)
 
 

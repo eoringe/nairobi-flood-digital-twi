@@ -364,12 +364,51 @@ def summarise_flooded_regions(features: list[dict]) -> dict:
                                        -kv[1]["flooded_area_km2"])))
 
 
+#: Per-theme map styling. The light theme uses CARTO Voyager rather than the
+#: near-white Positron: routing needs roads to be legible, and Voyager draws
+#: them with class-graded colour. Flood fills are more opaque on the light
+#: basemap because amber at the dark theme's alpha disappears against white.
+MAP_THEMES = {
+    "dark": {
+        "basemap": pdk.map_styles.CARTO_DARK,
+        "flood": {
+            1: ([240, 185, 63, 90],  [245, 205, 110, 110]),
+            2: ([240, 138, 60, 120], [245, 170, 105, 125]),
+            3: ([239, 68, 89, 155],  [245, 120, 135, 140]),
+        },
+        "halo": {1: [53, 194, 209, 26], 2: [35, 138, 205, 32], 3: [21, 82, 176, 38]},
+        "buildings": ([53, 194, 209, 205], [68, 110, 130, 180], [90, 100, 115, 150]),
+        "tooltip": {"backgroundColor": "#151d28", "color": "#eaf0f6", "border": "1px solid #202b38",
+                    "boxShadow": "0 8px 20px rgba(0,0,0,0.4)"},
+        "legend": {"bg": "rgba(16, 22, 31, 0.92)", "border": "#202b38", "text": "#eaf0f6",
+                   "muted": "#5c6b7a", "shadow": "0 10px 28px rgba(0, 0, 0, 0.45)", "bldg": "#5a6473"},
+        "pin_stroke": [16, 22, 31, 255],
+    },
+    "light": {
+        "basemap": pdk.map_styles.CARTO_ROAD,
+        "flood": {
+            1: ([232, 160, 18, 125], [196, 128, 6, 170]),
+            2: ([232, 112, 32, 150], [196, 84, 18, 185]),
+            3: ([214, 40, 66, 170],  [176, 24, 48, 200]),
+        },
+        "halo": {1: [14, 143, 156, 22], 2: [20, 110, 190, 26], 3: [20, 70, 160, 30]},
+        "buildings": ([14, 143, 156, 190], [132, 160, 174, 170], [176, 186, 198, 150]),
+        "tooltip": {"backgroundColor": "#ffffff", "color": "#0f1a24", "border": "1px solid #d5dee5",
+                    "boxShadow": "0 8px 20px rgba(15,26,36,0.14)"},
+        "legend": {"bg": "rgba(255, 255, 255, 0.94)", "border": "#d5dee5", "text": "#0f1a24",
+                   "muted": "#6b7a88", "shadow": "0 10px 28px rgba(15, 26, 36, 0.14)", "bldg": "#b0bac6"},
+        "pin_stroke": [255, 255, 255, 255],
+    },
+}
+
+
 def generate_flood_contour_geojson(
     depth_grid: np.ndarray,
     lats: np.ndarray,
     lons: np.ndarray,
     display_mode: str = "PROBABILITY",
     value_is_probability: bool = False,
+    theme: str = "dark",
 ) -> tuple[dict, dict]:
     """
     Extract precise, street-only flood polygons with building footprints subtracted.
@@ -422,17 +461,12 @@ def generate_flood_contour_geojson(
     # reading CRITICAL in red corresponds to a red polygon rather than a blue one.
     # This trades the "water is blue" convention for agreement between the map and
     # the panel beside it; the map communicates risk, not the presence of a lake.
+    palette = MAP_THEMES.get(theme, MAP_THEMES["dark"])
     styles = {
-        1: {"fillColor": [240, 185, 63, 90],  "lineColor": [245, 205, 110, 110], "name": names[1]},   # MODERATE amber
-        2: {"fillColor": [240, 138, 60, 120], "lineColor": [245, 170, 105, 125], "name": names[2]},   # HIGH orange
-        3: {"fillColor": [239, 68, 89, 155],  "lineColor": [245, 120, 135, 140], "name": names[3]},   # CRITICAL red
+        lvl: {"fillColor": fill, "lineColor": line, "name": names[lvl]}   # amber / orange / red
+        for lvl, (fill, line) in palette["flood"].items()
     }
-
-    halo_styles = {
-        1: [53, 194, 209, 26],
-        2: [35, 138, 205, 32],
-        3: [21, 82, 176, 38],
-    }
+    halo_styles = palette["halo"]
 
     transform = rasterio.transform.from_bounds(
         LON_WEST, LAT_SOUTH, LON_EAST, LAT_NORTH, w, h
@@ -539,6 +573,11 @@ def generate_flood_contour_geojson(
         {"type": "FeatureCollection", "features": halo_features},
     )
 
+#: Layer ids the live-update bridge can patch. Every one is created in every
+#: document, empty if need be: a layer that does not exist cannot be updated by
+#: id, so a route requested after the map loaded would have nowhere to go.
+ROUTE_LAYER_IDS = ("route-fastest", "route-casing", "route-safe", "route-endpoints")
+
 
 def create_3d_digital_twin_deck(
     depth_grid: np.ndarray | None = None,
@@ -551,10 +590,17 @@ def create_3d_digital_twin_deck(
     display_mode: str = "PROBABILITY",
     highlight_region: str | None = None,
     highlight_coords: tuple[float, float] | None = None,
+    theme: str = "dark",
+    route_layers: dict | None = None,
 ) -> pdk.Deck:
     """
     Construct Pydeck 3D Viewport with street-accurate flood overlay and crisp 3D buildings.
+
+    `route_layers` maps each id in ROUTE_LAYER_IDS to its data rows, so a
+    rebuilt document (theme or camera change) keeps an active route on screen.
     """
+    palette = MAP_THEMES.get(theme, MAP_THEMES["dark"])
+    route_layers = route_layers or {}
     layers = []
 
     if depth_grid is None:
@@ -571,50 +617,46 @@ def create_3d_digital_twin_deck(
         lats=lats,
         lons=lons,
         display_mode=display_mode,
+        theme=theme,
     )
 
-    # 1a. Faded halo underneath — feathers the water edge into the basemap
+    # 1a. Faded halo underneath - feathers the water edge into the basemap
     # instead of stopping at a hard outline (see generate_flood_contour_geojson).
-    if halo_geojson["features"]:
-        halo_layer = pdk.Layer(
-            "GeoJsonLayer",
-            halo_geojson,
-            id="flood-halo",
-            opacity=1.0,
-            stroked=False,
-            filled=True,
-            extruded=False,
-            get_fill_color="properties.fillColor",
-            pickable=False,
-        )
-        layers.append(halo_layer)
+    # Created unconditionally, like every patchable layer.
+    layers.append(pdk.Layer(
+        "GeoJsonLayer",
+        halo_geojson,
+        id="flood-halo",
+        opacity=1.0,
+        stroked=False,
+        filled=True,
+        extruded=False,
+        get_fill_color="properties.fillColor",
+        pickable=False,
+    ))
 
-    # 1b. The readable water fill itself — translucent so streets and
-    # terrain stay visible underneath, thin low-alpha edge instead of a
-    # bright hazard-stripe outline.
-    # Created unconditionally: an absent layer cannot be updated by id, so a
-    # scenario that starts with no flooding would leave nothing to patch.
-    if True:
-        geojson_layer = pdk.Layer(
-            "GeoJsonLayer",
-            flood_geojson,
-            id="flood-main",
-            opacity=1.0,
-            stroked=True,
-            filled=True,
-            extruded=False,
-            wireframe=False,
-            get_fill_color="properties.fillColor",
-            get_line_color="properties.lineColor",
-            get_line_width=1,
-            line_width_min_pixels=1,
-            pickable=True,
-            auto_highlight=True,
-            highlight_color=[255, 255, 255, 60],
-        )
-        layers.append(geojson_layer)
+    # 1b. The readable flood fill itself - translucent so streets and terrain
+    # stay visible underneath.
+    layers.append(pdk.Layer(
+        "GeoJsonLayer",
+        flood_geojson,
+        id="flood-main",
+        opacity=1.0,
+        stroked=True,
+        filled=True,
+        extruded=False,
+        wireframe=False,
+        get_fill_color="properties.fillColor",
+        get_line_color="properties.lineColor",
+        get_line_width=1,
+        line_width_min_pixels=1,
+        pickable=True,
+        auto_highlight=True,
+        highlight_color=[255, 255, 255, 60],
+    ))
 
     # 2. LOD2 Solid 3D Volumetric Building Footprint Extrusions
+    tall, mid, low = palette["buildings"]
     building_data = []
     if BUILDINGS_JSON.exists():
         try:
@@ -625,14 +667,7 @@ def create_3d_digital_twin_deck(
                 props = feat["properties"]
                 h_val = props.get("height", 14.0)
                 polygon = list(_footprint_polygon(feat).exterior.coords)
-
-                if h_val > 25:
-                    color = [53, 194, 209, 205]   # --accent, tall landmarks
-                elif h_val > 12:
-                    color = [68, 110, 130, 180]   # desaturated teal-slate, mid-rise
-                else:
-                    color = [90, 100, 115, 150]   # muted slate, low-rise
-
+                color = tall if h_val > 25 else (mid if h_val > 12 else low)
                 building_data.append({
                     "polygon": polygon,
                     "height": h_val,
@@ -642,18 +677,47 @@ def create_3d_digital_twin_deck(
             logger.warning(f"Error loading building footprints: {e}")
 
     if building_data:
-        building_layer = pdk.Layer(
+        layers.append(pdk.Layer(
             "PolygonLayer",
             building_data,
+            id="buildings",
             get_polygon="polygon",
             get_elevation="height",
             get_fill_color="color",
+            # Wireframe edges default to black, which is invisible on the dark
+            # basemap but turns every building into a black speck on the light one.
+            get_line_color="color",
             extruded=True,
             wireframe=True,
-            pickable=True,
+            pickable=False,
             opacity=0.85,
-        )
-        layers.append(building_layer)
+        ))
+
+    # 3. Routes. Drawn last with depth testing off, so a route is never hidden
+    # behind an extruded building when the camera is pitched.
+    #
+    # Widths are in metres, clamped to a pixel range, NOT in pixels. With
+    # width_units="pixels", deck.gl 9.2 drops the whole path once the camera
+    # zooms out past ~12 (it switches projection mode there): the route
+    # vanished on zoom-out while the pins beside it stayed. Measured: a pixel
+    # path visible at zoom 12.5 is gone at 11.9; the same path in metres with
+    # a pixel minimum stays drawn at every zoom.
+    no_depth = {"depthCompare": "always", "depthWriteEnabled": False}
+    path_common = dict(get_path="path", get_color="color", get_width="width",
+                       width_units="meters", cap_rounded=True, joint_rounded=True,
+                       pickable=False, parameters=no_depth)
+    layers.append(pdk.Layer("PathLayer", route_layers.get("route-fastest", []),
+                            id="route-fastest", width_min_pixels=4, width_max_pixels=7, **path_common))
+    layers.append(pdk.Layer("PathLayer", route_layers.get("route-casing", []),
+                            id="route-casing", width_min_pixels=9, width_max_pixels=13, **path_common))
+    layers.append(pdk.Layer("PathLayer", route_layers.get("route-safe", []),
+                            id="route-safe", width_min_pixels=5, width_max_pixels=8, **path_common))
+    layers.append(pdk.Layer(
+        "ScatterplotLayer", route_layers.get("route-endpoints", []),
+        id="route-endpoints", get_position="position", get_fill_color="color",
+        get_line_color=palette["pin_stroke"], stroked=True, line_width_min_pixels=3,
+        get_radius=9, radius_units="pixels", pickable=False, parameters=no_depth,
+    ))
 
     view_state = pdk.ViewState(
         latitude=center_lat,
@@ -663,7 +727,7 @@ def create_3d_digital_twin_deck(
         bearing=bearing,
     )
 
-    # minZoom/maxZoom are Controller options, not top-level View props — deck.gl
+    # minZoom/maxZoom are Controller options, not top-level View props - deck.gl
     # silently ignores them if passed as `pdk.View(min_zoom=...)` instead of
     # inside `controller`, which is why the camera could still be pulled back
     # past Nairobi County into a regional view. This keeps it to Nairobi.
@@ -677,20 +741,17 @@ def create_3d_digital_twin_deck(
         initial_view_state=view_state,
         views=[nairobi_view],
         map_provider="carto",
-        map_style=pdk.map_styles.CARTO_DARK,
+        map_style=palette["basemap"],
         tooltip={
             "html": ("<div style='font-weight:600;font-size:13px;margin-bottom:3px'>{region}</div>"
                      "<div style='opacity:0.85'>{name}</div>"
                      "<div style='opacity:0.7;font-size:11.5px;margin-top:2px'>{value_label}</div>"),
             "style": {
-                "backgroundColor": "#151d28",
-                "color": "#eaf0f6",
+                **palette["tooltip"],
                 "fontFamily": "'IBM Plex Sans', 'Segoe UI', sans-serif",
                 "fontSize": "12.5px",
-                "border": "1px solid #202b38",
                 "borderRadius": "6px",
                 "padding": "6px 10px",
-                "boxShadow": "0 8px 20px rgba(0,0,0,0.4)",
             },
         },
     )
@@ -699,6 +760,7 @@ def create_3d_digital_twin_deck(
     # between what the map shows and what the panel reports.
     deck._flood_features = flood_geojson.get("features", [])
     deck._halo_features = halo_geojson.get("features", [])
+    deck._theme = theme
     return deck
 
 
@@ -707,103 +769,124 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
     Generate Pydeck HTML string with an embedded floating Legend Pill.
     """
     base_html = deck.to_html(as_string=True)
+    lg = MAP_THEMES.get(getattr(deck, "_theme", "dark"), MAP_THEMES["dark"])["legend"]
 
-    # Matches the token system in src/dashboard/assets/custom.css — a
-    # quiet glass HUD panel rather than a colorful emoji pill, since this
-    # HTML is rendered inside the map's own iframe and can't reach that
-    # stylesheet directly.
-    legend_html = """
+    # Matches the token system in src/dashboard/assets/custom.css. This HTML is
+    # rendered inside the map's own iframe and cannot reach that stylesheet, so
+    # the theme's colours are written in directly.
+    legend_html = f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+        #pydeck-embedded-legend .sw {{ width:8px; height:8px; border-radius:2px; display:inline-block; }}
+        #pydeck-embedded-legend .it {{ display:flex; align-items:center; gap:6px; }}
+        #pydeck-embedded-legend .mu {{ color:{lg['muted']}; }}
+        @media (max-width: 640px) {{ #pydeck-embedded-legend .wide {{ display:none; }} }}
     </style>
     <div id="pydeck-embedded-legend" style="
         position: fixed;
         bottom: 20px;
         left: 50%;
         transform: translateX(-50%);
-        background-color: rgba(16, 22, 31, 0.92);
+        background-color: {lg['bg']};
         backdrop-filter: blur(6px);
-        border: 1px solid #202b38;
+        border: 1px solid {lg['border']};
         border-radius: 10px;
         padding: 8px 16px;
         z-index: 99999;
         font-family: 'IBM Plex Mono', 'Consolas', monospace;
-        color: #eaf0f6;
+        color: {lg['text']};
         font-size: 10.5px;
         letter-spacing: 0.2px;
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+        box-shadow: {lg['shadow']};
         pointer-events: none;
         white-space: nowrap;
         display: flex;
         align-items: center;
         gap: 14px;
     ">
-        <span style="color: #5c6b7a; text-transform: uppercase; letter-spacing: 0.6px; font-size: 9.5px;">Flood Probability</span>
-        <span style="display:flex; align-items:center; gap:6px;">
-            <span style="width:8px; height:8px; border-radius:2px; background:#f0b93f; display:inline-block;"></span>
-            Moderate <span style="color:#5c6b7a;">25&ndash;55%</span>
-        </span>
-        <span style="display:flex; align-items:center; gap:6px;">
-            <span style="width:8px; height:8px; border-radius:2px; background:#f08a3c; display:inline-block;"></span>
-            High <span style="color:#5c6b7a;">55&ndash;82%</span>
-        </span>
-        <span style="display:flex; align-items:center; gap:6px;">
-            <span style="width:8px; height:8px; border-radius:2px; background:#ef4459; display:inline-block;"></span>
-            Critical <span style="color:#5c6b7a;">&gt;82%</span>
-        </span>
-        <span style="color:#5c6b7a; font-size:9px; margin-top:2px;">Probability of flooding, not depth</span>
-        <span style="display:flex; align-items:center; gap:6px; color:#5c6b7a;">
-            <span style="width:8px; height:8px; border-radius:2px; background:#5a6473; display:inline-block;"></span>
-            3D Buildings
-        </span>
+        <span class="mu" style="text-transform: uppercase; letter-spacing: 0.6px; font-size: 9.5px;">Flood Probability</span>
+        <span class="it"><span class="sw" style="background:#f0b93f;"></span>Moderate <span class="mu">25&ndash;55%</span></span>
+        <span class="it"><span class="sw" style="background:#f08a3c;"></span>High <span class="mu">55&ndash;82%</span></span>
+        <span class="it"><span class="sw" style="background:#ef4459;"></span>Critical <span class="mu">&gt;82%</span></span>
+        <span class="mu wide" style="font-size:9px;">Probability of flooding, not depth</span>
+        <span class="it wide mu"><span class="sw" style="background:{lg['bldg']};"></span>3D Buildings</span>
     </div>
     """
 
-    # Live-update bridge. Without this the whole ~4.6 MB document is rebuilt
-    # and the iframe reloaded on every slider move, which flickers and discards
-    # the viewer's zoom and pan. Flood geometry is ~0.7 MB of that document; the
-    # basemap and building extrusions are byte-identical every time. The parent
-    # page now posts only the geometry and this patches the two flood layers.
+    # Live-update bridge. Without this the whole ~4.6 MB document is rebuilt and
+    # the iframe reloaded on every change, which flickers and discards the
+    # viewer's zoom and pan. The parent page posts only the data for the layers
+    # that changed, and this patches them in place.
+    #
+    # pydeck's template creates `deckInstance` in a script placed after </body>,
+    # which runs after this one, so the instance is looked up lazily.
     updater_js = """
 <script>
 (function () {
   function findDeck() {
-    // pydeck names the instance deckInstance; fall back to a scan if that changes.
-    if (typeof deckInstance !== "undefined" && deckInstance) return deckInstance;
-    for (var k in window) {
-      try {
-        var v = window[k];
-        if (v && typeof v.setProps === "function" && v.props && v.props.layers) return v;
-      } catch (e) {}
-    }
+    try { if (typeof deckInstance !== "undefined" && deckInstance) return deckInstance; } catch (e) {}
     return null;
+  }
+
+  function post(msg) { try { window.parent.postMessage(msg, "*"); } catch (e) {} }
+
+  function patchLayers(d, updates) {
+    var layers = d.props.layers.map(function (layer) {
+      return Object.prototype.hasOwnProperty.call(updates, layer.id)
+        ? layer.clone({ data: updates[layer.id] }) : layer;
+    });
+    // setProps leaves viewState untouched, so zoom and pan survive the update.
+    d.setProps({ layers: layers });
+  }
+
+  function fitTo(d, b) {
+    // b = [west, south, east, north]. Web Mercator is effectively linear this
+    // close to the equator, so zoom follows directly from the span.
+    var w = window.innerWidth || 800, h = window.innerHeight || 600;
+    var lonSpan = Math.max(b[2] - b[0], 0.004), latSpan = Math.max(b[3] - b[1], 0.004);
+    var zoom = Math.min(Math.log2(w * 360 / (512 * lonSpan)), Math.log2(h * 360 / (512 * latSpan))) - 0.5;
+    d.setProps({ initialViewState: {
+      longitude: (b[0] + b[2]) / 2, latitude: (b[1] + b[3]) / 2,
+      zoom: Math.max(10.3, Math.min(zoom, 16.5)), pitch: 30, bearing: 0,
+      transitionDuration: 900
+    }});
   }
 
   window.addEventListener("message", function (ev) {
     var msg = ev.data;
-    if (!msg || msg.type !== "floodUpdate") return;
+    if (!msg || (msg.type !== "floodUpdate" && msg.type !== "layerUpdate")) return;
     var d = findDeck();
     if (!d || !d.props || !d.props.layers) {
-      window.parent.postMessage({ type: "floodUpdateAck", ok: false, error: "no deck" }, "*");
+      post({ type: "layerUpdateAck", ok: false, error: "no deck" });
       return;
     }
     try {
-      var layers = d.props.layers.map(function (layer) {
-        if (layer.id === "flood-main" && msg.main) return layer.clone({ data: msg.main });
-        if (layer.id === "flood-halo" && msg.halo) return layer.clone({ data: msg.halo });
-        return layer;
-      });
-      // setProps leaves viewState untouched, so zoom and pan survive the update.
-      d.setProps({ layers: layers });
-      window.parent.postMessage({ type: "floodUpdateAck", ok: true }, "*");
+      var updates = msg.layers || {};
+      if (msg.type === "floodUpdate") {
+        if (msg.main) updates["flood-main"] = msg.main;
+        if (msg.halo) updates["flood-halo"] = msg.halo;
+      }
+      patchLayers(d, updates);
+      if (msg.fit) fitTo(d, msg.fit);
+      post({ type: "layerUpdateAck", ok: true });
     } catch (e) {
-      // Report failure so the parent can fall back to a full document swap
-      // rather than silently leaving stale geometry on screen.
-      window.parent.postMessage({ type: "floodUpdateAck", ok: false, error: String(e) }, "*");
+      // Reported so the parent can force a full document rebuild rather than
+      // silently leaving stale geometry on screen.
+      post({ type: "layerUpdateAck", ok: false, error: String(e) });
     }
   });
 
-  window.parent.postMessage({ type: "floodMapReady" }, "*");
+  // Map clicks go to the parent page, which uses them to drop a start or
+  // destination pin when the user has asked to pick a point on the map.
+  var tries = 0;
+  (function attach() {
+    var d = findDeck();
+    if (!d) { if (tries++ < 100) setTimeout(attach, 100); return; }
+    d.setProps({ onClick: function (info) {
+      if (info && info.coordinate) post({ type: "mapClick", lon: info.coordinate[0], lat: info.coordinate[1] });
+    }});
+    post({ type: "floodMapReady" });
+  })();
 })();
 </script>
 """

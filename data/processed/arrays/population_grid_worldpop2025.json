@@ -1,0 +1,8 @@
+{
+  "source": "WorldPop Global2 R2025A, Kenya 2025, 100 m constrained (CC BY 4.0)",
+  "url": "https://data.worldpop.org/GIS/Population/Global_2015_2030/R2025A/2025/KEN/v1/100m/constrained/ken_pop_2025_CN_100m_R2025A_v1.tif",
+  "units": "people per grid cell",
+  "grid_total_people": 2908835.75,
+  "raw_pixels_total_people": 2908835.6103203413,
+  "max_density_per_km2": 118701.1875
+}

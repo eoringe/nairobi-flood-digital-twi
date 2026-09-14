@@ -444,13 +444,90 @@ was therefore replaced with *"exceeds terrain-only and linear-rainfall
 baselines"*, which Model A satisfies, while Model B exceeds 0.60 under the
 separate and narrower claim stated in §4.5.
 
+## 4.10 Probability calibration
+
+Raw outputs are overconfident in the mid-range (LIMITATIONS.md §10). An isotonic
+calibration was fitted on the three **validation** seasons and judged on the
+four **test** seasons, so the improvement is not measured on the data that
+produced it (`src/models/calibrate_v2.py`).
+
+Test-season reliability, Model B:
+
+| predicted band | observed, raw | observed, calibrated |
+|---|---|---|
+| 0.1–0.2 | 24.8% (predicted 14.5%) | 13.8% (predicted 13.9%) |
+| 0.3–0.4 | 37.1% (34.8%) | 28.9% (34.7%) |
+| 0.6–0.7 | 50.5% (65.2%) | 63.6% (64.8%) |
+| 0.7–0.8 | 55.1% (75.2%) | 71.8% (74.8%) |
+| 0.8–0.9 | 61.8% (85.5%) | 84.7% (84.8%) |
+| 0.9–1.0 | 95.5% (99.6%) | 98.5% (98.5%) |
+
+| metric (test seasons) | raw | calibrated |
+|---|---|---|
+| unweighted ECE | 0.092 | **0.020** |
+| mid-band ECE | 0.109 | **0.025** |
+| Brier score | 0.00052 | **0.00046** |
+| F1 / IoU at 0.5 | 0.937 / 0.881 | 0.937 / 0.882 |
+
+The raw figures reproduce those in LIMITATIONS.md §10, which checks the
+evaluation code. Calibration is monotone, so it changes stated percentages
+without reordering cells, and F1 is unchanged. The dashboard uses calibrated
+values. Calibration is against the constructed labels, not observed floods, so
+it makes the numbers internally honest, not externally validated (§4.8.2).
+
+Model A is far worse calibrated (unweighted ECE **0.425**): a cell it scores
+80–90% carries a flood label 9.6% of the time. It is not deployed, and its
+outputs should not be read as probabilities.
+
+## 4.11 Stability across test seasons
+
+F1 per held-out test season (`models/time_series/evaluation_v2_*.json`):
+
+| season | storm samples | Model A F1 | Model B F1 |
+|---|---|---|---|
+| 2015 short rains | 15 | 0.191 | 0.930 |
+| 2019 long rains | 7 | 0.114 | 0.923 |
+| 2021 short rains | 3 | 0.151 | 0.942 |
+| 2024 short rains | 12 | 0.244 | 0.945 |
+| **pooled** | 37 | **0.176** | **0.937** |
+| season-bootstrap 95% interval | | 0.130–0.224 | 0.928–0.944 |
+
+Model B varies by 0.02 across seasons; Model A by a factor of two. The bootstrap
+resamples only four seasons and is therefore crude. The event-aware 5-fold
+cross-validation (`src/models/crossvalidate_v2.py`, section 7 of the Colab
+notebook) supersedes it once run.
+
+## 4.12 Population exposure
+
+"People at risk" now sums WorldPop 2025 population (100 m, constrained) over the
+cells predicted flooded (`src/ingestion/build_population_grid.py`). It replaces
+flooded area × the county-average 6,300 people/km². Resampling preserves the
+total exactly (2,908,836 people in the model area).
+
+| 3-day rainfall | flooded area | county-average estimate | WorldPop |
+|---|---|---|---|
+| 30 mm | 1.9 km² | 11,900 | 49,800 |
+| 40 mm | 7.2 km² | 45,300 | 192,700 |
+| 60 mm | 13.5 km² | 85,100 | 366,100 |
+| 100 mm | 25.5 km² | 160,600 | 650,000 |
+
+Predicted flood cells hold about 26,000 people/km², roughly four times the
+county mean, because flooding follows the dense river corridors. The
+average-density figure understated exposure by roughly **4×**. For scale, about
+147,000 people were reported affected in Nairobi County in April 2024 (62 mm).
+"Living in a predicted flood cell" is a broader measure than "affected", and a
+70 m cell is not a flooded house. The WorldPop figure is therefore an upper-bound
+exposure count, not a casualty estimate.
+
 ---
 
 ## Outstanding work
 
 - **K-fold cross-validation** (`src/models/crossvalidate_v2.py`) to report
-  Model A as mean ± spread across all 22 seasons rather than one split of 37
-  positive test samples.
+  both models as mean ± spread across all 22 seasons, instead of one split with
+  37 storm-positive test samples. It is ready to run in section 7 of the Colab
+  notebook and needs a GPU, since each fold is a full training run. §4.11 gives
+  a per-season interim result.
 - **Spatial validation.** All external validation above is temporal. Documented
   reports name affected settlements but provide no inundation polygons, so
   predicted flood *location* remains unverified (`LIMITATIONS.md` §9).

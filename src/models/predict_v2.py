@@ -50,6 +50,7 @@ USAGE
 from __future__ import annotations
 
 import json
+import threading
 import time
 from datetime import date
 from pathlib import Path
@@ -67,6 +68,8 @@ DATA_DIR = Path("data/processed/arrays")
 DEFAULT_WEIGHTS = MODELS_DIR / "segmentation_model_v2_nwp_drainage.pth"
 DEFAULT_DATASET = DATA_DIR / "segmentation_dataset_v2_nwp_drainage.npz"
 DEFAULT_METRICS = MODELS_DIR / "segmentation_metrics_v2_nwp_drainage.json"
+#: Isotonic calibration fitted on the validation seasons (src/models/calibrate_v2.py).
+DEFAULT_CALIBRATION = MODELS_DIR / "calibration_v2_nwp_drainage.json"
 
 #: Probability above which a cell is reported flooded.
 FLOOD_THRESHOLD = 0.5
@@ -96,6 +99,8 @@ class FloodPredictor:
         self.model_version = weights_path.name
         self.metrics: dict = {}
         self.label_params: dict = {}
+        self._cache: dict[tuple[int, str], np.ndarray] = {}
+        self._lock = threading.Lock()
 
         # The static layers and scalar scaling are read from the dataset the
         # model was trained on, so inference cannot silently diverge from
@@ -126,6 +131,20 @@ class FloodPredictor:
 
         if DEFAULT_METRICS.exists():
             self.metrics = json.load(open(DEFAULT_METRICS)).get("test_metrics", {})
+
+        # Raw outputs are overconfident in the 0.6-0.9 range (LIMITATIONS.md
+        # section 10). The calibration map is monotone, so it changes the
+        # stated percentages without reordering which cells are most at risk.
+        self.calibration: dict | None = None
+        if DEFAULT_CALIBRATION.exists():
+            self.calibration = json.load(open(DEFAULT_CALIBRATION))
+            self._cal_x = np.asarray(self.calibration["x"], dtype=np.float32)
+            self._cal_y = np.asarray(self.calibration["y"], dtype=np.float32)
+            self.model_version += " + isotonic calibration"
+            logger.info(f"FloodPredictor: calibrated probabilities ({self.calibration['fitted_on']})")
+        else:
+            logger.warning("FloodPredictor: no calibration file - showing raw, overconfident "
+                           "probabilities. Run `python -m src.models.calibrate_v2`.")
 
     # ------------------------------------------------------------ features --
     def _build_scalars(self, rainfall_mm: float, antecedent: np.ndarray | None,
@@ -193,6 +212,9 @@ class FloodPredictor:
         x = torch.cat([maps, self.static_t], dim=1)
 
         probability = torch.sigmoid(self.model(x))[0, 0].cpu().numpy().astype(np.float32)
+        if self.calibration is not None:
+            probability = np.interp(probability, self._cal_x, self._cal_y).astype(np.float32)
+        assumptions["calibrated"] = self.calibration is not None
         return self.postprocess_results(
             probability, rainfall_mm, threshold, assumptions,
             latency_sec=time.perf_counter() - t0,
@@ -220,6 +242,37 @@ class FloodPredictor:
             "latency_sec": round(latency_sec, 4),
             "units": "dimensionless probability in [0, 1] - NOT a depth in metres",
         }
+
+    # --------------------------------------------------------------- cache --
+    def probability_for(self, rainfall_mm: float, scenario_date: date | None = None) -> np.ndarray:
+        """
+        Probability grid for a rainfall depth, cached.
+
+        One CPU inference costs ~1.5 s and batching does not reduce it, so a
+        12-hour outlook computed directly would take ~20 s. Rainfall is rounded
+        to 1 mm (the response changes by at most ~0.5 percentage points of area
+        per mm, near the 30 mm onset) and the date is part of the key, because
+        season shifts the result near that onset.
+
+        Antecedent rainfall uses the seasonal mean. Measured sensitivity: at
+        50 mm, antecedent 0 vs 20 mm/day moves flooded area from 4.04% to 4.09%.
+        """
+        d = scenario_date or date.today()
+        key = (int(round(max(0.0, rainfall_mm))), d.isoformat())
+        grid = self._cache.get(key)
+        if grid is not None:
+            return grid
+        # Serialised: concurrent forward passes only contend for the same cores.
+        with self._lock:
+            grid = self._cache.get(key)
+            if grid is None:
+                grid = self.predict(rainfall_mm=float(key[0]), scenario_date=d)["probability_grid"]
+                self._cache[key] = grid
+        return grid
+
+    def is_cached(self, rainfall_mm: float, scenario_date: date | None = None) -> bool:
+        d = scenario_date or date.today()
+        return (int(round(max(0.0, rainfall_mm))), d.isoformat()) in self._cache
 
     # ------------------------------------------------------------ validate --
     def validate_spatial_plausibility(self, probability: np.ndarray,

@@ -41,6 +41,8 @@ models/*
 !data/processed/arrays/
 data/processed/arrays/*
 !data/processed/arrays/segmentation_dataset_v2*.npz
+!data/processed/arrays/population_grid_worldpop2025.npy
+!data/processed/arrays/population_grid_worldpop2025.json
 
 # ---- IDE / OS ----
 .vscode/
@@ -67,3 +69,23 @@ data/*.sqlite
 # Place-name gazetteer is tracked: ~30 KB, and committing it means the
 # dashboard never depends on Overpass being reachable at runtime.
 !data/processed/nairobi_places.json
+
+# Road network for flood-aware routing: ~2.4 MB compressed, tracked for the
+# same reason (src/ingestion/fetch_road_network.py refreshes it).
+!data/processed/nairobi_roads.json.gz
+
+# Offline location search index (~0.3 MB), refreshed by
+# src/ingestion/fetch_search_index.py.
+!data/processed/nairobi_search_index.json.gz
+
+# Archived hourly rainfall for the storm replays, so they work offline.
+!data/processed/replay_rainfall.json
+!data/processed/rainfall_bias_correction.json
+
+# Small evaluation outputs travel with the code; model weights (100+ MB) do not.
+# Same three-line idiom as data/processed/arrays above.
+!models/time_series/
+models/time_series/*
+!models/time_series/calibration_v2_*.json
+!models/time_series/evaluation_v2_*.json
+!models/time_series/crossval_v2_*.json

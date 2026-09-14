@@ -51,7 +51,8 @@ OUT_FILE = Path("data/processed/nairobi_places.json")
 OVERPASS_MIRRORS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass.osm.ch/api/interpreter",
+    # overpass.osm.ch is deliberately absent: it holds only Swiss data and
+    # answers a Nairobi query with a successful, empty result.
     "https://overpass.openstreetmap.ru/api/interpreter",
 )
 
