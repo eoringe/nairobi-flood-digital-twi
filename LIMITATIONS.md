@@ -432,6 +432,13 @@ So "moderate flooding in Mathare in about 2 hours" means: *at the current
 forecast, the 72-hour total reaches the level where the model shows moderate
 flooding there in about 2 hours.* Consequences:
 
+- **The forecast feed is on a different scale from the training data.**
+  Open-Meteo reports about half of CHIRPS in storms (April 2024: 58 mm against
+  103 mm), so uncorrected it caught only 24% of flood-level storms. 3-day totals
+  are now quantile-mapped to the CHIRPS scale. In a 2022–2026 backtest this
+  raised storm recall from 0.24 to 0.55, and false alarms rose from 0.6% to 5.1%
+  of non-storm days (RESULTS.md §4.13). The mapping corrects the distribution,
+  not the day-to-day error, and was fitted at a single point.
 - **Timing is only as good as the hourly rainfall forecast.** Convective storms
   over Nairobi are poorly predicted at hourly resolution (§11).
 - **Water movement is not simulated.** There is no runoff lag, drainage
