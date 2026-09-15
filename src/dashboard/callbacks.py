@@ -186,6 +186,9 @@ def _warm_up() -> None:
     open would make the first slider moves and replays feel stuck.
     """
     _load_router()
+    from src.dashboard.components.map_3d import _building_rows
+    for theme in ("dark", "light"):
+        _building_rows(theme)
     for source in SOURCES:
         try:
             get_nowcast(source, predictor)
