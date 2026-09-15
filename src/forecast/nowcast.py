@@ -179,7 +179,7 @@ def _hourly_series(source: str, as_of: datetime | None):
             return _parse(stored["data"]), as_of, stored["provider"], None
         start = (as_of - timedelta(days=10)).date().isoformat()
         end = (as_of + timedelta(days=2)).date().isoformat()
-        data = _get_json(ARCHIVE_URL.format(lat=NAIROBI_LAT, lon=NAIROBI_LON, start=start, end=end), 20.0)
+        data = _get_json(ARCHIVE_URL.format(lat=NAIROBI_LAT, lon=NAIROBI_LON, start=start, end=end), 60.0)
         provider = "Open-Meteo archived forecasts (hourly)"
         all_replays = _read_json(REPLAY_FILE)
         all_replays[source] = {"provider": provider, "as_of": as_of.isoformat(),
