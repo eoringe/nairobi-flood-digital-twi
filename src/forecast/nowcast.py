@@ -232,8 +232,14 @@ def _place_levels(probability: np.ndarray, place_idx: np.ndarray, n_places: int)
 def _trend(series: dict[datetime, float], as_of: datetime) -> str:
     past3 = sum(series.get(as_of - timedelta(hours=k), 0.0) for k in range(3))
     next3 = sum(series.get(as_of + timedelta(hours=k), 0.0) for k in range(1, 4))
+    # The whole outlook window, not just the next three hours: a storm arriving in
+    # hour 4 was otherwise described as "little or no rain is forecast" beside a
+    # warning that flooding starts in four hours.
+    later = sum(series.get(as_of + timedelta(hours=k), 0.0) for k in range(4, HORIZON_H + 1))
     if next3 >= 2.0 and next3 > 1.5 * past3:
         return "intensifying"
+    if later >= 5.0 and later > 2.0 * next3:
+        return "arriving"
     if past3 >= 2.0 and next3 < 0.5 * past3:
         return "easing"
     if next3 >= 1.0 or past3 >= 1.0:
@@ -328,7 +334,8 @@ def _headline(nc: Nowcast) -> None:
     """
     peak_acc = max(nc.acc72_mm)
     trend_phrase = {"intensifying": "rainfall is intensifying", "easing": "rainfall is easing",
-                    "steady": "rain is falling steadily", "dry": "little or no rain is forecast"}[nc.trend]
+                    "steady": "rain is falling steadily", "arriving": "heavy rain is forecast later in the outlook",
+                    "dry": "little or no rain is forecast"}[nc.trend]
     if not nc.warnings:
         nc.headline = "No flooding expected in the next 12 hours"
         nc.detail = (f"72-hour rainfall {nc.acc72_mm[0]:.0f} mm now, peaking at {peak_acc:.0f} mm "
