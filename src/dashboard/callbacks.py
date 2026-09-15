@@ -196,7 +196,15 @@ def _warm_up() -> None:
     logger.info("Warm-up complete: road network, outlooks and what-if scenarios cached.")
 
 
+_warmup_started = False
+
+
 def start_background_warmup() -> None:
+    """Start the warm-up thread once, however many entry points ask for it."""
+    global _warmup_started
+    if _warmup_started:
+        return
+    _warmup_started = True
     threading.Thread(target=_warm_up, name="twin-warmup", daemon=True).start()
 
 

@@ -13,6 +13,7 @@ USAGE
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 from dash import Dash
@@ -45,6 +46,11 @@ app.layout = build_dashboard_layout()
 register_callbacks(app)
 server = app.server  # Flask WSGI server instance
 
+# A WSGI server such as gunicorn (the Docker image) imports `server` and never
+# calls main(), so warm-up is started here when the environment asks for it.
+if os.environ.get("TWIN_WARMUP") == "1":
+    start_background_warmup()
+
 
 def main(host: str = "127.0.0.1", port: int = 8050, debug: bool = False) -> None:
     logger.info("============================================================")
@@ -55,7 +61,6 @@ def main(host: str = "127.0.0.1", port: int = 8050, debug: bool = False) -> None
     logger.info("   Loading road network and outlooks in the background...")
     logger.info("============================================================")
     # Not started in debug mode's reloader parent, which would warm up twice.
-    import os
     if not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         start_background_warmup()
     app.run(host=host, port=port, debug=debug)

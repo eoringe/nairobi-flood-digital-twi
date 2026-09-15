@@ -35,6 +35,7 @@ It never substitutes invented rainfall figures.
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 import urllib.request
@@ -144,7 +145,7 @@ def _get_json(url: str, timeout: float = 15.0) -> dict:
 #: a third-party API answering. Written on first successful fetch.
 REPLAY_FILE = Path("data/processed/replay_rainfall.json")
 #: Last successful live forecast, used when Open-Meteo cannot be reached.
-LIVE_CACHE_FILE = Path("data/raw/live_rainfall_cache.json")
+LIVE_CACHE_FILE = Path(os.environ.get("TWIN_STATE_DIR", "data/raw")) / "live_rainfall_cache.json"
 #: How old a cached live forecast may be before it is refused. Beyond this the
 #: 12-hour outlook would describe hours that have already passed.
 LIVE_CACHE_MAX_AGE_H = 6

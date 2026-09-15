@@ -31,12 +31,14 @@ scenarios" panel rather than the whole app.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from loguru import logger
 
-DB_PATH = Path("data/scenarios.db")
+#: TWIN_STATE_DIR moves writable state out of the image (the Docker volume).
+DB_PATH = Path(os.environ.get("TWIN_STATE_DIR", "data")) / "scenarios.db"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS scenario_runs (
