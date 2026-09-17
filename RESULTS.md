@@ -519,6 +519,76 @@ average-density figure understated exposure by roughly **4×**. For scale, about
 70 m cell is not a flooded house. The WorldPop figure is therefore an upper-bound
 exposure count, not a casualty estimate.
 
+## 4.13 Accuracy of the live warning chain
+
+The metrics above score the U-Net on CHIRPS rainfall, the data it was trained
+on. The dashboard never sees CHIRPS: live, it is fed Open-Meteo forecasts. This
+section scores the chain that actually runs.
+
+### 4.13.1 The forecast feed underestimates storms
+
+3-day rainfall totals at Nairobi, 2022–2026 (`src/forecast/rain_bias_correction.py`):
+
+| | CHIRPS (training) | Open-Meteo forecast feed |
+|---|---|---|
+| median | 0.0 mm | 2.5 mm |
+| 99th percentile | 91.4 mm | 42.7 mm |
+| April 2024 flood, max 3-day | 103.4 mm | 58.0 mm |
+| March 2026 flood, max 3-day | 140.1 mm | 58.1 mm |
+| share of CHIRPS flood-level storms (≥ 30 mm) the feed also shows | | 24% |
+
+Uncorrected, the system saw about a quarter of flood-producing storms. The
+problem is the input's scale, not the model.
+
+### 4.13.2 Bias correction
+
+Empirical quantile mapping puts forecast 3-day totals on the CHIRPS scale. It
+was evaluated two-fold in time: fitted on one half of 2022–2026 and tested on
+the other, both ways round.
+
+| storm threshold | raw feed F1 (the two folds) | corrected F1 (the two folds) |
+|---|---|---|
+| 30 mm | 0.41 / 0.24 | **0.53 / 0.54** |
+| 40 mm | 0.25 / 0.00 | **0.45 / 0.48** |
+| 60 mm | 0.05 / 0.00 | **0.37 / 0.57** |
+
+Recall rises sharply and precision falls: at 30 mm, precision 0.78 → 0.61 and
+recall 0.28 → 0.48 in the first fold. The deployed mapping is fitted on all
+data.
+
+### 4.13.3 Backtest, 2022–2026
+
+The full chain was run for every day of the feed's archive: feed rainfall →
+correction → U-Net → city warning level
+(`src/validation/backtest_live_pipeline.py`). The correction was applied
+out-of-fold, so no day is scored by a mapping that saw it.
+
+| documented flood | CHIRPS max | feed max | uncorrected | corrected |
+|---|---|---|---|---|
+| March 2026 Nairobi River | 140 mm | 58 mm | warned 3/10 days, critical | warned 3/10 days, critical |
+| April 2024 long rains | 103 mm | 58 mm | warned 5/8 days, critical | **warned 7/8 days, critical** |
+| November 2023 El Niño | 40 mm | 31 mm | warned 2/15 days, moderate | **warned 10/15 days, critical** |
+
+| every day vs CHIRPS storm days (≥ 30 mm) | uncorrected | corrected |
+|---|---|---|
+| recall | 0.24 | **0.55** |
+| precision | 0.80 | 0.53 |
+| F1 | 0.37 | **0.54** |
+| false alarms (share of non-storm days) | 0.6% | 5.1% |
+| warning days in 126 dry-season control days | 0 | 7 |
+
+Warning on high or above instead of moderate gives F1 0.54 with 4.3% false
+alarms; critical-only gives precision 0.74 but recall 0.36. All three documented
+floods are detected under every rule. The deployed rule warns at moderate,
+favouring recall as an early-warning system should (the same reasoning as the
+Focal Tversky loss, §4.7).
+
+**What the backtest does not show.** The truth here is CHIRPS rainfall and
+three documented events, not observed flood extent. An F1 of 0.54 against
+storm days is the realistic skill of warning from a forecast: most of the loss
+is the forecast's day-to-day error (r = 0.62 with CHIRPS), which no downstream
+correction can recover.
+
 ---
 
 ## Outstanding work

@@ -89,3 +89,4 @@ models/time_series/*
 !models/time_series/calibration_v2_*.json
 !models/time_series/evaluation_v2_*.json
 !models/time_series/crossval_v2_*.json
+!models/time_series/backtest_live_pipeline.json
