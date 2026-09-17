@@ -15,8 +15,8 @@ deliberate: it separates two questions that a single model conflates.
 
 | | inputs | channels | question it answers |
 |---|---|---|---|
-| **Model A** | rainfall *t−7…t−1*, seasonality, 14/30-day antecedent totals, terrain | 17 | Can flooding be *anticipated* from rainfall history? |
-| **Model B** | the above **plus** rainfall over *t…t+2* | 20 | Given rainfall, can flood extent be predicted? |
+| **Model A** | rainfall *t−7…t−1*, seasonality, 14/30-day antecedent totals, terrain | 18 | Can flooding be *anticipated* from rainfall history? |
+| **Model B** | the above **plus** rainfall over *t…t+2* | 21 | Given rainfall, can flood extent be predicted? |
 
 Model A never sees rainfall from the label window, so the target cannot be
 recovered arithmetically from an input channel. Model B receives that rainfall,
@@ -45,20 +45,26 @@ than one partition.
 | property | value |
 |---|---|
 | Samples | 2,024 |
-| Storm seasons (events) | 22 (2015–2026, long and short rains) |
+| Storm seasons (events) | 22 (2015–2025, long and short rains) |
 | Grid | 198 × 252 (≈ 67 m × 79 m per pixel) |
 | Train / validation / test | 1,380 / 276 / 368 samples |
 | Train / validation / test seasons | 15 / 3 / 4 |
 | Storm-positive scenes | 282 (13.9%) |
-| Positive pixel rate | 0.90% |
 | Distinct flood masks | 243 |
 
-Flood extent is intensity-graded rather than a single repeated footprint: it
-spans 2.0% of the grid for a storm just clearing the 30 mm threshold to 18.0%
-at 120 mm, with a median of 5.3% across flood-positive scenes.
+Storm occurrence is identical across both label definitions; they differ only in
+which cells a storm floods:
 
-The 0.90% positive rate means accuracy is uninformative — a model predicting no
-flooding anywhere scores 99.1% — so only F1, IoU, precision and recall are
+| | positive pixel rate | extent when flooded (min / median / max) |
+|---|---|---|
+| terrain labels | 0.90% | 2.0% / 5.3% / 18.0% |
+| **drainage labels (reported)** | **0.62%** | **1.4% / 3.6% / 12.3%** |
+
+Flood extent is intensity-graded rather than a single repeated footprint,
+widening as accumulated rainfall rises from the 30 mm threshold to 120 mm.
+
+At a 0.62% positive rate accuracy is uninformative — a model predicting no
+flooding anywhere scores 99.4% — so only F1, IoU, precision and recall are
 reported.
 
 ---
@@ -88,45 +94,61 @@ solved; storm timing is not.
 
 ## 4.4 Model A — forecasting from rainfall history
 
-| metric | validation (best) | test |
+| metric | validation (best, epoch 23) | test |
 |---|---|---|
-| F1 | 0.2515 | **0.1718** |
-| IoU | 0.1438 | 0.0940 |
-| Precision | 0.1598 | 0.1133 |
-| Recall | 0.5900 | 0.3550 |
+| F1 | 0.2349 | **0.1757** |
+| IoU | 0.1331 | 0.0963 |
+| Precision | 0.1436 | 0.1059 |
+| Recall | 0.6448 | 0.5148 |
 
-Model A exceeds both the terrain-only stencil (0.1434, +19.8% relative) and the
-linear rainfall baseline (0.1592, +7.9%), confirming that it extracts genuine
+Model A exceeds both the terrain-only stencil (0.1434, +22.5% relative) and the
+linear rainfall baseline (0.1592, +10.4%), confirming that it extracts genuine
 non-linear signal. The absolute value nevertheless remains low.
 
-Training loss fell steadily from 0.770 to 0.431 over 60 epochs with no collapse,
-and validation F1 plateaued near 0.22 from roughly epoch 22 onward. The
-validation-test discrepancy (0.25 against 0.17) reflects the test partition's
+Training loss fell steadily from 0.703 to 0.401 over 60 epochs with no collapse,
+and validation F1 plateaued near 0.22 from roughly epoch 23 onward. The
+validation-test discrepancy (0.23 against 0.18) reflects the test partition's
 lower storm frequency (10.1% against 15.2%) and its small positive sample — 37
 storm-positive samples drawn from four seasons.
 
-Recall (0.355) exceeds precision (0.113) by design: the loss weights false
+Recall (0.515) exceeds precision (0.106) as intended: the loss weights false
 negatives above false positives, which is the appropriate asymmetry for early
-warning, where a missed flood is costlier than a false alarm.
+warning, where a missed flood is costlier than a false alarm. This behaviour was
+verified rather than assumed, discharging NFR-15.
+
+**The ceiling is independent of the label definition.** Trained on terrain labels
+instead, Model A reaches test F1 0.1767 — within 0.001 of the drainage result.
+Since the two label definitions produce different targets, different positive
+rates and different spatial fields, near-identical scores indicate that what
+limits Model A is neither the target nor the model but the predictability of the
+rainfall itself.
 
 ---
 
 ## 4.5 Model B — rainfall-conditioned extent mapping
 
-| metric | validation (best) | test |
+| metric | validation (best, epoch 60) | test |
 |---|---|---|
-| F1 | 0.9133 | **0.9442** |
-| IoU | 0.8405 | 0.8942 |
-| Precision | 0.8966 | 0.9067 |
-| Recall | 0.9307 | 0.9848 |
+| F1 | 0.9084 | **0.9370** |
+| IoU | 0.8322 | 0.8815 |
+| Precision | 0.8947 | 0.9244 |
+| Recall | 0.9226 | 0.9500 |
 
-Model B converged smoothly, training loss falling from 0.756 to 0.072, and
+Model B converged smoothly, training loss falling from 0.684 to 0.065, and
 generalised to storm seasons never seen during training. Test performance
 slightly exceeding validation indicates no overfitting.
 
-At F1 0.944 the network approaches the analytic oracle (0.9997), demonstrating
+At F1 0.937 the network approaches the analytic oracle (0.9997), demonstrating
 that the rainfall-to-extent mapping is not merely solvable in principle but
 learnable from data by this architecture.
+
+Trained on terrain labels the same architecture reaches 0.9555. The drainage
+target is marginally harder — its positive rate is lower (0.62% against 0.90%)
+and its flooded extents smaller — so a slightly lower score is expected. **These
+two figures must not be read as evidence that terrain labels are better.** They
+are scores against different targets, and comparing them says nothing about
+which target is correct. That question is settled by spatial validation
+(§4.8.2, §4.8.3), where the terrain field fails and the drainage field passes.
 
 **Interpretation.** Model B's labels are a deterministic function of its inputs,
 so this result establishes a *capability* — that the network learns the
@@ -145,11 +167,11 @@ Placing all results on one scale:
 | Predict nothing | 0.0000 |
 | Fixed terrain stencil | 0.1434 |
 | Logistic regression on rainfall | 0.1592 |
-| **Model A — must forecast rainfall** | **0.1718** |
-| **Model B — given rainfall** | **0.9442** |
+| **Model A — must forecast rainfall** | **0.1757** |
+| **Model B — given rainfall** | **0.9370** |
 | Oracle — perfect storm knowledge | 0.9997 |
 
-Knowing the rainfall is worth **+0.77 F1**. Every method required to forecast it
+Knowing the rainfall is worth **+0.761 F1**. Every method required to forecast it
 clusters between 0.14 and 0.17, irrespective of whether it is a fixed stencil, a
 linear model, or a 7.85 M-parameter convolutional network.
 
@@ -372,16 +394,16 @@ should be described accordingly.
 
 1. **Flood extent over Nairobi is near-deterministically recoverable from
    terrain given rainfall.** An oracle supplied with storm occurrence and
-   magnitude reaches F1 0.9997, and a U-Net learns this mapping to F1 0.944 on
+   magnitude reaches F1 0.9997, and a U-Net learns this mapping to F1 0.937 on
    held-out storm seasons (§4.5).
 
 2. **Forecasting that rainfall from rainfall history is the binding
    constraint.** Storm-detection AUC remains 0.58–0.68 across all feature sets
-   and classifiers, capping flood-forecast F1 at 0.172 — only marginally above a
+   and classifiers, capping flood-forecast F1 at 0.176 — only marginally above a
    terrain-only baseline of 0.143 (§4.4, §4.6).
 
 3. **The bottleneck is meteorological, not hydrological.** Knowing the rainfall
-   is worth +0.77 F1. No architecture, loss function, or feature engineering
+   is worth +0.761 F1. No architecture, loss function, or feature engineering
    recovers information absent from the data (§4.6).
 
 4. **Rainfall-derived labels agree with documented reality — in time.** All six
@@ -422,13 +444,90 @@ was therefore replaced with *"exceeds terrain-only and linear-rainfall
 baselines"*, which Model A satisfies, while Model B exceeds 0.60 under the
 separate and narrower claim stated in §4.5.
 
+## 4.10 Probability calibration
+
+Raw outputs are overconfident in the mid-range (LIMITATIONS.md §10). An isotonic
+calibration was fitted on the three **validation** seasons and judged on the
+four **test** seasons, so the improvement is not measured on the data that
+produced it (`src/models/calibrate_v2.py`).
+
+Test-season reliability, Model B:
+
+| predicted band | observed, raw | observed, calibrated |
+|---|---|---|
+| 0.1–0.2 | 24.8% (predicted 14.5%) | 13.8% (predicted 13.9%) |
+| 0.3–0.4 | 37.1% (34.8%) | 28.9% (34.7%) |
+| 0.6–0.7 | 50.5% (65.2%) | 63.6% (64.8%) |
+| 0.7–0.8 | 55.1% (75.2%) | 71.8% (74.8%) |
+| 0.8–0.9 | 61.8% (85.5%) | 84.7% (84.8%) |
+| 0.9–1.0 | 95.5% (99.6%) | 98.5% (98.5%) |
+
+| metric (test seasons) | raw | calibrated |
+|---|---|---|
+| unweighted ECE | 0.092 | **0.020** |
+| mid-band ECE | 0.109 | **0.025** |
+| Brier score | 0.00052 | **0.00046** |
+| F1 / IoU at 0.5 | 0.937 / 0.881 | 0.937 / 0.882 |
+
+The raw figures reproduce those in LIMITATIONS.md §10, which checks the
+evaluation code. Calibration is monotone, so it changes stated percentages
+without reordering cells, and F1 is unchanged. The dashboard uses calibrated
+values. Calibration is against the constructed labels, not observed floods, so
+it makes the numbers internally honest, not externally validated (§4.8.2).
+
+Model A is far worse calibrated (unweighted ECE **0.425**): a cell it scores
+80–90% carries a flood label 9.6% of the time. It is not deployed, and its
+outputs should not be read as probabilities.
+
+## 4.11 Stability across test seasons
+
+F1 per held-out test season (`models/time_series/evaluation_v2_*.json`):
+
+| season | storm samples | Model A F1 | Model B F1 |
+|---|---|---|---|
+| 2015 short rains | 15 | 0.191 | 0.930 |
+| 2019 long rains | 7 | 0.114 | 0.923 |
+| 2021 short rains | 3 | 0.151 | 0.942 |
+| 2024 short rains | 12 | 0.244 | 0.945 |
+| **pooled** | 37 | **0.176** | **0.937** |
+| season-bootstrap 95% interval | | 0.130–0.224 | 0.928–0.944 |
+
+Model B varies by 0.02 across seasons; Model A by a factor of two. The bootstrap
+resamples only four seasons and is therefore crude. The event-aware 5-fold
+cross-validation (`src/models/crossvalidate_v2.py`, section 7 of the Colab
+notebook) supersedes it once run.
+
+## 4.12 Population exposure
+
+"People at risk" now sums WorldPop 2025 population (100 m, constrained) over the
+cells predicted flooded (`src/ingestion/build_population_grid.py`). It replaces
+flooded area × the county-average 6,300 people/km². Resampling preserves the
+total exactly (2,908,836 people in the model area).
+
+| 3-day rainfall | flooded area | county-average estimate | WorldPop |
+|---|---|---|---|
+| 30 mm | 1.9 km² | 11,900 | 49,800 |
+| 40 mm | 7.2 km² | 45,300 | 192,700 |
+| 60 mm | 13.5 km² | 85,100 | 366,100 |
+| 100 mm | 25.5 km² | 160,600 | 650,000 |
+
+Predicted flood cells hold about 26,000 people/km², roughly four times the
+county mean, because flooding follows the dense river corridors. The
+average-density figure understated exposure by roughly **4×**. For scale, about
+147,000 people were reported affected in Nairobi County in April 2024 (62 mm).
+"Living in a predicted flood cell" is a broader measure than "affected", and a
+70 m cell is not a flooded house. The WorldPop figure is therefore an upper-bound
+exposure count, not a casualty estimate.
+
 ---
 
 ## Outstanding work
 
 - **K-fold cross-validation** (`src/models/crossvalidate_v2.py`) to report
-  Model A as mean ± spread across all 22 seasons rather than one split of 37
-  positive test samples.
+  both models as mean ± spread across all 22 seasons, instead of one split with
+  37 storm-positive test samples. It is ready to run in section 7 of the Colab
+  notebook and needs a GPU, since each fold is a full training run. §4.11 gives
+  a per-season interim result.
 - **Spatial validation.** All external validation above is temporal. Documented
   reports name affected settlements but provide no inundation polygons, so
   predicted flood *location* remains unverified (`LIMITATIONS.md` §9).

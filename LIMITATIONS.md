@@ -143,7 +143,9 @@ one set — which is the correct handling, but it means:
 | test | 4 | 368 | 37 (10.1%) |
 
 **37 storm-positive test samples drawn from 4 seasons** is a thin basis for the
-headline metric. Test scores will be sensitive to which seasons landed in the
+headline metric. Per season, Model B scores 0.923–0.945 and Model A 0.114–0.244
+(RESULTS.md §4.11). Model B is stable; Model A's score depends heavily on the
+split. Test scores will be sensitive to which seasons landed in the
 test split. K-fold cross-validation across all 22 seasons is the appropriate
 remedy and is computationally cheap at this dataset size.
 
@@ -271,7 +273,59 @@ metrics: the constraint is meteorological information, not model capacity.
 
 ---
 
-## 10. Performance is bounded by rainfall predictability, not by the model
+## 10. Predicted probabilities are overconfident in the uncertain middle
+
+The model emits a per-cell value in [0, 1] and the interface presents it as a
+probability. Whether that word is earned depends on calibration: a cell the model
+calls 80% should flood about 80% of the time.
+
+Measured on the held-out storm seasons:
+
+| predicted band | observed frequency | predicted mean | gap |
+|---|---|---|---|
+| 0.0–0.1 | 0.0% | 0.0% | 0 |
+| 0.1–0.2 | 24.8% | 14.5% | −10 |
+| 0.3–0.4 | 37.1% | 34.8% | −2 |
+| 0.6–0.7 | 50.5% | 65.2% | **+15** |
+| 0.7–0.8 | 55.1% | 75.2% | **+20** |
+| 0.8–0.9 | 61.8% | 85.5% | **+24** |
+| 0.9–1.0 | 95.5% | 99.6% | +4 |
+
+**99.92% of cells fall in the two extreme bands, where calibration is good.** The
+middle bands hold 0.08% of cells but are overconfident by 15–24 percentage
+points: a cell the model calls 85% floods about 62% of the time.
+
+**Do not quote a cell-weighted expected calibration error for this model.** It
+computes to 0.000, which is an artefact: 18.2 million of 18.4 million cells sit
+in the trivial 0.0–0.1 background band where the model is exactly right, and
+they swamp the average. Weighting each band equally gives 0.092, and restricting
+to the mid-range bands gives 0.109. The unweighted figures are the informative
+ones.
+
+This matters where it is least convenient. The well-calibrated extremes are the
+cells whose classification was never in doubt; the overconfident middle is
+precisely the borderline zone where a warning decision is marginal. A displayed
+"85% probability" on a mid-range polygon overstates the true frequency.
+
+Overconfidence of this kind is common in neural networks trained with a
+cross-entropy component and does not indicate a defect in training.
+
+**Corrected.** Isotonic regression is fitted on the validation seasons and
+applied by the dashboard. On the test seasons it brings unweighted ECE from
+0.092 to **0.020** and mid-band ECE from 0.109 to **0.025**. A cell shown as 85%
+now carries a flood label about 85% of the time, and F1 is unchanged (RESULTS.md
+§4.10). The correction is against the constructed labels, so it removes
+overconfidence relative to the labels, not relative to observed floods (§1).
+
+**Terminology.** "Probability" and "likelihood" are used interchangeably in
+casual speech but denote different things in statistics: probability is
+P(outcome | model), likelihood is L(model | data). The quantity here is
+P(cell floods | rainfall, terrain), a probability. The interface previously
+mixed both words for the same number; it now uses "probability" throughout.
+
+---
+
+## 11. Performance is bounded by rainfall predictability, not by the model
 
 The task decomposes into a temporal half (will a storm arrive?) and a spatial
 half (given a storm, which pixels flood?). Measured on the held-out test
@@ -322,13 +376,93 @@ mapping is solved; the meteorological input is the binding constraint.
 
 ---
 
-## 11. Temporal coverage
+## 12. Temporal coverage
 
 The CHIRPS series spans 2015-01-01 to 2026-04-30 (4,138 days). Eleven years is
 modest for characterising climate variability, and the period may not represent
 the rainfall regime under continued climate change. Trends in storm intensity
 cannot be reliably separated from interannual variability at this record
 length.
+
+---
+
+## 13. Flood-aware routing is a lower-risk suggestion, not a safe route
+
+The trip planner (`src/routing/flood_router.py`) drives the OpenStreetMap road
+network (29,473 roads) with each road's cost raised by the flood probability
+under it: ×3 in the moderate band, ×25 in high, closed in critical. It shows
+the flood-aware route beside the fastest route that ignores flooding.
+
+What that does not establish:
+
+- **Street scale is not validated.** Flood extent is checked at neighbourhood
+  scale on ~70 m cells (§5, §9). A bridge or raised carriageway inside a flooded
+  cell is avoided anyway, and a low underpass in a dry cell is not. The
+  interface says "flood-aware route", never "safe route".
+- **No live traffic.** Travel times use typical speeds per road class (e.g.
+  35 km/h on primary roads). Google Maps reroutes on live GPS from millions of
+  phones, which shows what is actually happening. This system reroutes on
+  *predicted* flooding. A crowd-sourced "report flooded road" feature would add
+  real observations; it is future work.
+- **The penalties are chosen, not fitted.** Like the label parameters (§8), the
+  ×3 / ×25 / closed weights encode a judgement about acceptable detours. There
+  is no data on how drivers trade time against flood exposure.
+- **Routing only covers the mapped area.** Location search finds places across
+  Nairobi, but anything outside the downloaded road network (e.g. Two Rivers
+  Mall, JKIA) is shown as "outside the mapped area" and cannot be routed to.
+  A start or destination more than 600 m from a mapped road is refused rather
+  than snapped to a distant road.
+- **Outside the grid there is no prediction.** Roads beyond the 198 × 252 grid
+  carry no penalty, and the route summary says when a route leaves the grid.
+
+---
+
+## 14. "Flooding in about 2 hours" comes from the rainfall forecast, not the model
+
+The model has no clock. It was trained on *daily* CHIRPS rainfall and maps a
+3-day total to extent. The outlook (`src/forecast/nowcast.py`) produces timing
+by feeding it hourly rainfall from Open-Meteo:
+
+1. For each hour from now to +12 h, total the rain over the 72 hours ending
+   then.
+2. Run the model on each total.
+3. Report the first hour each place reaches moderate, high or critical.
+
+So "moderate flooding in Mathare in about 2 hours" means: *at the current
+forecast, the 72-hour total reaches the level where the model shows moderate
+flooding there in about 2 hours.* Consequences:
+
+- **Timing is only as good as the hourly rainfall forecast.** Convective storms
+  over Nairobi are poorly predicted at hourly resolution (§11).
+- **Water movement is not simulated.** There is no runoff lag, drainage
+  capacity or flow routing. Urban flash flooding in Nairobi follows intense rain
+  closely, so the rainfall crossing time is a reasonable proxy, but it has not
+  been checked against observed flood times.
+- **A single rainfall point** still drives the whole city (§2).
+- **Antecedent rainfall uses the seasonal mean.** The model is insensitive to it:
+  at 50 mm, antecedent 0 vs 20 mm/day moves flooded area from 4.04% to 4.09%.
+- **The replays are not forecasts.** The April 2024 replays run the outlook at a
+  past moment on archived hourly reanalysis. The "future" hours are what
+  actually fell, which is a perfect forecast no live system would have. The
+  interface labels them as such.
+- **No invented fallback.** If the forecast cannot be fetched, the outlook says so
+  and shows no warnings.
+
+---
+
+## 15. People at risk is an exposure count, not an impact estimate
+
+The dashboard sums WorldPop 2025 population over cells predicted flooded
+(RESULTS.md §4.12). This replaced a county-average density that understated
+exposure about 4×. What the figure is not:
+
+- **Not a count of people flooded.** A ~70 m cell is predicted flooded; not
+  every household in it is. The figure is closer to an upper bound.
+- **Not a census count.** WorldPop 2025 is modelled from the 2019 census and
+  building footprints, and informal settlements are hard to count.
+- **Scale check.** At the April 2024 rainfall it gives about 370,000 people,
+  against about 147,000 reported affected. That is consistent with an
+  upper-bound exposure measure.
 
 ---
 
@@ -358,3 +492,11 @@ above false positives, which suits early warning. See §7.
 
 **"Why not use the SAR data?"** It was used, tested, and found to be inverted
 for this site (ρ = −0.74 with rainfall). See §4.
+
+**"Can a driver trust the flood-aware route?"** As a lower-risk suggestion,
+yes; as a guarantee, no. Street-scale flooding is not validated and there is no
+live traffic. See §13.
+
+**"How can a daily model say 'in 2 hours'?"** It cannot by itself. The timing
+comes from the hourly rainfall forecast crossing the model's flooding level.
+See §14.

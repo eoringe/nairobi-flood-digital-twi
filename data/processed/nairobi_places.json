@@ -1,0 +1,2015 @@
+{
+ "source": "OpenStreetMap via Overpass API",
+ "licence": "ODbL - (c) OpenStreetMap contributors",
+ "fetched": "2026-09-12",
+ "bbox_south_west_north_east": [
+  -1.37,
+  36.7,
+  -1.21,
+  36.92
+ ],
+ "place_types": [
+  "suburb",
+  "neighbourhood",
+  "quarter",
+  "village",
+  "hamlet",
+  "locality",
+  "city_block"
+ ],
+ "count": 332,
+ "places": [
+  {
+   "name": "3A",
+   "lat": -1.265813,
+   "lon": 36.855619,
+   "place_type": "village"
+  },
+  {
+   "name": "AA Estate",
+   "lat": -1.323806,
+   "lon": 36.888064,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Adam's Arcade",
+   "lat": -1.301575,
+   "lon": 36.780446,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Allsops",
+   "lat": -1.247572,
+   "lon": 36.869851,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Along Ngong River",
+   "lat": -1.304825,
+   "lon": 36.893269,
+   "place_type": "locality"
+  },
+  {
+   "name": "Ankara",
+   "lat": -1.313993,
+   "lon": 36.790571,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ayany",
+   "lat": -1.308767,
+   "lon": 36.775126,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Babadogo",
+   "lat": -1.246163,
+   "lon": 36.88265,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Bahati",
+   "lat": -1.292585,
+   "lon": 36.855676,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Bahati",
+   "lat": -1.290167,
+   "lon": 36.858052,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Bama",
+   "lat": -1.291383,
+   "lon": 36.844397,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Barmasai",
+   "lat": -1.31529,
+   "lon": 36.871382,
+   "place_type": "locality"
+  },
+  {
+   "name": "Benhard",
+   "lat": -1.28021,
+   "lon": 36.764079,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Bogani",
+   "lat": -1.352975,
+   "lon": 36.728927,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Bomas",
+   "lat": -1.33858,
+   "lon": 36.766182,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Bondeni",
+   "lat": -1.284527,
+   "lon": 36.841463,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Brookside",
+   "lat": -1.258919,
+   "lon": 36.793129,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Bukhungu",
+   "lat": -1.308987,
+   "lon": 36.789854,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Buru Buru Phase 2",
+   "lat": -1.283018,
+   "lon": 36.880118,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Buru Buru Phase 5",
+   "lat": -1.292861,
+   "lon": 36.880803,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Buruburu",
+   "lat": -1.286187,
+   "lon": 36.877434,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Buruburu Phase I",
+   "lat": -1.281485,
+   "lon": 36.874764,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Buruburu phase 3",
+   "lat": -1.287738,
+   "lon": 36.878333,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Busara",
+   "lat": -1.27665,
+   "lon": 36.896792,
+   "place_type": "quarter"
+  },
+  {
+   "name": "CBD",
+   "lat": -1.284709,
+   "lon": 36.821583,
+   "place_type": "suburb"
+  },
+  {
+   "name": "California",
+   "lat": -1.281721,
+   "lon": 36.84888,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Chieko",
+   "lat": -1.237847,
+   "lon": 36.919055,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Chiromo",
+   "lat": -1.270831,
+   "lon": 36.806385,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Chogoria",
+   "lat": -1.317503,
+   "lon": 36.871748,
+   "place_type": "locality"
+  },
+  {
+   "name": "City Cotton setllement",
+   "lat": -1.316818,
+   "lon": 36.820171,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "City Park Estate",
+   "lat": -1.258973,
+   "lon": 36.828337,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ciuguini",
+   "lat": -1.2887,
+   "lon": 36.744143,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Clay City",
+   "lat": -1.212756,
+   "lon": 36.909985,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Congo",
+   "lat": -1.28835,
+   "lon": 36.753527,
+   "place_type": "hamlet"
+  },
+  {
+   "name": "DC",
+   "lat": -1.307038,
+   "lon": 36.788143,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Dagoretti Corner",
+   "lat": -1.299086,
+   "lon": 36.758752,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Daima springs",
+   "lat": -1.32335,
+   "lon": 36.875093,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Daisy Court",
+   "lat": -1.213493,
+   "lon": 36.841158,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Dam 2",
+   "lat": -1.321483,
+   "lon": 36.796743,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Dam 2",
+   "lat": -1.321561,
+   "lon": 36.79697,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Dam View",
+   "lat": -1.321194,
+   "lon": 36.797703,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Dandora",
+   "lat": -1.244908,
+   "lon": 36.90608,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Dandora Area I",
+   "lat": -1.257801,
+   "lon": 36.888608,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Dandora Area II",
+   "lat": -1.253487,
+   "lon": 36.899112,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Dandora Area III",
+   "lat": -1.247504,
+   "lon": 36.905656,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Dandora Area IV",
+   "lat": -1.241558,
+   "lon": 36.904897,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Dandora phase 5",
+   "lat": -1.241893,
+   "lon": 36.912617,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Dc Stage",
+   "lat": -1.305889,
+   "lon": 36.787531,
+   "place_type": "locality"
+  },
+  {
+   "name": "Deep Sea Slum",
+   "lat": -1.253461,
+   "lon": 36.813689,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Do's Ground",
+   "lat": -1.305951,
+   "lon": 36.78782,
+   "place_type": "locality"
+  },
+  {
+   "name": "Donholm",
+   "lat": -1.303887,
+   "lon": 36.88788,
+   "place_type": "locality"
+  },
+  {
+   "name": "Doonholm",
+   "lat": -1.299225,
+   "lon": 36.888689,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Dove Hill",
+   "lat": -1.241194,
+   "lon": 36.754064,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Drive In",
+   "lat": -1.250461,
+   "lon": 36.869669,
+   "place_type": "hamlet"
+  },
+  {
+   "name": "Eastleigh",
+   "lat": -1.27434,
+   "lon": 36.848958,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Eastleigh Section 1",
+   "lat": -1.268263,
+   "lon": 36.846074,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Eastleigh Section 3",
+   "lat": -1.284715,
+   "lon": 36.855869,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Embakasi village",
+   "lat": -1.315524,
+   "lon": 36.909739,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Enaki",
+   "lat": -1.223097,
+   "lon": 36.786917,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Evergreen",
+   "lat": -1.222779,
+   "lon": 36.83315,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Fedha",
+   "lat": -1.31567,
+   "lon": 36.898495,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Forty Jesus",
+   "lat": -1.309607,
+   "lon": 36.77816,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Fourways",
+   "lat": -1.212685,
+   "lon": 36.840742,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Fourways Junction",
+   "lat": -1.212853,
+   "lon": 36.840521,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Fouth Street",
+   "lat": -1.271503,
+   "lon": 36.850213,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Gachie",
+   "lat": -1.21676,
+   "lon": 36.766169,
+   "place_type": "village"
+  },
+  {
+   "name": "Garden Estate",
+   "lat": -1.221936,
+   "lon": 36.863302,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Gataka",
+   "lat": -1.368227,
+   "lon": 36.716371,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Gathondeki",
+   "lat": -1.27387,
+   "lon": 36.731511,
+   "place_type": "village"
+  },
+  {
+   "name": "Gatina",
+   "lat": -1.275106,
+   "lon": 36.759852,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Gatoto",
+   "lat": -1.314563,
+   "lon": 36.865243,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Gatwekera",
+   "lat": -1.31545,
+   "lon": 36.783565,
+   "place_type": "village"
+  },
+  {
+   "name": "Gentiana",
+   "lat": -1.297439,
+   "lon": 36.724733,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Gigiri",
+   "lat": -1.232503,
+   "lon": 36.807295,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Gikomba",
+   "lat": -1.286733,
+   "lon": 36.841528,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Githogoro",
+   "lat": -1.215794,
+   "lon": 36.823873,
+   "place_type": "hamlet"
+  },
+  {
+   "name": "Githogoro",
+   "lat": -1.213383,
+   "lon": 36.823959,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Gituambaa",
+   "lat": -1.283067,
+   "lon": 36.863388,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Golf Course Phase II",
+   "lat": -1.309673,
+   "lon": 36.797692,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Gorofani",
+   "lat": -1.286025,
+   "lon": 36.842738,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Gracia Gardens",
+   "lat": -1.285578,
+   "lon": 36.786358,
+   "place_type": "locality"
+  },
+  {
+   "name": "Greenfields Estate",
+   "lat": -1.293674,
+   "lon": 36.892143,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Greenspan Housing Estate",
+   "lat": -1.287101,
+   "lon": 36.901897,
+   "place_type": "locality"
+  },
+  {
+   "name": "Groganville",
+   "lat": -1.265714,
+   "lon": 36.794383,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Grogon",
+   "lat": -1.279232,
+   "lon": 36.823983,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Hamza",
+   "lat": -1.293322,
+   "lon": 36.874701,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Harambee",
+   "lat": -1.28097,
+   "lon": 36.872248,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "High Rise",
+   "lat": -1.315498,
+   "lon": 36.803206,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Highridge",
+   "lat": -1.255611,
+   "lon": 36.806553,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Highridge 2nd Parklands",
+   "lat": -1.262247,
+   "lon": 36.816992,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Hill View",
+   "lat": -1.243476,
+   "lon": 36.776914,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Hillview",
+   "lat": -1.247062,
+   "lon": 36.775878,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Honey Suckle apartments Ph. 2",
+   "lat": -1.318664,
+   "lon": 36.889953,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Honey Suckle apartments ph.1",
+   "lat": -1.319726,
+   "lon": 36.890723,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Horse Shoe",
+   "lat": -1.228188,
+   "lon": 36.838089,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Hurlingham",
+   "lat": -1.291406,
+   "lon": 36.795313,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Huruma",
+   "lat": -1.258725,
+   "lon": 36.871504,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Imara Daima",
+   "lat": -1.323177,
+   "lon": 36.87956,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Industrial Area",
+   "lat": -1.304535,
+   "lon": 36.844186,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Jacaranda",
+   "lat": -1.286682,
+   "lon": 36.906477,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Jamhuri",
+   "lat": -1.305372,
+   "lon": 36.77043,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Jericho",
+   "lat": -1.287395,
+   "lon": 36.870482,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Jericho",
+   "lat": -1.24827,
+   "lon": 36.730128,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Jerusalem",
+   "lat": -1.278002,
+   "lon": 36.869393,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Joybells",
+   "lat": -1.281536,
+   "lon": 36.866288,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Jua Kali",
+   "lat": -1.304385,
+   "lon": 36.91734,
+   "place_type": "suburb"
+  },
+  {
+   "name": "K1/Kobil",
+   "lat": -1.268352,
+   "lon": 36.812267,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Kabiria",
+   "lat": -1.291248,
+   "lon": 36.725674,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Kabiro",
+   "lat": -1.285551,
+   "lon": 36.751244,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kajificheni",
+   "lat": -1.288298,
+   "lon": 36.842142,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kaloleni",
+   "lat": -1.29567,
+   "lon": 36.845309,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Kambi Muru",
+   "lat": -1.311899,
+   "lon": 36.787873,
+   "place_type": "village"
+  },
+  {
+   "name": "Kampi Moru Darajani",
+   "lat": -1.31119,
+   "lon": 36.787839,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kamukunji",
+   "lat": -1.286724,
+   "lon": 36.839909,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kangemi",
+   "lat": -1.268007,
+   "lon": 36.752297,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Kanuku",
+   "lat": -1.289223,
+   "lon": 36.851692,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kanungaga",
+   "lat": -1.278946,
+   "lon": 36.747451,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kapenguria",
+   "lat": -1.238942,
+   "lon": 36.734491,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kaptagat",
+   "lat": -1.262027,
+   "lon": 36.752789,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Karanja",
+   "lat": -1.310782,
+   "lon": 36.783391,
+   "place_type": "village"
+  },
+  {
+   "name": "Karanja Stage",
+   "lat": -1.309822,
+   "lon": 36.780304,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Karen",
+   "lat": -1.328375,
+   "lon": 36.704968,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Karen C",
+   "lat": -1.332401,
+   "lon": 36.735234,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Karen C Kuwinda",
+   "lat": -1.338694,
+   "lon": 36.73993,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Karen Hardy",
+   "lat": -1.363892,
+   "lon": 36.736479,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Kariobangi",
+   "lat": -1.259094,
+   "lon": 36.881914,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Kariobangi North",
+   "lat": -1.253146,
+   "lon": 36.881502,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kariobangi South",
+   "lat": -1.266334,
+   "lon": 36.882066,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kariokor",
+   "lat": -1.278877,
+   "lon": 36.836088,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Karuna Close",
+   "lat": -1.258412,
+   "lon": 36.801458,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Kasarani",
+   "lat": -1.22041,
+   "lon": 36.892661,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Kaumoni",
+   "lat": -1.253303,
+   "lon": 36.748557,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kawangware",
+   "lat": -1.278463,
+   "lon": 36.751643,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Kayole",
+   "lat": -1.266747,
+   "lon": 36.919362,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Kayole Soweto",
+   "lat": -1.285327,
+   "lon": 36.912751,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kemri estate",
+   "lat": -1.313458,
+   "lon": 36.806217,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kenya Pipeline Estate",
+   "lat": -1.24449,
+   "lon": 36.853112,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kiamaiko",
+   "lat": -1.256439,
+   "lon": 36.876082,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Kiamutisya",
+   "lat": -1.26417,
+   "lon": 36.844839,
+   "place_type": "village"
+  },
+  {
+   "name": "Kianda",
+   "lat": -1.265683,
+   "lon": 36.761877,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kianda",
+   "lat": -1.310787,
+   "lon": 36.774273,
+   "place_type": "village"
+  },
+  {
+   "name": "Kibera",
+   "lat": -1.311333,
+   "lon": 36.789,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Kibera Soweto East Zone C",
+   "lat": -1.314649,
+   "lon": 36.798238,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kibera Soweto East Zone D",
+   "lat": -1.313393,
+   "lon": 36.799431,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kibera Soweto East Zone D",
+   "lat": -1.313518,
+   "lon": 36.798051,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kibera,DC",
+   "lat": -1.305422,
+   "lon": 36.788565,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kichinjio",
+   "lat": -1.308515,
+   "lon": 36.791091,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kijiji",
+   "lat": -1.323414,
+   "lon": 36.787664,
+   "place_type": "locality"
+  },
+  {
+   "name": "Kijiji",
+   "lat": -1.312771,
+   "lon": 36.796789,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kileleshwa",
+   "lat": -1.276734,
+   "lon": 36.787901,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Kilimani",
+   "lat": -1.296015,
+   "lon": 36.781779,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Kimathi",
+   "lat": -1.286163,
+   "lon": 36.864218,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kimungu",
+   "lat": -1.31008,
+   "lon": 36.793062,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kiragu Waichahi",
+   "lat": -1.28045,
+   "lon": 36.86684,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kirichwa Holdings",
+   "lat": -1.280372,
+   "lon": 36.784686,
+   "place_type": "locality"
+  },
+  {
+   "name": "Kisumu Ndogo",
+   "lat": -1.313599,
+   "lon": 36.786848,
+   "place_type": "village"
+  },
+  {
+   "name": "Kitisuru",
+   "lat": -1.240379,
+   "lon": 36.77103,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Koja",
+   "lat": -1.281127,
+   "lon": 36.822757,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Komarock",
+   "lat": -1.272656,
+   "lon": 36.907737,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Korogocho",
+   "lat": -1.25175,
+   "lon": 36.890309,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kosovo",
+   "lat": -1.263207,
+   "lon": 36.854067,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Kwa Dada Mary",
+   "lat": -1.279762,
+   "lon": 36.751724,
+   "place_type": "locality"
+  },
+  {
+   "name": "Kwa Ndege",
+   "lat": -1.304668,
+   "lon": 36.902059,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Kware",
+   "lat": -1.309746,
+   "lon": 36.887121,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Kyamutisya village",
+   "lat": -1.263863,
+   "lon": 36.844603,
+   "place_type": "village"
+  },
+  {
+   "name": "Kyuna",
+   "lat": -1.251273,
+   "lon": 36.780112,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Laini Saba",
+   "lat": -1.31174,
+   "lon": 36.794873,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Laini Saba",
+   "lat": -1.312341,
+   "lon": 36.795961,
+   "place_type": "village"
+  },
+  {
+   "name": "Lake View",
+   "lat": -1.242171,
+   "lon": 36.769096,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Landimawe",
+   "lat": -1.295986,
+   "lon": 36.832008,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Langata",
+   "lat": -1.332894,
+   "lon": 36.781666,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Lavington",
+   "lat": -1.274068,
+   "lon": 36.776227,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Le plc",
+   "lat": -1.294852,
+   "lon": 36.722888,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Lenana",
+   "lat": -1.305442,
+   "lon": 36.736517,
+   "place_type": "village"
+  },
+  {
+   "name": "Lilac court",
+   "lat": -1.212458,
+   "lon": 36.839574,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Lindi",
+   "lat": -1.315155,
+   "lon": 36.792648,
+   "place_type": "village"
+  },
+  {
+   "name": "Loresho",
+   "lat": -1.256821,
+   "lon": 36.752113,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Lower Kabete",
+   "lat": -1.240303,
+   "lon": 36.752352,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Lower Kabete Posta",
+   "lat": -1.241031,
+   "lon": 36.747511,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Lower Savannah",
+   "lat": -1.292565,
+   "lon": 36.902481,
+   "place_type": "village"
+  },
+  {
+   "name": "Lucky Summer",
+   "lat": -1.239559,
+   "lon": 36.897979,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Lumumba",
+   "lat": -1.290883,
+   "lon": 36.872529,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Luna Park/Mpaka Road",
+   "lat": -1.263322,
+   "lon": 36.806548,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Mabatini",
+   "lat": -1.260215,
+   "lon": 36.86383,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Mabatini",
+   "lat": -1.271367,
+   "lon": 36.873519,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mae Ridge",
+   "lat": -1.211551,
+   "lon": 36.818602,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Majengo",
+   "lat": -1.284127,
+   "lon": 36.844575,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Makadara",
+   "lat": -1.295219,
+   "lon": 36.871861,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Makina",
+   "lat": -1.305719,
+   "lon": 36.788702,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Makina",
+   "lat": -1.308577,
+   "lon": 36.78734,
+   "place_type": "village"
+  },
+  {
+   "name": "Makongeni",
+   "lat": -1.297993,
+   "lon": 36.85001,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Manga",
+   "lat": -1.228033,
+   "lon": 36.762461,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mariakani",
+   "lat": -1.309298,
+   "lon": 36.83621,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Maringo",
+   "lat": -1.295,
+   "lon": 36.866039,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Mashimoni",
+   "lat": -1.261615,
+   "lon": 36.862103,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mashimoni",
+   "lat": -1.311492,
+   "lon": 36.791971,
+   "place_type": "village"
+  },
+  {
+   "name": "Mashimoni Village",
+   "lat": -1.261975,
+   "lon": 36.862936,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mastermind",
+   "lat": -1.322411,
+   "lon": 36.884546,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mathare",
+   "lat": -1.265011,
+   "lon": 36.84957,
+   "place_type": "village"
+  },
+  {
+   "name": "Mathare North",
+   "lat": -1.253511,
+   "lon": 36.867794,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Matini",
+   "lat": -1.275141,
+   "lon": 36.715374,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mau Mau",
+   "lat": -1.270218,
+   "lon": 36.75056,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Maziwa",
+   "lat": -1.321005,
+   "lon": 36.885371,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mbotela",
+   "lat": -1.297923,
+   "lon": 36.862607,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Menelik Medical Centre",
+   "lat": -1.296962,
+   "lon": 36.783817,
+   "place_type": "locality"
+  },
+  {
+   "name": "Milimani",
+   "lat": -1.289898,
+   "lon": 36.810792,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mlango",
+   "lat": -1.265405,
+   "lon": 36.845416,
+   "place_type": "village"
+  },
+  {
+   "name": "Mlima",
+   "lat": -1.316106,
+   "lon": 36.855702,
+   "place_type": "village"
+  },
+  {
+   "name": "Mowlem",
+   "lat": -1.266624,
+   "lon": 36.895555,
+   "place_type": "village"
+  },
+  {
+   "name": "Mradi",
+   "lat": -1.316967,
+   "lon": 36.910744,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mugumoine",
+   "lat": -1.321375,
+   "lon": 36.777938,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Muimara Estate",
+   "lat": -1.324839,
+   "lon": 36.879446,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mukuru Kayaba Village",
+   "lat": -1.312404,
+   "lon": 36.846229,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Mukuru Kwa Njenga",
+   "lat": -1.319628,
+   "lon": 36.886533,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mukuru Kwa Ruben",
+   "lat": -1.316751,
+   "lon": 36.882599,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mungu Mweini",
+   "lat": -1.321151,
+   "lon": 36.798333,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Muslim",
+   "lat": -1.279346,
+   "lon": 36.741587,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Mutego",
+   "lat": -1.301129,
+   "lon": 36.72017,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Muthaiga",
+   "lat": -1.253091,
+   "lon": 36.830104,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Mutindwa",
+   "lat": -1.28518,
+   "lon": 36.884464,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Mutuini",
+   "lat": -1.3,
+   "lon": 36.7,
+   "place_type": "village"
+  },
+  {
+   "name": "Nairobi Handcraft",
+   "lat": -1.286679,
+   "lon": 36.845469,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Nairobi West",
+   "lat": -1.308702,
+   "lon": 36.823098,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Ndumbuini",
+   "lat": -1.254594,
+   "lon": 36.72296,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Ndurarua",
+   "lat": -1.288991,
+   "lon": 36.742178,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ndwaru",
+   "lat": -1.277508,
+   "lon": 36.726353,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "New Kitisuru",
+   "lat": -1.232097,
+   "lon": 36.752525,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ngara",
+   "lat": -1.273523,
+   "lon": 36.828621,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Ngara",
+   "lat": -1.279462,
+   "lon": 36.830918,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ngara East",
+   "lat": -1.273645,
+   "lon": 36.830612,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Ngara Heights",
+   "lat": -1.278045,
+   "lon": 36.828422,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ngara West",
+   "lat": -1.27019,
+   "lon": 36.82482,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Ngomongo",
+   "lat": -1.246015,
+   "lon": 36.892828,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ngumba",
+   "lat": -1.232319,
+   "lon": 36.884296,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ngumo Central Estate",
+   "lat": -1.30904,
+   "lon": 36.799736,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ngumo West Estate",
+   "lat": -1.308123,
+   "lon": 36.798164,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Nigeria hotspot zone",
+   "lat": -1.265498,
+   "lon": 36.849693,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Nolfok",
+   "lat": -1.29306,
+   "lon": 36.849513,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Number 10",
+   "lat": -1.263205,
+   "lon": 36.86154,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Nyari",
+   "lat": -1.230071,
+   "lon": 36.788261,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Ofafa",
+   "lat": -1.294429,
+   "lon": 36.862869,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ofafa Jerusalem",
+   "lat": -1.285248,
+   "lon": 36.86562,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Old Runda",
+   "lat": -1.211556,
+   "lon": 36.811002,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Olympic",
+   "lat": -1.312796,
+   "lon": 36.779739,
+   "place_type": "village"
+  },
+  {
+   "name": "Onyonka",
+   "lat": -1.32574,
+   "lon": 36.787961,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Otiende",
+   "lat": -1.323322,
+   "lon": 36.779158,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Pangani",
+   "lat": -1.264899,
+   "lon": 36.837271,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Parklands",
+   "lat": -1.263062,
+   "lon": 36.810629,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Parklands Shopping Centre",
+   "lat": -1.265247,
+   "lon": 36.81129,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Peponi",
+   "lat": -1.248125,
+   "lon": 36.800085,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Phase 2",
+   "lat": -1.31351,
+   "lon": 36.805387,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Pheroze",
+   "lat": -1.262366,
+   "lon": 36.905403,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Pherozville",
+   "lat": -1.262376,
+   "lon": 36.905057,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Pillers of Kibera",
+   "lat": -1.313333,
+   "lon": 36.785882,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Pipeline",
+   "lat": -1.32006,
+   "lon": 36.893583,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Pumwani",
+   "lat": -1.281798,
+   "lon": 36.845353,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Raila",
+   "lat": -1.318401,
+   "lon": 36.777464,
+   "place_type": "village"
+  },
+  {
+   "name": "Rexel Estate",
+   "lat": -1.275654,
+   "lon": 36.771225,
+   "place_type": "village"
+  },
+  {
+   "name": "Riara Meadows",
+   "lat": -1.296558,
+   "lon": 36.756878,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ridgeways",
+   "lat": -1.224819,
+   "lon": 36.843321,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Riruta",
+   "lat": -1.288087,
+   "lon": 36.736136,
+   "place_type": "suburb"
+  },
+  {
+   "name": "River Side",
+   "lat": -1.281462,
+   "lon": 36.832695,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Rosslyn",
+   "lat": -1.217809,
+   "lon": 36.793865,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Roysambu",
+   "lat": -1.21884,
+   "lon": 36.886739,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Ruaraka",
+   "lat": -1.242994,
+   "lon": 36.875619,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Rubia",
+   "lat": -1.327682,
+   "lon": 36.782784,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Runda",
+   "lat": -1.218212,
+   "lon": 36.808989,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Runda Meadows",
+   "lat": -1.219664,
+   "lon": 36.823062,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Ruthimitu",
+   "lat": -1.277755,
+   "lon": 36.702406,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Sagana",
+   "lat": -1.278024,
+   "lon": 36.870231,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Saika",
+   "lat": -1.25938,
+   "lon": 36.909638,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Sarang'ombe",
+   "lat": -1.313904,
+   "lon": 36.77771,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Savanna alongside Ngong River",
+   "lat": -1.299965,
+   "lon": 36.89948,
+   "place_type": "locality"
+  },
+  {
+   "name": "Seventy Two Estate",
+   "lat": -1.213939,
+   "lon": 36.828072,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Shauri Moyo",
+   "lat": -1.290785,
+   "lon": 36.848579,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Shimo La Tewa",
+   "lat": -1.311531,
+   "lon": 36.793567,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Silanga",
+   "lat": -1.317927,
+   "lon": 36.795552,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Silanga",
+   "lat": -1.317088,
+   "lon": 36.797471,
+   "place_type": "village"
+  },
+  {
+   "name": "Siwaka Estate",
+   "lat": -1.308562,
+   "lon": 36.810968,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "South B",
+   "lat": -1.314172,
+   "lon": 36.837671,
+   "place_type": "suburb"
+  },
+  {
+   "name": "South C",
+   "lat": -1.318837,
+   "lon": 36.827822,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Southlands",
+   "lat": -1.320973,
+   "lon": 36.787655,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Soweto",
+   "lat": -1.284475,
+   "lon": 36.913442,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Soweto",
+   "lat": -1.314302,
+   "lon": 36.776568,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Soweto East",
+   "lat": -1.31419,
+   "lon": 36.802284,
+   "place_type": "village"
+  },
+  {
+   "name": "Soweto West",
+   "lat": -1.315138,
+   "lon": 36.776884,
+   "place_type": "village"
+  },
+  {
+   "name": "Spring Valley",
+   "lat": -1.253339,
+   "lon": 36.792937,
+   "place_type": "suburb"
+  },
+  {
+   "name": "St charles",
+   "lat": -1.298889,
+   "lon": 36.714206,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "St. Mark",
+   "lat": -1.260722,
+   "lon": 36.798534,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Starehe",
+   "lat": -1.281468,
+   "lon": 36.840472,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Sunton",
+   "lat": -1.234369,
+   "lon": 36.919989,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Sunview Estate",
+   "lat": -1.305206,
+   "lon": 36.80178,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Swamp",
+   "lat": -1.282237,
+   "lon": 36.733759,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Tassia",
+   "lat": -1.307049,
+   "lon": 36.898603,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Tassia",
+   "lat": -1.301073,
+   "lon": 36.900228,
+   "place_type": "locality"
+  },
+  {
+   "name": "Tassia",
+   "lat": -1.300924,
+   "lon": 36.898674,
+   "place_type": "locality"
+  },
+  {
+   "name": "Tawanga",
+   "lat": -1.259024,
+   "lon": 36.914924,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Tena",
+   "lat": -1.291211,
+   "lon": 36.887724,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Thome",
+   "lat": -1.220995,
+   "lon": 36.874895,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Thompson",
+   "lat": -1.292832,
+   "lon": 36.768744,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Tsavo",
+   "lat": -1.318745,
+   "lon": 36.899713,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Tusker Village",
+   "lat": -1.233731,
+   "lon": 36.880057,
+   "place_type": "hamlet"
+  },
+  {
+   "name": "Uhuru Estate",
+   "lat": -1.283577,
+   "lon": 36.869919,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Uhuru gardens Estate",
+   "lat": -1.325568,
+   "lon": 36.791343,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Umoja",
+   "lat": -1.283437,
+   "lon": 36.892841,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Umoja I",
+   "lat": -1.277867,
+   "lon": 36.888089,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Umoja II",
+   "lat": -1.281873,
+   "lon": 36.89934,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Umoja Innercore",
+   "lat": -1.282301,
+   "lon": 36.891365,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Upper Hill",
+   "lat": -1.294116,
+   "lon": 36.812906,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Uthiru",
+   "lat": -1.260682,
+   "lon": 36.711213,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Valley Arcade Bus Stop",
+   "lat": -1.28994,
+   "lon": 36.770342,
+   "place_type": "locality"
+  },
+  {
+   "name": "Vihiga",
+   "lat": -1.279753,
+   "lon": 36.869142,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Villa Franca Estate",
+   "lat": -1.325422,
+   "lon": 36.882739,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Village 46",
+   "lat": -1.281898,
+   "lon": 36.742341,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Viwandani",
+   "lat": -1.303152,
+   "lon": 36.870879,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Vumilia slum",
+   "lat": -1.304621,
+   "lon": 36.89259,
+   "place_type": "locality"
+  },
+  {
+   "name": "Waithaka",
+   "lat": -1.2833,
+   "lon": 36.7166,
+   "place_type": "village"
+  },
+  {
+   "name": "Wangige",
+   "lat": -1.219934,
+   "lon": 36.71302,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Wanye",
+   "lat": -1.294822,
+   "lon": 36.755,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Waruku",
+   "lat": -1.269252,
+   "lon": 36.760996,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Westlands",
+   "lat": -1.264756,
+   "lon": 36.801842,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Whisper Estate",
+   "lat": -1.225814,
+   "lon": 36.812788,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Woodley",
+   "lat": -1.305346,
+   "lon": 36.779323,
+   "place_type": "quarter"
+  },
+  {
+   "name": "Woodley Annex - Lower",
+   "lat": -1.305635,
+   "lon": 36.775902,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Woodley Annex - Upper",
+   "lat": -1.305212,
+   "lon": 36.775806,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "Zimmerman",
+   "lat": -1.210669,
+   "lon": 36.896308,
+   "place_type": "suburb"
+  },
+  {
+   "name": "Ziwani",
+   "lat": -1.279104,
+   "lon": 36.838283,
+   "place_type": "quarter"
+  },
+  {
+   "name": "koinonia",
+   "lat": -1.306088,
+   "lon": 36.785589,
+   "place_type": "quarter"
+  },
+  {
+   "name": "kona mbaya,black spot",
+   "lat": -1.251069,
+   "lon": 36.88818,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "ngei",
+   "lat": -1.255828,
+   "lon": 36.871136,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "olympic",
+   "lat": -1.313052,
+   "lon": 36.77926,
+   "place_type": "neighbourhood"
+  },
+  {
+   "name": "sunrise park estate",
+   "lat": -1.323908,
+   "lon": 36.877051,
+   "place_type": "neighbourhood"
+  }
+ ]
+}

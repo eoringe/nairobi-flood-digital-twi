@@ -5,50 +5,156 @@
 
 # 3.5 ANALYSIS DIAGRAMS (IMPROVED)
 
-## 3.5.1 Use Case Diagram (Cleaner Layout — No Line Crossing)
+## 3.5.1 Use Case Diagram
+
+Solid arrows are actor associations. Dashed arrows carry UML stereotypes:
+`«include»` points from a base use case to behaviour it **always** performs, and
+`«extend»` points from optional behaviour **back** to the case it extends.
+
+Two external system actors appear on the right. *Meteorological Service* is
+architecturally significant rather than incidental: the system consumes a
+rainfall forecast rather than deriving one, because forecasting rainfall from
+rainfall history was shown to be the binding constraint on accuracy
+(`RESULTS.md` §4.6).
 
 ```mermaid
 graph LR
-    subgraph Actors["👥 ACTORS"]
+    subgraph Primary["👥 PRIMARY ACTORS"]
+        direction TB
         Citizen["👤 Citizen"]
-        Planner["👔 Planner"]
-        Responder["🚨 Responder"]
-        Admin["⚙️ Admin"]
+        Planner["👔 Urban Planner"]
+        Responder["🚨 Emergency<br/>Responder"]
+        Admin["⚙️ System<br/>Administrator"]
     end
-    
-    subgraph System["🗺️ NAIROBI FLOOD DIGITAL TWIN"]
-        UC1["View Real-time<br/>Flood Risk Map"]
-        UC2["View Flood<br/>Forecast"]
-        UC3["Adjust Rainfall<br/>Scenario Sliders"]
-        UC4["View 3D Flood<br/>Projections"]
-        UC5["Retrieve Localized<br/>Hazard Summaries"]
-        UC6["Generate<br/>Emergency Reports"]
-        UC7["Manage User<br/>Accounts"]
-        UC8["Update Sensor<br/>Data Streams"]
+
+    subgraph System["🗺️ NAIROBI URBAN FLOOD DIGITAL TWIN"]
+        direction TB
+
+        subgraph Public["Public Information"]
+            UC1["View Flood<br/>Risk Map"]
+            UC2["View Flood<br/>Forecast"]
+            UC3["Subscribe to<br/>Flood Alerts"]
+        end
+
+        subgraph Planning["Planning &amp; Analysis"]
+            UC4["Simulate Rainfall<br/>Scenario"]
+            UC5["View 3D Flood<br/>Visualisation"]
+            UC6["Compare<br/>Scenarios"]
+            UC7["Export Flood<br/>Map"]
+        end
+
+        subgraph Response["Emergency Response"]
+            UC8["Retrieve Localised<br/>Hazard Summary"]
+            UC9["Identify Affected<br/>Settlements"]
+            UC10["Generate Emergency<br/>Report"]
+        end
+
+        subgraph Administration["Administration"]
+            UC11["Manage User<br/>Accounts"]
+            UC12["Refresh Data<br/>Pipeline"]
+            UC13["Retrain Prediction<br/>Model"]
+            UC14["Monitor Model<br/>Performance"]
+        end
+
+        subgraph Shared["🔁 INCLUDED BEHAVIOUR"]
+            INC1(["Authenticate<br/>User"])
+            INC2(["Retrieve Rainfall<br/>Forecast"])
+            INC3(["Compute Flood<br/>Extent"])
+            INC4(["Load Terrain<br/>Susceptibility"])
+            INC5(["Render Map<br/>Layer"])
+            INC6(["Record Audit<br/>Log"])
+        end
+
+        subgraph Optional["➕ EXTENSIONS"]
+            EXT1{{"Send Alert<br/>Notification"}}
+            EXT2{{"Overlay Historical<br/>Flood Event"}}
+            EXT3{{"Download Report<br/>as PDF"}}
+        end
     end
-    
-    Citizen -->|views| UC1
-    Citizen -->|views| UC2
-    
-    Planner -->|uses| UC3
-    Planner -->|uses| UC4
-    Planner -->|uses| UC6
-    
-    Responder -->|uses| UC1
-    Responder -->|uses| UC4
-    Responder -->|uses| UC5
-    Responder -->|uses| UC6
-    
-    Admin -->|manages| UC7
-    Admin -->|manages| UC8
-    
-    style Actors fill:#fff3e0
-    style System fill:#e3f2fd
-    style Citizen fill:#e8f5e9
-    style Planner fill:#fff3e0
-    style Responder fill:#ffebee
-    style Admin fill:#f3e5f5
+
+    subgraph External["🛰️ EXTERNAL SYSTEMS"]
+        direction TB
+        Met["🌦️ Meteorological<br/>Service<br/>(KMD / ECMWF)"]
+        EO["🗄️ Earth Observation<br/>Archives<br/>(CHIRPS / MERIT Hydro)"]
+    end
+
+    Citizen --> UC1
+    Citizen --> UC2
+    Citizen --> UC3
+
+    Planner --> UC4
+    Planner --> UC5
+    Planner --> UC6
+    Planner --> UC7
+
+    Responder --> UC8
+    Responder --> UC9
+    Responder --> UC10
+
+    Admin --> UC11
+    Admin --> UC12
+    Admin --> UC13
+    Admin --> UC14
+
+    UC1 -.->|"«include»"| INC3
+    UC1 -.->|"«include»"| INC5
+    UC2 -.->|"«include»"| INC2
+    UC2 -.->|"«include»"| INC3
+    UC4 -.->|"«include»"| INC3
+    UC5 -.->|"«include»"| INC3
+    UC6 -.->|"«include»"| UC4
+    UC7 -.->|"«include»"| INC5
+    UC8 -.->|"«include»"| INC3
+    UC9 -.->|"«include»"| INC3
+    UC10 -.->|"«include»"| INC1
+    UC10 -.->|"«include»"| UC9
+    UC10 -.->|"«include»"| INC6
+    UC11 -.->|"«include»"| INC1
+    UC12 -.->|"«include»"| INC6
+    UC13 -.->|"«include»"| INC6
+    UC14 -.->|"«include»"| INC1
+
+    INC3 -.->|"«include»"| INC4
+
+    EXT1 -.->|"«extend»"| INC3
+    EXT2 -.->|"«extend»"| UC1
+    EXT3 -.->|"«extend»"| UC10
+
+    Met --> INC2
+    EO --> UC12
+
+    style Primary fill:#fff3e0,stroke:#e65100
+    style External fill:#ede7f6,stroke:#4527a0
+    style System fill:#e3f2fd,stroke:#0d47a1
+    style Shared fill:#e8f5e9,stroke:#1b5e20
+    style Optional fill:#fce4ec,stroke:#880e4f
+    style Public fill:#ffffff,stroke:#90a4ae
+    style Planning fill:#ffffff,stroke:#90a4ae
+    style Response fill:#ffffff,stroke:#90a4ae
+    style Administration fill:#ffffff,stroke:#90a4ae
+    style INC3 fill:#c8e6c9,stroke:#1b5e20,stroke-width:3px
 ```
+
+### Relationship rationale
+
+`Compute Flood Extent` (INC3, bold) is the system's core behaviour — seven use
+cases include it, which is why it is factored out rather than duplicated. It in
+turn includes `Load Terrain Susceptibility`, since a prediction cannot be
+produced without the drainage-based susceptibility field.
+
+| relationship | reading |
+|---|---|
+| `UC2 «include» INC2` | A forecast **always** requires retrieving rainfall from the meteorological service |
+| `UC4 «include» INC3` but **not** `INC2` | Scenario simulation supplies rainfall from the user's sliders, so no external forecast is fetched |
+| `UC6 «include» UC4` | Comparing scenarios runs simulation twice; the base case is reused, not rewritten |
+| `UC10 «include» UC9` | An emergency report cannot be produced without first identifying affected settlements |
+| `EXT1 «extend» INC3` | Alerts fire **only if** predicted extent crosses the notification threshold — conditional, so `«extend»` not `«include»` |
+| `EXT3 «extend» UC10` | PDF export is optional; the report is complete without it |
+
+**Direction convention:** `«include»` arrows run *base → included* (the base
+depends on it); `«extend»` arrows run *extension → base* (the base is unaware of
+the extension). Reversing either is the most common error in UML use case
+diagrams.
 
 ---
 
