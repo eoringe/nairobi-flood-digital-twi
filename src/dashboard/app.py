@@ -21,7 +21,7 @@ import dash_bootstrap_components as dbc
 from loguru import logger
 
 from src.dashboard.layouts import build_dashboard_layout
-from src.dashboard.callbacks import register_callbacks, start_background_warmup
+from src.dashboard.callbacks import register_callbacks, start_background_warmup, warmup_status
 
 GOOGLE_FONTS_URL = (
     "https://fonts.googleapis.com/css2?"
@@ -45,6 +45,18 @@ app = Dash(
 app.layout = build_dashboard_layout()
 register_callbacks(app)
 server = app.server  # Flask WSGI server instance
+
+
+@server.route("/healthz")
+def healthz():
+    """
+    Liveness check for the hosting platform (railway.json healthcheckPath).
+
+    Returns 200 as soon as the app can serve pages. The road graph and cached
+    forecasts keep loading in the background; `warmup_complete` reports whether
+    they are ready, without holding the deploy back while they finish.
+    """
+    return {"status": "ok", **warmup_status()}, 200
 
 # A WSGI server such as gunicorn (the Docker image) imports `server` and never
 # calls main(), so warm-up is started here when the environment asks for it.
