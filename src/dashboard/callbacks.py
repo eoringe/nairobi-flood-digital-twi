@@ -196,10 +196,31 @@ def _warm_up() -> None:
             logger.warning(f"Warm-up: outlook {source} failed: {exc}")
     for mm in list(range(5, 151, 5)) + list(range(160, 201, 10)):
         predictor.probability_for(float(mm))
+    global _warmup_complete
+    _warmup_complete = True
     logger.info("Warm-up complete: road network, outlooks and what-if scenarios cached.")
 
 
+_warmup_started = False
+_warmup_complete = False
+
+
+def warmup_status() -> dict:
+    """Readiness details for the /healthz endpoint."""
+    return {
+        "warmup_started": _warmup_started,
+        "warmup_complete": _warmup_complete,
+        "road_network_loaded": _router is not None,
+        "model": predictor.model_version,
+    }
+
+
 def start_background_warmup() -> None:
+    """Start the warm-up thread once, however many entry points ask for it."""
+    global _warmup_started
+    if _warmup_started:
+        return
+    _warmup_started = True
     threading.Thread(target=_warm_up, name="twin-warmup", daemon=True).start()
 
 

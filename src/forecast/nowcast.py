@@ -35,6 +35,7 @@ It never substitutes invented rainfall figures.
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 import urllib.request
@@ -144,7 +145,7 @@ def _get_json(url: str, timeout: float = 15.0) -> dict:
 #: a third-party API answering. Written on first successful fetch.
 REPLAY_FILE = Path("data/processed/replay_rainfall.json")
 #: Last successful live forecast, used when Open-Meteo cannot be reached.
-LIVE_CACHE_FILE = Path("data/raw/live_rainfall_cache.json")
+LIVE_CACHE_FILE = Path(os.environ.get("TWIN_STATE_DIR", "data/raw")) / "live_rainfall_cache.json"
 #: How old a cached live forecast may be before it is refused. Beyond this the
 #: 12-hour outlook would describe hours that have already passed.
 LIVE_CACHE_MAX_AGE_H = 6
@@ -157,6 +158,19 @@ def _parse(data: dict) -> dict[datetime, float]:
     # Open-Meteo precipitation at time T is the sum over the preceding hour.
     return {datetime.fromisoformat(t): float(v) for t, v in
             zip(data["hourly"]["time"], data["hourly"]["precipitation"]) if v is not None}
+
+
+def _save_json(path: Path, payload: dict) -> None:
+    """
+    Best-effort cache write. On a host whose storage is read-only or owned by
+    another user (a Railway volume mounts as root while the app runs as a
+    non-root user), failing to cache must not take the forecast down with it.
+    """
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    except OSError as exc:
+        logger.warning(f"Could not write {path} ({exc}); continuing without caching it.")
 
 
 def _read_json(path: Path) -> dict:
@@ -185,7 +199,7 @@ def _hourly_series(source: str, as_of: datetime | None):
         all_replays[source] = {"provider": provider, "as_of": as_of.isoformat(),
                                "data": {"hourly": {"time": data["hourly"]["time"],
                                                    "precipitation": data["hourly"]["precipitation"]}}}
-        REPLAY_FILE.write_text(json.dumps(all_replays), encoding="utf-8")
+        _save_json(REPLAY_FILE, all_replays)
         return _parse(data), as_of, provider, None
 
     try:
@@ -205,11 +219,9 @@ def _hourly_series(source: str, as_of: datetime | None):
         raise
     as_of = datetime.now(EAT).replace(tzinfo=None, minute=0, second=0, microsecond=0)
     provider = "Open-Meteo forecast (hourly)"
-    LIVE_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    LIVE_CACHE_FILE.write_text(json.dumps({"as_of": as_of.isoformat(), "provider": provider,
-                                           "data": {"hourly": {"time": data["hourly"]["time"],
-                                                               "precipitation": data["hourly"]["precipitation"]}}}),
-                               encoding="utf-8")
+    _save_json(LIVE_CACHE_FILE, {"as_of": as_of.isoformat(), "provider": provider,
+                                 "data": {"hourly": {"time": data["hourly"]["time"],
+                                                     "precipitation": data["hourly"]["precipitation"]}}})
     return _parse(data), as_of, provider, None
 
 

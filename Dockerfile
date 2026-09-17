@@ -1,41 +1,70 @@
+# syntax=docker/dockerfile:1
 # =============================================================================
-#  Nairobi Urban Flood Digital Twin — Dashboard Container
+#  Nairobi Flood Digital Twin - dashboard container
 #
-#  Builds and serves the Plotly Dash + Pydeck WebGL dashboard
-#  (src/dashboard/app.py). Trained model weights (models/) and processed
-#  arrays (data/processed/) are expected to be mounted as volumes rather
-#  than baked into the image — MEMORY_CONSTRAINTS.md already treats these
-#  as external artefacts refreshed by the ingestion/training pipeline, and
-#  baking multi-GB .npy files into an image defeats the point of a
-#  container that's meant to be cheap to rebuild and ship.
+#  Self-contained: the image carries the code plus the ~45 MB of trained model
+#  and processed data the dashboard reads, so it runs on any machine with
+#  Docker. Only writable state (scenario history, forecast cache) lives on a
+#  volume, so it survives container restarts and rebuilds.
 #
-#  Build : docker build -t nairobi-flood-twin .
-#  Run   : docker run -p 8050:8050 -v "$(pwd)/data:/app/data" -v "$(pwd)/models:/app/models" nairobi-flood-twin
-#  Or    : docker compose up
+#  Local : docker compose up --build   ->  http://localhost:8050
+#  Cloud : Railway builds this file (railway.json); see DEPLOYMENT.md
 # =============================================================================
 
-FROM python:3.11-slim
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
-# build-essential is a safety net for any dependency without a prebuilt
-# manylinux wheel on this platform; most of the geospatial stack (rasterio,
-# shapely, fiona, pyproj) ships its own GDAL/GEOS/PROJ binaries in-wheel.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+# Dependencies first, so editing code does not reinstall them on every build.
+COPY requirements-dashboard.txt .
+RUN pip install -r requirements-dashboard.txt
+
+# rasterio's wheel bundles GDAL but links against the system expat library,
+# which the slim base image omits ("libexpat.so.1: cannot open shared object").
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libexpat1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Run as an unprivileged user rather than root.
+RUN useradd --create-home --uid 10001 twin
 
-COPY src/ ./src/
-COPY config/ ./config/
+# Server config, code, trained model and processed data. .dockerignore narrows
+# data/ and models/ to exactly the files the dashboard reads.
+COPY --chown=twin:twin gunicorn.conf.py ./
+COPY --chown=twin:twin src/ ./src/
+COPY --chown=twin:twin data/processed/ ./data/processed/
+COPY --chown=twin:twin models/time_series/ ./models/time_series/
 
-# Data/model directories are created empty here; real content is mounted
-# in at `docker run` / `docker compose up` time.
-RUN mkdir -p data/processed/arrays data/raw models/autoencoder models/time_series
+RUN mkdir -p /app/state /app/data/raw && chown twin:twin /app/state /app/data /app/data/raw
 
-ENV PYTHONUNBUFFERED=1
+USER twin
+
+# TWIN_STATE_DIR  where the SQLite scenario history and live-forecast cache go
+#                 (a volume in docker-compose.yml; a Railway volume at /app/state).
+# TWIN_WARMUP     gunicorn imports the app instead of calling main(), so the
+#                 background warm-up (road graph, outlooks, cached model runs)
+#                 starts on import.
+# OMP/MKL_NUM_THREADS  cloud hosts can report dozens of CPUs; an uncapped
+#                 PyTorch thread pool on a shared allocation is slower, not faster.
+# PORT            Railway injects its own; 8050 is the local default.
+ENV TWIN_STATE_DIR=/app/state \
+    TWIN_WARMUP=1 \
+    OMP_NUM_THREADS=4 \
+    MKL_NUM_THREADS=4 \
+    PORT=8050
+
 EXPOSE 8050
 
-CMD ["python", "-m", "src.dashboard.app", "--host", "0.0.0.0", "--port", "8050"]
+# Used by docker compose. Railway ignores Docker HEALTHCHECK and uses
+# railway.json's healthcheckPath (/healthz) instead.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+    CMD python -c "import os, sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '8050') + '/healthz', timeout=4).status == 200 else 1)"
+
+# Bind address, worker model and timeouts live in gunicorn.conf.py, which reads
+# the PORT the platform injects.
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "src.dashboard.app:server"]

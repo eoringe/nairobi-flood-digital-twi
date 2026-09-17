@@ -70,6 +70,17 @@ Everything is clipped to one 198 × 252 grid over Nairobi (~70 m per cell).
 
 ---
 
+## Run with Docker
+
+```
+docker compose up --build        # first build ~6 min (downloads PyTorch), later builds seconds
+docker compose ps                # wait for "healthy", about a minute after start
+```
+
+Then open http://localhost:8050. The image contains the code, trained model and processed data (the dashboard needs about 45 MB of data). Scenario history and the last live forecast are kept in the `twin-state` volume, so they survive restarts. It is served by gunicorn (one worker, eight threads) as a non-root user, with a health check. Stop with `docker compose down`.
+
+---
+
 ## Honest notes
 
 - **"In 2 hours" comes from the rainfall forecast,** not from simulating water flow. The model itself is daily. See `LIMITATIONS.md` §14.
