@@ -81,11 +81,18 @@ data/*.sqlite
 # Archived hourly rainfall for the storm replays, so they work offline.
 !data/processed/replay_rainfall.json
 !data/processed/rainfall_bias_correction.json
+# 3D building footprints drawn on the map (7.4 MB). Tracked because a
+# git-based build (Railway) only sees committed files.
+!data/processed/nairobi_buildings_3d.json
 
 # Small evaluation outputs travel with the code; model weights (100+ MB) do not.
 # Same three-line idiom as data/processed/arrays above.
 !models/time_series/
 models/time_series/*
 !models/time_series/calibration_v2_*.json
+# The deployed model's weights and metrics, needed by the Docker image. The same
+# bytes are already committed under training-outputs/, so git stores no extra copy.
+!models/time_series/segmentation_model_v2_nwp_drainage.pth
+!models/time_series/segmentation_metrics_v2_nwp_drainage.json
 !models/time_series/evaluation_v2_*.json
 !models/time_series/crossval_v2_*.json
