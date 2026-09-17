@@ -7,8 +7,8 @@
 #  Docker. Only writable state (scenario history, forecast cache) lives on a
 #  volume, so it survives container restarts and rebuilds.
 #
-#  Build and run : docker compose up --build
-#  Open          : http://localhost:8050
+#  Local : docker compose up --build   ->  http://localhost:8050
+#  Cloud : Railway builds this file (railway.json); see DEPLOYMENT.md
 # =============================================================================
 
 FROM python:3.13-slim
@@ -33,8 +33,9 @@ RUN apt-get update \
 # Run as an unprivileged user rather than root.
 RUN useradd --create-home --uid 10001 twin
 
-# Code, trained model and processed data. .dockerignore narrows data/ and
-# models/ to exactly the files the dashboard reads.
+# Server config, code, trained model and processed data. .dockerignore narrows
+# data/ and models/ to exactly the files the dashboard reads.
+COPY --chown=twin:twin gunicorn.conf.py ./
 COPY --chown=twin:twin src/ ./src/
 COPY --chown=twin:twin data/processed/ ./data/processed/
 COPY --chown=twin:twin models/time_series/ ./models/time_series/
@@ -43,21 +44,27 @@ RUN mkdir -p /app/state /app/data/raw && chown twin:twin /app/state /app/data /a
 
 USER twin
 
-# TWIN_STATE_DIR: where the SQLite scenario history and live-forecast cache go
-# (mounted as a volume by docker-compose.yml).
-# TWIN_WARMUP: gunicorn imports the app instead of calling main(), so the
-# background warm-up (road graph, outlooks, cached model runs) starts on import.
+# TWIN_STATE_DIR  where the SQLite scenario history and live-forecast cache go
+#                 (a volume in docker-compose.yml; a Railway volume at /app/state).
+# TWIN_WARMUP     gunicorn imports the app instead of calling main(), so the
+#                 background warm-up (road graph, outlooks, cached model runs)
+#                 starts on import.
+# OMP/MKL_NUM_THREADS  cloud hosts can report dozens of CPUs; an uncapped
+#                 PyTorch thread pool on a shared allocation is slower, not faster.
+# PORT            Railway injects its own; 8050 is the local default.
 ENV TWIN_STATE_DIR=/app/state \
-    TWIN_WARMUP=1
+    TWIN_WARMUP=1 \
+    OMP_NUM_THREADS=4 \
+    MKL_NUM_THREADS=4 \
+    PORT=8050
 
 EXPOSE 8050
 
-# Start-up loads the model, road graph and forecasts (~40 s), hence the grace period.
+# Used by docker compose. Railway ignores Docker HEALTHCHECK and uses
+# railway.json's healthcheckPath (/healthz) instead.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
-    CMD python -c "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8050/', timeout=4).status == 200 else 1)"
+    CMD python -c "import os, sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '8050') + '/healthz', timeout=4).status == 200 else 1)"
 
-# One worker, many threads: the model, road graph and forecast caches live in
-# process memory, so extra worker processes would each load their own copy and
-# not share caches. The long timeout covers first-time replay downloads.
-CMD ["gunicorn", "--bind", "0.0.0.0:8050", "--workers", "1", "--threads", "8", \
-     "--timeout", "180", "--access-logfile", "-", "src.dashboard.app:server"]
+# Bind address, worker model and timeouts live in gunicorn.conf.py, which reads
+# the PORT the platform injects.
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "src.dashboard.app:server"]
