@@ -573,6 +573,38 @@ def generate_flood_contour_geojson(
         {"type": "FeatureCollection", "features": halo_features},
     )
 
+_BUILDING_ROWS: dict[str, list[dict]] = {}
+
+
+def _building_rows(theme: str) -> list[dict]:
+    """
+    Extrusion rows for the 3D buildings, built once per theme.
+
+    The footprints never change, but they were re-read from disk and re-coloured
+    on every map update, which was over half of the server time for a flood
+    update (~1 s of ~2 s).
+    """
+    if theme in _BUILDING_ROWS:
+        return _BUILDING_ROWS[theme]
+    tall, mid, low = MAP_THEMES.get(theme, MAP_THEMES["dark"])["buildings"]
+    rows: list[dict] = []
+    if BUILDINGS_JSON.exists():
+        try:
+            with open(BUILDINGS_JSON, "r") as f:
+                geo_data = json.load(f)
+            for feat in geo_data.get("features", [])[:4000]:
+                h_val = feat["properties"].get("height", 14.0)
+                rows.append({
+                    "polygon": list(_footprint_polygon(feat).exterior.coords),
+                    "height": h_val,
+                    "color": tall if h_val > 25 else (mid if h_val > 12 else low),
+                })
+        except Exception as e:                                  # noqa: BLE001
+            logger.warning(f"Error loading building footprints: {e}")
+    _BUILDING_ROWS[theme] = rows
+    return rows
+
+
 #: Layer ids the live-update bridge can patch. Every one is created in every
 #: document, empty if need be: a layer that does not exist cannot be updated by
 #: id, so a route requested after the map loaded would have nowhere to go.
@@ -656,25 +688,7 @@ def create_3d_digital_twin_deck(
     ))
 
     # 2. LOD2 Solid 3D Volumetric Building Footprint Extrusions
-    tall, mid, low = palette["buildings"]
-    building_data = []
-    if BUILDINGS_JSON.exists():
-        try:
-            with open(BUILDINGS_JSON, "r") as f:
-                geo_data = json.load(f)
-
-            for feat in geo_data.get("features", [])[:4000]:
-                props = feat["properties"]
-                h_val = props.get("height", 14.0)
-                polygon = list(_footprint_polygon(feat).exterior.coords)
-                color = tall if h_val > 25 else (mid if h_val > 12 else low)
-                building_data.append({
-                    "polygon": polygon,
-                    "height": h_val,
-                    "color": color,
-                })
-        except Exception as e:
-            logger.warning(f"Error loading building footprints: {e}")
+    building_data = _building_rows(theme)
 
     if building_data:
         layers.append(pdk.Layer(
