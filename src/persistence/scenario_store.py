@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS scenario_runs (
 
 
 def _get_conn() -> sqlite3.Connection:
+    # mkdir raises OSError on a read-only or root-owned volume; callers below
+    # treat that like any other storage failure and carry on without history.
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=5.0)
     conn.row_factory = sqlite3.Row
@@ -67,7 +69,7 @@ def init_db() -> None:
     try:
         with _get_conn() as conn:
             conn.execute(_SCHEMA)
-    except sqlite3.Error as e:
+    except (sqlite3.Error, OSError) as e:
         logger.warning(f"scenario_store: could not initialize {DB_PATH}: {e}")
 
 
@@ -98,7 +100,7 @@ def save_scenario_run(
                 ),
             )
             return cur.lastrowid
-    except sqlite3.Error as e:
+    except (sqlite3.Error, OSError) as e:
         logger.warning(f"scenario_store: failed to save scenario run: {e}")
         return None
 
@@ -112,6 +114,6 @@ def list_recent_scenarios(limit: int = 5) -> list[dict]:
                 "SELECT * FROM scenario_runs ORDER BY id DESC LIMIT ?", (limit,)
             ).fetchall()
             return [dict(r) for r in rows]
-    except sqlite3.Error as e:
+    except (sqlite3.Error, OSError) as e:
         logger.warning(f"scenario_store: failed to read recent scenarios: {e}")
         return []
