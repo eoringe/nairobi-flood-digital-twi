@@ -1,0 +1,198 @@
+{
+  "period": [
+    "2022-01-03",
+    "2026-04-30"
+  ],
+  "days": 1579,
+  "min_cells_per_place": 6,
+  "events": [
+    {
+      "event": "March 2026 Nairobi River flash floods",
+      "window": [
+        "2026-03-06",
+        "2026-03-15"
+      ],
+      "chirps_max_3day": 140.06297302246094,
+      "feed_max_3day": 58.099999999999994,
+      "corrected_max_3day": 146.06783184974805,
+      "raw": {
+        "detected": true,
+        "days_warned": 3,
+        "window_days": 10,
+        "max_level": 3,
+        "first_warning": "2026-03-06"
+      },
+      "corrected": {
+        "detected": true,
+        "days_warned": 3,
+        "window_days": 10,
+        "max_level": 3,
+        "first_warning": "2026-03-06"
+      }
+    },
+    {
+      "event": "April 2024 long rains",
+      "window": [
+        "2024-04-23",
+        "2024-04-30"
+      ],
+      "chirps_max_3day": 103.36129951477051,
+      "feed_max_3day": 58.0,
+      "corrected_max_3day": 145.84932008804864,
+      "raw": {
+        "detected": true,
+        "days_warned": 5,
+        "window_days": 8,
+        "max_level": 3,
+        "first_warning": "2024-04-25"
+      },
+      "corrected": {
+        "detected": true,
+        "days_warned": 7,
+        "window_days": 8,
+        "max_level": 3,
+        "first_warning": "2024-04-24"
+      }
+    },
+    {
+      "event": "November 2023 El Nino short rains",
+      "window": [
+        "2023-11-11",
+        "2023-11-25"
+      ],
+      "chirps_max_3day": 40.257763624191284,
+      "feed_max_3day": 30.9,
+      "corrected_max_3day": 66.66423232257192,
+      "raw": {
+        "detected": true,
+        "days_warned": 2,
+        "window_days": 15,
+        "max_level": 1,
+        "first_warning": "2023-11-23"
+      },
+      "corrected": {
+        "detected": true,
+        "days_warned": 10,
+        "window_days": 15,
+        "max_level": 3,
+        "first_warning": "2023-11-12"
+      }
+    }
+  ],
+  "controls": [
+    {
+      "control": "Jan-Feb 2024 dry season",
+      "days": 42,
+      "raw": 0,
+      "corrected": 5
+    },
+    {
+      "control": "Jul-Aug 2023 cool dry",
+      "days": 42,
+      "raw": 0,
+      "corrected": 0
+    },
+    {
+      "control": "Jan-Feb 2022 dry season",
+      "days": 42,
+      "raw": 0,
+      "corrected": 2
+    }
+  ],
+  "daily_vs_chirps_storms": {
+    "storm_days": 148,
+    "raw": {
+      "warning_days": 45,
+      "precision": 0.8,
+      "recall": 0.24324324324324326,
+      "f1": 0.37305699481865284,
+      "false_alarm_rate": 0.006289308176100629
+    },
+    "corrected": {
+      "warning_days": 154,
+      "precision": 0.525974025974026,
+      "recall": 0.5472972972972973,
+      "f1": 0.5364238410596026,
+      "false_alarm_rate": 0.05101327742837177
+    }
+  },
+  "rule_sensitivity": [
+    {
+      "min_level": 1,
+      "min_places": 1,
+      "precision": 0.525974025974026,
+      "recall": 0.5472972972972973,
+      "f1": 0.5364238410596026,
+      "false_alarm_rate": 0.05101327742837177,
+      "events_detected": 3,
+      "events_total": 3,
+      "dry_control_false_alarm_days": 7
+    },
+    {
+      "min_level": 1,
+      "min_places": 3,
+      "precision": 0.5228758169934641,
+      "recall": 0.5405405405405406,
+      "f1": 0.5315614617940199,
+      "false_alarm_rate": 0.05101327742837177,
+      "events_detected": 3,
+      "events_total": 3,
+      "dry_control_false_alarm_days": 7
+    },
+    {
+      "min_level": 1,
+      "min_places": 5,
+      "precision": 0.5228758169934641,
+      "recall": 0.5405405405405406,
+      "f1": 0.5315614617940199,
+      "false_alarm_rate": 0.05101327742837177,
+      "events_detected": 3,
+      "events_total": 3,
+      "dry_control_false_alarm_days": 7
+    },
+    {
+      "min_level": 1,
+      "min_places": 10,
+      "precision": 0.5228758169934641,
+      "recall": 0.5405405405405406,
+      "f1": 0.5315614617940199,
+      "false_alarm_rate": 0.05101327742837177,
+      "events_detected": 3,
+      "events_total": 3,
+      "dry_control_false_alarm_days": 7
+    },
+    {
+      "min_level": 2,
+      "min_places": 1,
+      "precision": 0.5571428571428572,
+      "recall": 0.527027027027027,
+      "f1": 0.5416666666666666,
+      "false_alarm_rate": 0.04332634521313766,
+      "events_detected": 3,
+      "events_total": 3,
+      "dry_control_false_alarm_days": 5
+    },
+    {
+      "min_level": 2,
+      "min_places": 3,
+      "precision": 0.5571428571428572,
+      "recall": 0.527027027027027,
+      "f1": 0.5416666666666666,
+      "false_alarm_rate": 0.04332634521313766,
+      "events_detected": 3,
+      "events_total": 3,
+      "dry_control_false_alarm_days": 5
+    },
+    {
+      "min_level": 3,
+      "min_places": 1,
+      "precision": 0.7361111111111112,
+      "recall": 0.3581081081081081,
+      "f1": 0.4818181818181818,
+      "false_alarm_rate": 0.013277428371767994,
+      "events_detected": 3,
+      "events_total": 3,
+      "dry_control_false_alarm_days": 1
+    }
+  ]
+}

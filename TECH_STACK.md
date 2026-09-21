@@ -35,7 +35,7 @@ What the Nairobi Flood Digital Twin actually runs on.
 
 **People at risk:** WorldPop 2025 population living in cells predicted flooded, an upper-bound exposure count.
 
-**Flood outlook:** hourly rainfall → 72-hour total for each of the next 12 hours → model → the first hour each place floods ("expect moderate flooding in Mathare in about 2 hours").
+**Flood outlook:** hourly rainfall → 72-hour total for each of the next 12 hours → **bias-corrected** to the CHIRPS scale the model learned (the forecast shows about half the rain in storms) → model → the first hour each place floods ("expect moderate flooding in Mathare in about 2 hours"). In a 2022–2026 backtest it caught all 3 documented Nairobi floods and 55% of flood-level storm days, with false alarms on 5% of other days.
 
 **Location search:** type any place, road, landmark or coordinates. It searches an offline index first (instant, works without internet), then the Photon geocoder for rarer names. Places outside the mapped area are listed but marked as not routable.
 
