@@ -1,4 +1,4 @@
-# 🌊 Nairobi Urban Flood Digital Twin: AI-Powered Hydrological Surrogate & Early Warning System
+# Nairobi Urban Flood Digital Twin: AI-Powered Hydrological Surrogate & Early Warning System
 
 > **Real-Time Spatiotemporal Flood Risk Prediction, Physical Terrain Hydrology Modeling, and Interactive 3D Urban Simulation for Nairobi County, Kenya.**
 
