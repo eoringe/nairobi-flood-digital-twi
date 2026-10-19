@@ -873,3 +873,476 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card {
   .twin-readout-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .twin-topbar .text-end { text-align: left !important; margin-top: 10px; }
 }
+
+/* ======================================================================
+   ACCOUNTS: top-bar account area, sign-in page, tables
+   ====================================================================== */
+.twin-account-area {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 10px;
+  vertical-align: middle;
+  flex-wrap: wrap;
+}
+.twin-auth-who { font-size: 12px; color: var(--text-secondary); }
+.twin-auth-who strong { color: var(--text-primary); font-weight: 600; }
+.twin-auth-link {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+}
+.twin-auth-link:hover { color: var(--accent-strong); text-decoration: underline; }
+.twin-auth-btn {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-decoration: none;
+}
+.twin-auth-btn:hover { background: var(--accent); color: var(--on-accent); }
+.twin-auth-error { color: var(--risk-critical); font-size: 13px; }
+.twin-auth-ok { color: var(--risk-safe); font-size: 13px; }
+.twin-input {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+}
+.twin-input:focus {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.twin-auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.twin-auth-divider::before, .twin-auth-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border-subtle);
+}
+.twin-google-btn {
+  background: #ffffff;
+  color: #1f1f1f;
+  border: 1px solid #c7c7c7;
+  font-weight: 600;
+}
+.twin-google-btn:hover { background: #f2f2f2; color: #1f1f1f; }
+.twin-google-g {
+  display: inline-block;
+  width: 18px;
+  margin-right: 8px;
+  font-weight: 700;
+  color: #4285f4;
+}
+.twin-table { --bs-table-bg: transparent; --bs-table-color: var(--text-primary); color: var(--text-primary); font-size: 12.5px; }
+.twin-table th { color: var(--text-secondary); font-weight: 600; border-color: var(--border-subtle); }
+.twin-table td { border-color: var(--border-subtle); vertical-align: middle; background: transparent; }
+.twin-input::placeholder { color: var(--text-muted); }
+.twin-qr { display: flex; justify-content: center; margin: 12px 0; }
+.twin-qr img { background: #ffffff; padding: 6px; border-radius: var(--radius-chip); }
+.twin-secret { font-family: var(--font-mono); font-size: 12.5px; color: var(--accent); word-break: break-all; }
+.twin-code-input { font-family: var(--font-mono); font-size: 20px; letter-spacing: 0.25em; text-align: center; }
+.twin-steps { font-size: 13px; color: var(--text-secondary); padding-left: 18px; }
+.twin-recovery-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.twin-recovery-grid code {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  text-align: center;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-chip);
+  color: var(--text-primary);
+}
+
+/* ======================================================================
+   SIGNED-IN DASHBOARD (account page + admin console)
+   Sidebar shell, KPI tiles, panels, tables, feed, health list.
+   Built on the same tokens as the map console, so it follows the theme.
+   ====================================================================== */
+.dash-shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--bg-deep);
+}
+
+/* ---- sidebar ---- */
+.dash-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 14px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+}
+.dash-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 14px; border-bottom: 1px solid var(--border-subtle); }
+.dash-brand-name { display: block; font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--text-primary); }
+.dash-brand-sub { display: block; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+.dash-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; overflow-y: auto; }
+.dash-nav-section {
+  margin: 14px 10px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.dash-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.dash-nav-link .bi { font-size: 15px; width: 18px; text-align: center; }
+.dash-nav-link:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+.dash-nav-link.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.dash-sidebar-foot { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--border-subtle); }
+.dash-user { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dash-user > div { min-width: 0; }
+.dash-user-name { display: block; font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-user-role { display: block; font-size: 11.5px; color: var(--text-muted); }
+.dash-signout { font-size: 12.5px; color: var(--text-secondary); text-decoration: none; padding: 6px 10px; border-radius: 6px; }
+.dash-signout:hover { background: var(--bg-surface-hover); color: var(--risk-critical); }
+
+/* ---- main column ---- */
+.dash-main { padding: 26px 32px 40px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.dash-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.dash-title { font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--text-primary); margin: 0; }
+.dash-subtitle { margin: 4px 0 0; font-size: 13.5px; color: var(--text-secondary); }
+.dash-header-actions { display: flex; gap: 10px; }
+
+/* ---- buttons, inputs ---- */
+/* .btn.* outranks Bootstrap's .btn-primary, which dbc.Button adds by default. */
+.btn.dash-btn-primary, a.dash-btn-primary {
+  --bs-btn-bg: var(--accent); --bs-btn-border-color: var(--accent); --bs-btn-color: var(--on-accent);
+  --bs-btn-hover-bg: var(--accent-strong); --bs-btn-hover-border-color: var(--accent-strong);
+  --bs-btn-hover-color: var(--on-accent); --bs-btn-active-bg: var(--accent-strong);
+  display: inline-flex; align-items: center;
+  background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent);
+  font-weight: 600; font-size: 13px; padding: 8px 14px; border-radius: 8px; text-decoration: none;
+}
+.btn.dash-btn-primary:hover, a.dash-btn-primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: var(--on-accent); }
+.btn.dash-btn-ghost {
+  --bs-btn-bg: transparent; --bs-btn-border-color: var(--border-strong); --bs-btn-color: var(--text-primary);
+  --bs-btn-hover-bg: var(--bg-surface-hover); --bs-btn-hover-border-color: var(--accent-border);
+  --bs-btn-hover-color: var(--accent); --bs-btn-active-bg: var(--bg-surface-hover);
+  --bs-btn-active-color: var(--accent); --bs-btn-active-border-color: var(--accent-border);
+  display: inline-flex; align-items: center;
+  background: transparent; color: var(--text-primary); border: 1px solid var(--border-strong);
+  font-weight: 500; font-size: 12.5px; padding: 6px 12px; border-radius: 8px;
+}
+.btn.dash-btn-ghost:hover { background: var(--bg-surface-hover); color: var(--accent); border-color: var(--accent-border); }
+.dash-input, .dash-input:focus {
+  background: var(--bg-deep); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 8px;
+}
+.dash-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dash-input::placeholder { color: var(--text-muted); }
+.dash-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.dash-hint { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+.dash-link { font-size: 12.5px; color: var(--accent); text-decoration: none; }
+.dash-link:hover { text-decoration: underline; }
+.dash-empty { padding: 18px 4px; text-align: center; font-size: 13px; color: var(--text-muted); margin: 0; }
+
+/* ---- KPI tiles ---- */
+.dash-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.dash-kpis.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dash-kpis.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.dash-kpi {
+  display: flex; align-items: center; gap: 14px; padding: 16px 18px;
+  background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel); box-shadow: var(--shadow-panel);
+}
+.dash-kpi-icon {
+  flex: none; width: 42px; height: 42px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; font-size: 19px;
+}
+.dash-kpi-text { display: flex; flex-direction: column; min-width: 0; }
+.dash-kpi-label { font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.dash-kpi-value { font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--text-primary); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-kpi-sub { font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* tones shared by KPI icons, badges, avatars, chips, alerts */
+.tone-accent  { --tone: var(--accent); }
+.tone-info    { --tone: #5b8def; }
+.tone-ok      { --tone: var(--risk-safe); }
+.tone-warn    { --tone: var(--risk-moderate); }
+.tone-danger  { --tone: var(--risk-critical); }
+.tone-neutral { --tone: var(--text-muted); }
+.dash-kpi-icon[class*="tone-"] { color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); }
+
+/* ---- panels and grid ---- */
+.dash-grid { display: grid; gap: 18px; }
+.dash-grid.cols-8-4 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.dash-grid.cols-7-5 { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+.dash-grid.cols-5-7 { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+.dash-stack { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.dash-panel {
+  background: var(--bg-surface); border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel); box-shadow: var(--shadow-panel); min-width: 0;
+}
+.dash-panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 14px 18px; border-bottom: 1px solid var(--border-subtle);
+}
+.dash-panel-title { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; }
+.dash-panel-title .bi { color: var(--accent); }
+.dash-panel-actions { display: flex; gap: 8px; align-items: center; }
+.dash-panel-body { padding: 16px 18px; }
+
+/* ---- toolbar ---- */
+.dash-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.dash-search {
+  flex: 1 1 260px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  background: var(--bg-deep); border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text-muted);
+}
+.dash-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dash-search-input { flex: 1; background: transparent; border: none; outline: none; color: var(--text-primary); padding: 8px 0; font-size: 13px; }
+.dash-filter { flex: 0 0 190px; }
+
+/* ---- tables ---- */
+.dash-table-wrap { overflow-x: auto; }
+.dash-table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text-primary); }
+.dash-table th {
+  text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border-subtle); white-space: nowrap;
+}
+.dash-table td { padding: 11px 12px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
+.dash-table tbody tr:hover { background: var(--bg-surface-hover); }
+.dash-table tbody tr:last-child td { border-bottom: none; }
+.dash-table tr.is-disabled td { opacity: 0.55; }
+.dash-user-cell { display: flex; align-items: center; gap: 10px; }
+.dash-user-cell > div { display: flex; flex-direction: column; min-width: 0; }
+.dash-cell-strong { font-weight: 600; color: var(--text-primary); }
+.dash-cell-muted { font-size: 12px; color: var(--text-muted); }
+.dash-mono { font-family: var(--font-mono); }
+.dash-select { min-width: 170px; font-size: 13px; }
+.dash-switch .form-check-label { font-size: 12.5px; color: var(--text-secondary); }
+
+/* ---- avatars, badges, chips ---- */
+.dash-avatar {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 50%; font-size: 13px; font-weight: 700;
+  color: var(--tone); background: color-mix(in srgb, var(--tone) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone) 35%, transparent);
+}
+.dash-avatar.is-sm { width: 30px; height: 30px; font-size: 11.5px; }
+.dash-avatar.is-lg { width: 60px; height: 60px; font-size: 20px; }
+.dash-badge {
+  display: inline-block; padding: 3px 9px; border-radius: var(--radius-pill); font-size: 11.5px; font-weight: 600;
+  color: var(--tone, var(--text-secondary)); background: color-mix(in srgb, var(--tone, var(--text-muted)) 14%, transparent);
+}
+.dash-badge.kind-signin  { --tone: var(--accent); }
+.dash-badge.kind-failure { --tone: var(--risk-critical); }
+.dash-badge.kind-account { --tone: #5b8def; }
+.dash-badge.kind-data    { --tone: var(--risk-moderate); }
+.dash-badge.kind-other   { --tone: var(--text-muted); }
+.dash-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.dash-chip {
+  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 500;
+  color: var(--tone, var(--text-secondary)); border: 1px solid color-mix(in srgb, var(--tone, var(--text-muted)) 40%, transparent);
+}
+.dash-alert {
+  display: flex; align-items: center; padding: 10px 14px; border-radius: 8px; font-size: 13px;
+  color: var(--tone); background: color-mix(in srgb, var(--tone) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone) 35%, transparent);
+}
+
+/* ---- activity feed ---- */
+.dash-feed { list-style: none; margin: 0; padding: 0; }
+.dash-feed-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border-subtle); font-size: 13px; }
+.dash-feed-item:last-child { border-bottom: none; }
+.dash-feed-icon {
+  flex: none; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+.dash-feed-icon.kind-signin  { --tone: var(--accent); }
+.dash-feed-icon.kind-failure { --tone: var(--risk-critical); }
+.dash-feed-icon.kind-account { --tone: #5b8def; }
+.dash-feed-icon.kind-data    { --tone: var(--risk-moderate); }
+.dash-feed-icon.kind-other   { --tone: var(--text-muted); }
+.dash-feed-time { font-size: 11.5px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; }
+
+/* ---- health list ---- */
+.dash-health { list-style: none; margin: 0; padding: 0; }
+.dash-health li {
+  display: grid; grid-template-columns: 12px minmax(130px, auto) 1fr; gap: 10px; align-items: center;
+  padding: 11px 0; border-bottom: 1px solid var(--border-subtle); font-size: 13px;
+}
+.dash-health li:last-child { border-bottom: none; }
+.dash-health-detail { color: var(--text-secondary); font-size: 12.5px; text-align: right; overflow-wrap: anywhere; }
+.dash-dot { width: 9px; height: 9px; border-radius: 50%; }
+.dash-dot.state-ok   { background: var(--risk-safe); box-shadow: 0 0 0 3px color-mix(in srgb, var(--risk-safe) 22%, transparent); }
+.dash-dot.state-warn { background: var(--risk-moderate); box-shadow: 0 0 0 3px color-mix(in srgb, var(--risk-moderate) 22%, transparent); }
+.dash-dot.state-down { background: var(--risk-critical); box-shadow: 0 0 0 3px color-mix(in srgb, var(--risk-critical) 22%, transparent); }
+
+/* ---- profile ---- */
+.dash-profile { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.dash-profile > div { display: flex; flex-direction: column; min-width: 0; }
+.dash-profile-name { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.dash-facts { display: grid; grid-template-columns: 140px 1fr; gap: 10px 14px; margin: 0; font-size: 13px; }
+.dash-facts dt { color: var(--text-muted); font-weight: 500; }
+.dash-facts dd { margin: 0; color: var(--text-primary); }
+
+/* ---- modal ---- */
+.dash-modal .modal-content { background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 12px; }
+.dash-modal .modal-header, .dash-modal .modal-footer { border-color: var(--border-subtle); }
+.dash-modal .btn-close { filter: invert(1); }
+:root[data-theme="light"] .dash-modal .btn-close { filter: none; }
+.dash-radio .form-check-label { font-size: 13px; color: var(--text-primary); }
+
+/* ---- responsive ---- */
+@media (max-width: 1100px) {
+  .dash-grid.cols-8-4, .dash-grid.cols-7-5, .dash-grid.cols-5-7 { grid-template-columns: 1fr; }
+  .dash-kpis.cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .dash-shell { grid-template-columns: 1fr; }
+  .dash-sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 12px 16px; }
+  .dash-brand { border-bottom: none; padding-bottom: 0; }
+  .dash-nav { flex-direction: row; flex-wrap: wrap; flex-basis: 100%; overflow: visible; }
+  .dash-nav-section { display: none; }
+  .dash-sidebar-foot { flex-direction: row; border-top: none; padding-top: 0; margin-left: auto; }
+  .dash-main { padding: 18px 16px 32px; }
+  .dash-kpis.cols-3, .dash-kpis.cols-4 { grid-template-columns: 1fr; }
+}
+
+/* ======================================================================
+   DASH 4 TEXT INPUTS
+   dcc.Input renders <div class="dash-input-container {className}"> around
+   <input class="dash-input-element">. Our classes land on the wrapper, so its
+   padding stacked on the inner input's own padding and the text began far in
+   from the edge. The wrapper now draws the box; the input fills it.
+   ====================================================================== */
+.dash-input-container.form-control,
+.dash-input-container.twin-input {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 38px;
+  padding: 0;
+  overflow: hidden;
+}
+.dash-input-container.form-control > .dash-input-element,
+.dash-input-container.twin-input > .dash-input-element {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  padding: 8px 12px;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  outline: none;
+}
+.dash-input-container.form-control > .dash-input-element::placeholder,
+.dash-input-container.twin-input > .dash-input-element::placeholder { color: var(--text-muted); }
+.dash-input-container.twin-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* The authenticator code box: large, spaced, centred digits. */
+.dash-input-container.twin-code-input > .dash-input-element {
+  text-align: center;
+  letter-spacing: 0.25em;
+  font-family: var(--font-mono);
+  font-size: 20px;
+}
+
+/* Dashboard search fields sit inside .dash-search, which draws the box. */
+.dash-input-container.dash-search-input {
+  flex: 1 1 auto;
+  height: auto;
+  border: none;
+  background: transparent;
+  overflow: visible;
+}
+.dash-input-container.dash-search-input > .dash-input-element {
+  width: 100%;
+  padding: 8px 0;
+  background: transparent;
+  color: var(--text-primary);
+}
+.dash-input-container.dash-search-input:focus-within { outline: none; box-shadow: none; }
+
+/* The email-link row: the field takes all the space the button leaves. */
+.twin-link-row { display: flex; gap: 8px; align-items: stretch; }
+.twin-link-row > .dash-input-container { flex: 1 1 auto; min-width: 0; }
+.twin-link-row > button { flex: none; }
+
+/* Sign-in tabs follow the theme (Bootstrap's dark theme hard-codes their colours). */
+.nav-tabs { border-bottom-color: var(--border-strong); }
+.nav-tabs .nav-link { color: var(--text-secondary); background: transparent; border-color: transparent; }
+.nav-tabs .nav-link:hover { color: var(--accent); border-color: transparent; }
+.nav-tabs .nav-link.active { color: var(--text-primary); background: var(--bg-surface-hover); border-color: var(--border-strong) var(--border-strong) transparent; font-weight: 600; }
+
+/* ======================================================================
+   EMAIL-LINK SIGN-IN IN PROGRESS
+   assets/firebase_login.js covers the page the moment a sign-in link is
+   opened, so the sign-in form never shows while the link is completed.
+   ====================================================================== */
+#twin-signing-in {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-deep, #0a0e13);
+}
+.twin-signing-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 40px;
+  background: var(--bg-surface, #10161f);
+  border: 1px solid var(--border-subtle, #202b38);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel, none);
+}
+.twin-signing-title {
+  font-family: var(--font-display, sans-serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #eaf0f6);
+}
+.twin-signing-sub { font-size: 13px; color: var(--text-secondary, #93a2b3); }
+.twin-signing-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid var(--accent-soft, rgba(53, 194, 209, 0.12));
+  border-top-color: var(--accent, #35c2d1);
+  animation: twin-spin 0.8s linear infinite;
+}
+.twin-signing-inline { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-secondary); }
+.twin-signing-inline .twin-signing-spinner { width: 22px; height: 22px; border-width: 2px; }
+@keyframes twin-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .twin-signing-spinner { animation-duration: 2.4s; } }

@@ -265,6 +265,24 @@ The web dashboard is built using **Plotly Dash** and **Pydeck WebGL** with a mod
 * Deliberately does not persist on every slider-drag frame or auto-play tick (both also trigger the render callback) — only on an explicit "Run Simulation" click, so the history reflects scenarios a user actually committed to, not every intermediate render.
 * Every public function catches its own database errors and degrades to an empty/`None` result rather than crashing the live dashboard.
 
+### 6.2 Accounts, Roles and Access Control
+* **Implemented in:** `src/auth/` (store, permissions, Firebase sign-in, authenticator codes, routes, CLI), `src/dashboard/auth_pages.py` (sign-in, 2FA and role tools) and `src/dashboard/admin_dashboard.py` (account page and admin console).
+* The map, outlook, warnings and routing stay public. Signing in adds the tools for each role:
+
+| Role | What they get | How the account is made |
+|---|---|---|
+| Citizen | Alert areas; in-app warnings for those places | Automatically, at a first Google or email-link sign-in |
+| Urban planner | What-if scenarios, saved scenario history, hold-and-compare, GeoJSON export | Created or promoted by an administrator |
+| Emergency responder | Downloadable emergency report, GeoJSON export | Created or promoted by an administrator |
+| Administrator | Dashboard of users, sign-ins and system health; users and roles; audit log; forecast refresh; every staff tool | `TWIN_ADMIN_EMAIL`, `TWIN_ADMIN_EMAILS`, or the CLI |
+
+* **No passwords.** Everyone signs in with *Continue with Google* or *Email me a sign-in link*, both through Firebase Authentication. The server verifies the Firebase ID token with `google-auth` (no service-account key), requires a verified email, and opens the account with that email. Roles always come from this system's database, never from Firebase.
+* **First sign-in:** an email with no account becomes a citizen account (or an administrator if listed in `TWIN_ADMIN_EMAILS`). An email an administrator added first opens with the role they chose. Only an administrator can raise a role.
+* **Administrators use two-step sign-in:** after Google or the email link they enter a 6-digit code from an authenticator app (Google Authenticator, Microsoft Authenticator, Authy). The first sign-in shows a QR code to enrol the app and then eight one-time recovery codes. Codes follow RFC 6238, cannot be reused, and five wrong codes end the attempt. An account promoted to admin keeps citizen powers until it completes this step.
+* Every permission is checked on the server in the callback or route that performs the action; hidden buttons are a convenience, not the control. Recovery codes are stored as salted hashes, the code form carries a CSRF token, and sign-ins, exports, reports, saved scenarios and role changes are written to an append-only audit log.
+* **Firebase set-up:** set `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID` and `FIREBASE_APP_ID` (see `.env.example`); in the console enable Google and Email/Password with *Email link (passwordless sign-in)*, and add your domain under Authorized domains. Without these, nobody can sign in, though the public map still works.
+* First administrator: put your email in `TWIN_ADMIN_EMAILS` and sign in, or run `python -m src.auth.cli create-user --email you@example.com --role admin`. `python -m src.auth.cli reset-2fa --email ...` removes a lost authenticator.
+
 ---
 
 ## 📂 Implementation Blueprint: File-by-File Code Mapping

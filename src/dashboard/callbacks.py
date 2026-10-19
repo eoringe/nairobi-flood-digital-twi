@@ -43,6 +43,8 @@ from src.routing.flood_router import (
 )
 from src.routing.geocoder import LocationSearch, decode_value
 from src.persistence import scenario_store
+from src.auth.access import can, current_user
+from src.auth.store import get_store
 
 # Model B on drainage labels: test F1 0.937 on held-out storm seasons.
 predictor = FloodPredictor()
@@ -242,6 +244,13 @@ def _scenario(mode: str, nowcast: dict | None, hour: int | None, rain_slider: fl
         return key, rain, predictor.probability_for(rain, scenario_date=d), d
     rain = float(rain_slider or 40.0)
     return f"WHATIF|{round(rain)}", rain, predictor.probability_for(rain), date.today()
+
+
+def _allowed_mode(mode: str | None) -> str:
+    """What-if is a planner tool (FR-04): other users are held to live mode on the server."""
+    if mode == "WHATIF" and can(current_user(), "run_whatif"):
+        return "WHATIF"
+    return "LIVE"
 
 
 # -------------------------------------------------------------- renderers --
@@ -843,6 +852,7 @@ def register_callbacks(app) -> None:
         State("nowcast-store", "data"),
     )
     def load_outlook(mode, source, _refresh, current):
+        mode = _allowed_mode(mode)
         dot = html.Span(className="twin-live-dot")
         if mode == "WHATIF":
             return (no_update, no_update, no_update, no_update, no_update,
@@ -888,6 +898,7 @@ def register_callbacks(app) -> None:
             Output("zone-risk-table", "children"),
             Output("rain-context-label", "children"),
             Output("scenario-history-body", "children"),
+            Output("scenario-summary-store", "data"),
         ],
         [
             Input("btn-run", "n_clicks"),
@@ -907,9 +918,10 @@ def register_callbacks(app) -> None:
                           selected_region, theme, _rebuild, map_built, route_data):
         # Wait for the theme to resolve (instant, client side) and, in live
         # mode, for the outlook, rather than rendering a throwaway map first.
+        user = current_user()
+        mode = _allowed_mode(mode)
         if theme is None or (mode != "WHATIF" and nowcast is None):
             raise PreventUpdate
-        mode = mode or "LIVE"
         display_mode = display_mode or "PROBABILITY"
         filter_mode = filter_mode or "ALL"
         hour = int(hour or 0)
@@ -985,12 +997,30 @@ def register_callbacks(app) -> None:
             chart_title = "Rainfall Response · What-if"
             alerts = _build_alert_log(region_risks)
 
-        if ctx.triggered_id == "btn-run":
-            scenario_store.save_scenario_run(
+        # Saving is a planner action (FR-15 records who ran it); the button is
+        # hidden for other roles and the request is refused here regardless.
+        if ctx.triggered_id == "btn-run" and can(user, "save_scenario"):
+            run_id = scenario_store.save_scenario_run(
                 rainfall_mm_day=float(rain or 0.0), time_hour=float(hour if mode == "LIVE" else 0.0),
                 display_mode=display_mode, max_depth_m=flooded_pct, flooded_area_km2=area_km2,
-                est_affected_pop=pop, region_risks=region_risks,
+                est_affected_pop=pop, region_risks=region_risks, run_by=user["username"],
             )
+            get_store().audit("scenario_saved", user["user_id"],
+                              f"run {run_id}: {mode} {float(rain or 0):.0f} mm, {area_km2:.2f} km2")
+        history = _build_scenario_history() if can(user, "save_scenario") else []
+
+        if mode == "LIVE" and nowcast and nowcast.get("hours"):
+            src_label = nowcast.get("label") or "Live forecast"
+            label = f"{src_label}, map at {nowcast['hours'][min(hour, len(nowcast['hours']) - 1)]}"
+        else:
+            label = f"What-if scenario, {float(rain or 0):.0f} mm over 3 days"
+        summary = {
+            "key": key, "mode": mode, "label": label, "rain": float(rain or 0.0), "hour": hour,
+            "area_km2": area_km2, "flooded_pct": round(flooded_pct, 2), "pop": pop,
+            "model": predictor.model_version,
+            "regions": [{"name": n, "level": r["risk_level"], "peak_pct": r["peak_probability_pct"],
+                         "flooded_pct": r["flooded_pct"]} for n, r in region_risks.items()],
+        }
 
         at_risk = sum(1 for v in region_risks.values() if v["risk_level"] in ("CRITICAL", "HIGH"))
         worst_name, worst = max(region_risks.items(), key=lambda kv: kv[1]["flooded_pct"],
@@ -1016,7 +1046,8 @@ def register_callbacks(app) -> None:
             alerts,
             region_cards,
             html.Div(rain_label, className=f"twin-context-label {rain_class}"),
-            _build_scenario_history(),
+            history,
+            summary,
         )
 
     # Plan, and re-plan, the trip.
@@ -1064,7 +1095,8 @@ def register_callbacks(app) -> None:
         if origin is None or destination is None:
             return no_update, html.P("That location could not be found.", className="twin-empty-state"), no_update, no_update
 
-        key, _rain, prob, _d = _scenario(mode or "LIVE", nowcast, hour, rain_slider)
+        mode = _allowed_mode(mode)
+        key, _rain, prob, _d = _scenario(mode, nowcast, hour, rain_slider)
         res = router.route(origin, destination, prob)
         # A point far from any mapped road would otherwise snap silently to a
         # road that may be kilometres away.

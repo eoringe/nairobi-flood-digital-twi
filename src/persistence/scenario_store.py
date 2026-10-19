@@ -51,23 +51,34 @@ CREATE TABLE IF NOT EXISTS scenario_runs (
     flooded_area_km2    REAL,
     est_affected_pop    INTEGER,
     critical_zone_count INTEGER,
-    region_risks_json   TEXT
+    region_risks_json   TEXT,
+    run_by              TEXT
 );
 """
 
 
 def _get_conn() -> sqlite3.Connection:
+    # mkdir raises OSError on a read-only or root-owned volume; callers below
+    # treat that like any other storage failure and carry on without history.
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=5.0)
     conn.row_factory = sqlite3.Row
     return conn
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add run_by to a scenario_runs table created before accounts existed."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(scenario_runs)")}
+    if "run_by" not in cols:
+        conn.execute("ALTER TABLE scenario_runs ADD COLUMN run_by TEXT")
+
+
 def init_db() -> None:
     try:
         with _get_conn() as conn:
             conn.execute(_SCHEMA)
-    except sqlite3.Error as e:
+            _migrate(conn)
+    except (sqlite3.Error, OSError) as e:
         logger.warning(f"scenario_store: could not initialize {DB_PATH}: {e}")
 
 
@@ -79,26 +90,28 @@ def save_scenario_run(
     flooded_area_km2: float,
     est_affected_pop: int,
     region_risks: dict,
+    run_by: str | None = None,
 ) -> int | None:
     """Persist one scenario run. Returns the new row id, or None on failure."""
     critical_count = sum(1 for r in region_risks.values() if r.get("risk_level") in ("CRITICAL", "HIGH"))
     try:
         with _get_conn() as conn:
             conn.execute(_SCHEMA)
+            _migrate(conn)
             cur = conn.execute(
                 """INSERT INTO scenario_runs
                    (run_at_utc, rainfall_mm_day, time_hour, display_mode, max_depth_m,
-                    flooded_area_km2, est_affected_pop, critical_zone_count, region_risks_json)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    flooded_area_km2, est_affected_pop, critical_zone_count, region_risks_json, run_by)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     float(rainfall_mm_day), float(time_hour), display_mode,
                     float(max_depth_m), float(flooded_area_km2), int(est_affected_pop),
-                    critical_count, json.dumps(region_risks),
+                    critical_count, json.dumps(region_risks), run_by,
                 ),
             )
             return cur.lastrowid
-    except sqlite3.Error as e:
+    except (sqlite3.Error, OSError) as e:
         logger.warning(f"scenario_store: failed to save scenario run: {e}")
         return None
 
@@ -112,6 +125,6 @@ def list_recent_scenarios(limit: int = 5) -> list[dict]:
                 "SELECT * FROM scenario_runs ORDER BY id DESC LIMIT ?", (limit,)
             ).fetchall()
             return [dict(r) for r in rows]
-    except sqlite3.Error as e:
+    except (sqlite3.Error, OSError) as e:
         logger.warning(f"scenario_store: failed to read recent scenarios: {e}")
         return []

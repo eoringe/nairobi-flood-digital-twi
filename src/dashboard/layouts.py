@@ -119,6 +119,9 @@ def build_dashboard_layout() -> html.Div:
                                     className="twin-theme-btn",
                                     title="Switch between light and dark themes",
                                 ),
+                                # Sign-in link, or who is signed in and their links
+                                # (filled per user by auth_pages.route_page).
+                                html.Div(id="account-area", className="twin-account-area"),
                             ],
                         ),
                     ],
@@ -145,7 +148,7 @@ def build_dashboard_layout() -> html.Div:
                                             html.Li([html.Strong("Live — "), "the outlook uses Nairobi's hourly rainfall forecast and warns when flooding is expected to start. Drag the hour slider to see the map later on."]),
                                             html.Li([html.Strong("Replay — "), "pick the April 2024 storm under Forecast source to see warnings on a real event."]),
                                             html.Li([html.Strong("Plan a trip — "), "search any place, road or landmark in Nairobi for the start and destination, or pick them on the map. The blue route avoids predicted flooding and updates as the forecast changes."]),
-                                            html.Li([html.Strong("What-if — "), "set any 3-day rainfall total to explore a scenario."]),
+                                            html.Li([html.Strong("What-if — "), "planners set any 3-day rainfall total to explore a scenario (sign in as a planner)."]),
                                         ]),
                                     ],
                                 ),
@@ -395,6 +398,10 @@ def build_dashboard_layout() -> html.Div:
                                     body_children=[html.P("Loading warnings…", className="twin-empty-state")],
                                 ),
 
+                                # Alerts for the signed-in user's areas, and the
+                                # planner / responder tools (auth_pages.role_tools).
+                                html.Div(id="role-tools-panel"),
+
                                 _panel(
                                     header_label=html.Span("Rainfall · Last 24 h and Next 12 h", id="chart-title"),
                                     dot_class="dot-accent",
@@ -427,14 +434,14 @@ def build_dashboard_layout() -> html.Div:
                                     body_children=[html.P("Loading…", className="twin-empty-state")],
                                 ),
 
-                                _panel(
+                                html.Div(id="history-wrap", hidden=True, children=_panel(
                                     header_label="Recent Scenario Runs",
                                     dot_class="dot-accent",
                                     className="mb-3 twin-scroll",
                                     body_id="scenario-history-body",
                                     body_style={"maxHeight": "110px", "overflowY": "auto"},
                                     body_children=[html.P("No runs yet this session.", className="twin-empty-state")],
-                                ),
+                                )),
                             ],
                         ),
                     ],
@@ -462,6 +469,11 @@ def build_dashboard_layout() -> html.Div:
                 # resolved-theme folds in the OS preference when there is none.
                 dcc.Store(id="theme-store", storage_type="local", data=None),
                 dcc.Store(id="resolved-theme-store", data=None),
+                # What is on the map now, for comparison, export and reports.
+                dcc.Store(id="scenario-summary-store", data=None),
+                # The planner's held scenario, kept for this browser tab.
+                dcc.Store(id="held-scenario-store", storage_type="session", data=None),
+                dcc.Download(id="download-file"),
                 html.Div(id="bridge-sink-flood", hidden=True),
                 html.Div(id="bridge-sink-route", hidden=True),
             ]),

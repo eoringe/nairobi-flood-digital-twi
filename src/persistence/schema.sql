@@ -21,14 +21,19 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------- identity --
+-- Implemented by src/auth/store.py (accounts.db); keep the two in step.
 CREATE TABLE IF NOT EXISTS users (
     user_id       INTEGER PRIMARY KEY,
     username      TEXT NOT NULL UNIQUE,
-    email         TEXT,
-    password_hash TEXT NOT NULL,          -- salted hash only (NFR-05)
+    email         TEXT UNIQUE,
+    display_name  TEXT,
+    password_hash TEXT,                   -- salted hash only (NFR-05); NULL for Google sign-in
+    auth_provider TEXT NOT NULL DEFAULT 'local' CHECK (auth_provider IN ('local','google')),
     role          TEXT NOT NULL DEFAULT 'citizen'
                   CHECK (role IN ('citizen','planner','responder','admin')),
-    created_at    TEXT NOT NULL
+    active        INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT NOT NULL,
+    last_login_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS user_sessions (
@@ -208,7 +213,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_log(occurred_at);
 CREATE TABLE IF NOT EXISTS alert_subscriptions (
     subscription_id INTEGER PRIMARY KEY,
     user_id         INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    sub_county      TEXT NOT NULL,
+    sub_county      TEXT NOT NULL,           -- neighbourhood the warnings are issued for
     active          INTEGER NOT NULL DEFAULT 1,
+    label           TEXT,                    -- what the person picked, e.g. a landmark in it
     UNIQUE (user_id, sub_county)
 );

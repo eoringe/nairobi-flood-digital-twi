@@ -17,9 +17,20 @@ services:
     ports:
       - "8050:8050"
     volumes:
-      # Scenario history (SQLite) and the last live forecast, kept across
-      # restarts and rebuilds.
+      # Scenario history, accounts and audit log (SQLite), the session key and
+      # the last live forecast, kept across restarts and rebuilds.
       - twin-state:/app/state
+    # Accounts and Google sign-in. Values come from a .env file beside this
+    # one (see .env.example); all are optional.
+    environment:
+      - TWIN_SECRET_KEY
+      - TWIN_ADMIN_EMAIL
+      - TWIN_ADMIN_EMAILS
+      - TWIN_COOKIE_SECURE
+      - FIREBASE_API_KEY
+      - FIREBASE_AUTH_DOMAIN
+      - FIREBASE_PROJECT_ID
+      - FIREBASE_APP_ID
     restart: unless-stopped
 
   # Upgrade path for the database: swap SQLite for PostGIS once the ERD's
