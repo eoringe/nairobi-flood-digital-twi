@@ -70,6 +70,21 @@
         if (sub && subtitle) { sub.textContent = subtitle; }
     }
 
+    // Shows a spinner and a status label on the clicked button until it is reset.
+    function setLoading(button, label) {
+        if (!button.dataset.idleHtml) { button.dataset.idleHtml = button.innerHTML; }
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+        button.innerHTML = '<span class="twin-btn-spinner" aria-hidden="true"></span>';
+        button.appendChild(document.createTextNode(label));
+    }
+
+    function resetButton(button) {
+        if (button.dataset.idleHtml) { button.innerHTML = button.dataset.idleHtml; delete button.dataset.idleHtml; }
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+    }
+
     function hideSigningIn() {
         var el = document.getElementById("twin-signing-in");
         if (el) { el.remove(); }
@@ -133,32 +148,40 @@
 
     async function google(button) {
         if (busy) { return; }
-        busy = true; button.disabled = true; say("google-error", "", false);
+        busy = true; say("google-error", "", false);
+        var leaving = false;   // the page is about to change, so keep the spinner showing
         try {
             var f, result;
             if (sdk) {
                 // Ready: open the popup now, inside the click, before anything is awaited.
                 f = sdk;
                 var popup = f.mod.signInWithPopup(f.auth, provider(f));
+                setLoading(button, "Waiting for Google…");
                 result = await popup;
             } else {
                 // Still loading (very slow connection): the click's permission to open a
                 // popup is lost while we wait, so go to Google by redirect instead.
-                say("google-error", "Preparing Google sign-in…", true);
+                setLoading(button, "Opening Google…");
                 f = await firebaseAuth();
+                leaving = true;
                 await redirectToGoogle(f);
                 return;
             }
+            setLoading(button, "Signing you in…");
             await finish(result);
+            leaving = true;
         } catch (err) {
             if (err && err.code === "auth/popup-blocked" && sdk) {
+                leaving = true;
                 await redirectToGoogle(sdk);
                 return;
             }
+            leaving = false;
             hideSigningIn();
             say("google-error", googleErrorMessage(err), false);
         } finally {
-            busy = false; button.disabled = false;
+            busy = false;
+            if (!leaving) { resetButton(button); }
         }
     }
 
@@ -188,7 +211,7 @@
             say("link-status", "Enter a valid email address.", false);
             return;
         }
-        busy = true; button.disabled = true; say("link-status", "Sending…", true);
+        busy = true; setLoading(button, "Sending…"); say("link-status", "", true);
         try {
             var f = await firebaseAuth();
             await f.mod.sendSignInLinkToEmail(f.auth, email, {
@@ -202,7 +225,7 @@
                 ? googleErrorMessage({ code: "auth/unauthorized-domain" })
                 : (err && err.message) || "The sign-in link could not be sent.", false);
         } finally {
-            busy = false; button.disabled = false;
+            busy = false; resetButton(button);
         }
     }
 
