@@ -3,19 +3,18 @@ src.auth.routes
 ===============
 Sign-in, registration and sign-out endpoints on the Flask server under Dash.
 
-    POST /auth/login     email + password
-    POST /auth/register  email + password; always creates a citizen
     POST /auth/firebase  {"idToken": ...} from Firebase: Google popup or email link
     POST /auth/2fa       authenticator code (or recovery code) for administrators
     GET  /auth/logout
     GET  /auth/firebase-config   public Firebase web config, or {} when unset
 
-Every account can sign in any of three ways: its password, the Google account
-of the same email, or a passwordless link Firebase emails to that address. Administrators then pass an authenticator code
+There are no passwords. Every account signs in with the Google account of its
+email or a link Firebase emails to that address; a first sign-in creates a
+citizen account. Administrators then pass an authenticator code
 (src/auth/totp.py); the first time, they enrol the app on the /2fa page.
 
-Forms carry a per-session CSRF token. Repeated failed passwords or codes lock
-the attempt for a few minutes. Every outcome is written to the audit log.
+The code form carries a per-session CSRF token. Repeated wrong codes lock the
+attempt for a few minutes. Every outcome is written to the audit log.
 """
 
 from __future__ import annotations
@@ -65,7 +64,7 @@ def _back(path: str, error: str, **extra):
 
 
 def _after_first_step(user: dict, method: str) -> str:
-    """Finish a password or Google sign-in; returns where the browser goes next."""
+    """Finish a Google or email-link sign-in; returns where the browser goes next."""
     store = get_store()
     if needs_mfa(user):
         start_pending(user, method)
@@ -111,45 +110,6 @@ def init_auth(server) -> None:
         bootstrap_admin(get_store())
     except Exception as exc:                                # noqa: BLE001
         logger.warning(f"Account store unavailable at start-up: {exc}")
-
-    @server.post("/auth/login")
-    def auth_login():
-        store = get_store()
-        if not csrf_ok(request.form.get("csrf")):
-            return _back("/login", "Your session expired. Please try again.")
-        email = (request.form.get("email") or "").strip().lower()
-        key = f"pw|{email}|{request.remote_addr}"
-        if _locked(key):
-            store.audit("login_locked", None, f"email={email}")
-            return _back("/login", "Too many failed attempts. Try again in a few minutes.")
-        user = store.verify_password(email, request.form.get("password") or "")
-        if user is None:
-            _record_failure(key)
-            store.audit("login_failed", None, f"email={email}")
-            # One message for every failure, so the form does not reveal which
-            # emails are registered or how they sign in.
-            return _back("/login", "Incorrect email or password. If you use Google, choose "
-                                   "“Continue with Google” instead.")
-        _clear_failures(key)
-        return redirect(_after_first_step(user, "password"))
-
-    @server.post("/auth/register")
-    def auth_register():
-        store = get_store()
-        if not csrf_ok(request.form.get("csrf")):
-            return _back("/login", "Your session expired. Please try again.", tab="register")
-        password = request.form.get("password") or ""
-        if password != (request.form.get("confirm") or ""):
-            return _back("/login", "The two passwords do not match.", tab="register")
-        try:
-            # Self-registration is always a citizen account; staff roles are
-            # granted by an administrator, whatever the form sends.
-            user = store.create_user(request.form.get("email") or "", password, "citizen")
-        except AuthError as exc:
-            return _back("/login", str(exc), tab="register")
-        sign_in(user)
-        store.audit("register", user["user_id"], "password")
-        return redirect("/account")
 
     @server.post("/auth/firebase")
     def auth_firebase():

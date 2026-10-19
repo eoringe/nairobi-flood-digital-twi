@@ -63,6 +63,48 @@ app.layout = html.Div([
     html.Div(id="page-twin", children=build_dashboard_layout()),
     html.Div(id="page-other", className="twin-app", hidden=True),
 ])
+# Runs before anything downloads: applies the saved theme (no dark flash for
+# light-theme users), and when the page is an emailed sign-in link, shows the
+# "Signing you in" screen at once instead of a blank page and then the form.
+# assets/firebase_login.js completes the link and removes the screen on error.
+_EARLY_SCRIPT = """
+<script>
+(function () {
+  try {
+    var t = JSON.parse(localStorage.getItem("theme-store") || "null");
+    if (t !== "light" && t !== "dark") {
+      t = (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+    }
+    document.documentElement.setAttribute("data-theme", t);
+  } catch (e) { /* storage blocked: the theme callback sets it shortly */ }
+  var q = location.search;
+  if (q.indexOf("oobCode=") > -1 && q.indexOf("mode=signIn") > -1) {
+    document.write('<div id="twin-signing-in" role="status" aria-live="polite"><div class="twin-signing-card">' +
+      '<div class="twin-signing-spinner"></div><div class="twin-signing-title">Signing you in\\u2026</div>' +
+      '<div class="twin-signing-sub">Confirming your email link</div></div></div>');
+  }
+})();
+</script>
+"""
+app.index_string = """<!DOCTYPE html>
+<html>
+    <head>
+        {%metas%}
+        <title>{%title%}</title>
+        {%favicon%}
+        {%css%}
+    </head>
+    <body>
+        """ + _EARLY_SCRIPT + """
+        {%app_entry%}
+        <footer>
+            {%config%}
+            {%scripts%}
+            {%renderer%}
+        </footer>
+    </body>
+</html>"""
+
 register_callbacks(app)
 register_auth_callbacks(app)
 register_admin_callbacks(app)

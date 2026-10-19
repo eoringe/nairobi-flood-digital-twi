@@ -10,18 +10,18 @@ nothing installed. The column names match schema.sql.
 
 IDENTITY
 --------
-An account is identified by its email. It can sign in with a password, with
-Google (Firebase), or both: a Google sign-in whose verified email matches an
-account opens that account. The username is generated from the email and is
-only a short display handle.
+An account is identified by its email. There are no passwords: people sign
+in with Google or a link emailed to them (both through Firebase), and the
+verified email opens the account. The username is generated from the email
+and is only a short display handle.
 
-PASSWORDS AND SECOND FACTOR
----------------------------
-Only salted hashes are stored (NFR-05): werkzeug's scrypt, a fresh random salt
-per password. Accounts created for Google sign-in have no password.
+SECOND FACTOR
+-------------
 Administrators also enrol an authenticator app (src/auth/totp.py): the TOTP
-secret, the last accepted time step (to refuse replays) and hashed one-time
-recovery codes are kept here.
+secret, the last accepted time step (to refuse replays) and one-time recovery
+codes, stored only as salted hashes, are kept here. The password_hash column
+remains in the table for older databases but is always empty: hashes left from
+before password sign-in was removed are erased on start-up.
 
 AUDIT
 -----
@@ -40,14 +40,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from loguru import logger
-from werkzeug.security import check_password_hash, generate_password_hash
 
 from src.auth import totp
 
 ROLES = ("citizen", "planner", "responder", "admin")
-#: How the account was created: with a password, or by a Google or email-link sign-in.
-PROVIDERS = ("local", "google", "email_link")
-MIN_PASSWORD_LEN = 8
+#: How the account was first created. "local" survives only in older databases,
+#: from when password sign-in existed.
+PROVIDERS = ("google", "email_link")
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _HANDLE_CHARS = re.compile(r"[^a-z0-9._-]")
 
@@ -83,6 +82,7 @@ CREATE TABLE IF NOT EXISTS alert_subscriptions (
     user_id         INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     sub_county      TEXT NOT NULL,
     active          INTEGER NOT NULL DEFAULT 1,
+    label           TEXT,
     UNIQUE (user_id, sub_county)
 );
 """
@@ -106,7 +106,6 @@ def _public(row: sqlite3.Row | None) -> dict | None:
         return None
     user = dict(row)
     user["totp_enabled"] = bool(user.get("totp_secret"))
-    user["has_password"] = bool(user.get("password_hash"))
     for key in _PRIVATE:
         user.pop(key, None)
     user["active"] = bool(user["active"])
@@ -118,12 +117,6 @@ def normalise_email(email: str | None) -> str:
     if not _EMAIL.match(value):
         raise AuthError("Enter a valid email address.")
     return value
-
-
-def validate_password(password: str | None) -> str:
-    if len(password or "") < MIN_PASSWORD_LEN:
-        raise AuthError(f"Passwords must be at least {MIN_PASSWORD_LEN} characters.")
-    return password
 
 
 class AuthStore:
@@ -139,7 +132,13 @@ class AuthStore:
             for col, kind in _ADDED_COLUMNS.items():
                 if col not in have:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {kind}")
+            subs_cols = {r[1] for r in conn.execute("PRAGMA table_info(alert_subscriptions)")}
+            if "label" not in subs_cols:
+                conn.execute("ALTER TABLE alert_subscriptions ADD COLUMN label TEXT")
         self._widen_provider_check()
+        with self._conn() as conn:
+            # Password sign-in was removed; no password hash is kept.
+            conn.execute("UPDATE users SET password_hash = NULL WHERE password_hash IS NOT NULL")
 
     def _widen_provider_check(self) -> None:
         """
@@ -186,30 +185,24 @@ class AuthStore:
         return name
 
     # --------------------------------------------------------------- users --
-    def create_user(self, email: str, password: str | None = None, role: str = "citizen", *,
-                    provider: str = "local", display_name: str | None = None) -> dict:
+    def create_user(self, email: str, role: str = "citizen", *, provider: str = "email_link",
+                    display_name: str | None = None) -> dict:
         """
-        A new account. `provider="local"` needs a password. "google" and
-        "email_link" have none: they sign in with Google or an emailed link for
-        the same address (and so can every account, whatever it was created with).
+        A new account. Whatever `provider` records (how it was first created), the
+        person signs in with Google or an emailed link for this address.
         """
         email = normalise_email(email)
         if role not in ROLES:
             raise AuthError(f"Unknown role '{role}'.")
-        if provider == "local":
-            password_hash = generate_password_hash(validate_password(password))
-        elif provider in ("google", "email_link"):
-            password_hash = None
-        else:
+        if provider not in PROVIDERS:
             raise AuthError(f"Unknown sign-in method '{provider}'.")
         with self._lock, self._conn() as conn:
             if conn.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone():
                 raise AuthError("An account with that email already exists.")
             cur = conn.execute(
-                "INSERT INTO users (username, email, display_name, password_hash, auth_provider,"
-                " role, active, created_at) VALUES (?,?,?,?,?,?,1,?)",
-                (self._free_username(conn, email), email, display_name, password_hash, provider,
-                 role, _utc_now()),
+                "INSERT INTO users (username, email, display_name, auth_provider, role, active, created_at)"
+                " VALUES (?,?,?,?,?,1,?)",
+                (self._free_username(conn, email), email, display_name, provider, role, _utc_now()),
             )
             return _public(self._row(conn, cur.lastrowid))
 
@@ -228,21 +221,6 @@ class AuthStore:
         with self._conn() as conn:
             row = conn.execute("SELECT * FROM users WHERE email=? OR username=?", (ident, ident)).fetchone()
             return _public(row)
-
-    def verify_password(self, email: str, password: str) -> dict | None:
-        """The user if the password matches an active account with that email, else None."""
-        with self._conn() as conn:
-            row = conn.execute("SELECT * FROM users WHERE email=?", ((email or "").strip().lower(),)).fetchone()
-        if row is None or not row["active"] or not row["password_hash"]:
-            return None
-        if not check_password_hash(row["password_hash"], password or ""):
-            return None
-        return _public(row)
-
-    def set_password(self, user_id: int, password: str) -> None:
-        h = generate_password_hash(validate_password(password))
-        with self._lock, self._conn() as conn:
-            conn.execute("UPDATE users SET password_hash=? WHERE user_id=?", (h, user_id))
 
     def touch_login(self, user_id: int) -> None:
         with self._lock, self._conn() as conn:
@@ -374,22 +352,41 @@ class AuthStore:
                 "SELECT COUNT(DISTINCT user_id) FROM alert_subscriptions WHERE active=1").fetchone()[0]
 
     # ------------------------------------------------------- subscriptions --
+    # An alert area is a neighbourhood (sub_county): flood warnings are issued per
+    # neighbourhood. `label` keeps what the person actually picked - a landmark
+    # such as "Strathmore University" - so the alert can be shown in their words.
+
     def subscriptions(self, user_id: int) -> list[str]:
+        """The neighbourhoods this user gets alerts for."""
+        return [item["area"] for item in self.subscription_items(user_id)]
+
+    def subscription_items(self, user_id: int) -> list[dict]:
+        """[{"area": neighbourhood, "label": what they picked}] for this user."""
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT sub_county FROM alert_subscriptions WHERE user_id=? AND active=1 "
+                "SELECT sub_county, label FROM alert_subscriptions WHERE user_id=? AND active=1 "
                 "ORDER BY sub_county", (user_id,)).fetchall()
-            return [r[0] for r in rows]
+            return [{"area": area, "label": label or area} for area, label in rows]
 
-    def set_subscriptions(self, user_id: int, places: list[str]) -> list[str]:
-        wanted = sorted({p.strip() for p in places or [] if p and p.strip()})
+    def set_subscriptions(self, user_id: int, places: list) -> list[str]:
+        """
+        Replace this user's alert areas. Each item is a neighbourhood name, or a
+        {"area", "label"} dict when a landmark was picked; one row per neighbourhood
+        (the first label wins). Returns the neighbourhoods saved.
+        """
+        chosen: dict[str, str] = {}
+        for item in places or []:
+            area, label = ((item.get("area"), item.get("label")) if isinstance(item, dict) else (item, item))
+            area = (area or "").strip()
+            if area and area not in chosen:
+                chosen[area] = (label or area).strip() or area
         with self._lock, self._conn() as conn:
             conn.execute("DELETE FROM alert_subscriptions WHERE user_id=?", (user_id,))
             conn.executemany(
-                "INSERT INTO alert_subscriptions (user_id, sub_county, active) VALUES (?,?,1)",
-                [(user_id, p) for p in wanted],
+                "INSERT INTO alert_subscriptions (user_id, sub_county, active, label) VALUES (?,?,1,?)",
+                [(user_id, area, label) for area, label in sorted(chosen.items())],
             )
-        return wanted
+        return sorted(chosen)
 
 
 # ------------------------------------------------------------------ shared --
@@ -419,16 +416,16 @@ def set_store(store: AuthStore | None) -> None:
 
 def bootstrap_admin(store: AuthStore) -> None:
     """
-    Create the first administrator from TWIN_ADMIN_EMAIL / TWIN_ADMIN_PASSWORD
-    when no active admin exists. Alternatives: list an email in TWIN_ADMIN_EMAILS
-    and sign in with Google, or use `python -m src.auth.cli create-user`.
-    The administrator enrols an authenticator app at first sign-in.
+    Create the first administrator account for TWIN_ADMIN_EMAIL when no active
+    admin exists. They sign in with Google or an emailed link to that address and
+    enrol an authenticator app. (TWIN_ADMIN_EMAILS, or
+    `python -m src.auth.cli create-user`, do the same.)
     """
-    email, pw = os.environ.get("TWIN_ADMIN_EMAIL"), os.environ.get("TWIN_ADMIN_PASSWORD")
-    if store.count_active_admins() > 0 or not (email and pw):
+    email = os.environ.get("TWIN_ADMIN_EMAIL")
+    if store.count_active_admins() > 0 or not email:
         return
     try:
-        admin = store.create_user(email, pw, "admin")
+        admin = store.create_user(email, "admin")
         store.audit("admin_bootstrapped", admin["user_id"], "created from environment")
         logger.info(f"Created administrator {admin['email']} from TWIN_ADMIN_EMAIL.")
     except AuthError as exc:

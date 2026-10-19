@@ -30,13 +30,36 @@
 
     async function firebaseAuth() {
         if (sdk) { return sdk; }
-        var config = await (await fetch("/auth/firebase-config", { credentials: "same-origin" })).json();
+        // Config and both SDK modules download in parallel, not one after another.
+        var loaded = await Promise.all([
+            fetch("/auth/firebase-config", { credentials: "same-origin" }).then(function (r) { return r.json(); }),
+            import(SDK + "firebase-app.js"),
+            import(SDK + "firebase-auth.js")
+        ]);
+        var config = loaded[0], appMod = loaded[1], authMod = loaded[2];
         if (!config.projectId) { throw new Error("Google and email-link sign-in are not configured."); }
-        var appMod = await import(SDK + "firebase-app.js");
-        var authMod = await import(SDK + "firebase-auth.js");
         var app = appMod.getApps().length ? appMod.getApp() : appMod.initializeApp(config);
         sdk = { mod: authMod, auth: authMod.getAuth(app) };
         return sdk;
+    }
+
+    // Shown the moment a sign-in link is opened, before Dash draws anything, so the
+    // sign-in form never flashes up while the link is being completed.
+    function showSigningIn() {
+        if (document.getElementById("twin-signing-in")) { return; }
+        var el = document.createElement("div");
+        el.id = "twin-signing-in";
+        el.setAttribute("role", "status");
+        el.setAttribute("aria-live", "polite");
+        el.innerHTML = '<div class="twin-signing-card"><div class="twin-signing-spinner"></div>' +
+            '<div class="twin-signing-title">Signing you in…</div>' +
+            '<div class="twin-signing-sub">Confirming your email link</div></div>';
+        (document.body || document.documentElement).appendChild(el);
+    }
+
+    function hideSigningIn() {
+        var el = document.getElementById("twin-signing-in");
+        if (el) { el.remove(); }
     }
 
     async function finish(result) {
@@ -95,9 +118,29 @@
         }
     }
 
+    // Plain words for what went wrong. Firebase errors carry a code; our server's
+    // refusals (for example a disabled account) arrive as a readable message.
+    function linkErrorMessage(err) {
+        var code = (err && err.code) || "";
+        if (code === "auth/invalid-action-code" || code === "auth/expired-action-code") {
+            return "This sign-in link has expired or has already been used. Request a new one below.";
+        }
+        if (code === "auth/invalid-email") {
+            return "That email address does not match the one the link was sent to. Request a new link below.";
+        }
+        if (code === "auth/network-request-failed") {
+            return "Could not reach Google to finish signing in. Check your connection, then request a new link.";
+        }
+        if (code.indexOf("auth/") === 0) {
+            return "The sign-in link could not be completed. Request a new link below.";
+        }
+        return (err && err.message) || "The sign-in link could not be completed. Request a new link below.";
+    }
+
     async function completeLinkIfPresent() {
         var href = window.location.href;
         if (href.indexOf("oobCode=") < 0 || href.indexOf("mode=signIn") < 0) { return; }
+        showSigningIn();
         try {
             var f = await firebaseAuth();
             if (!f.mod.isSignInWithEmailLink(f.auth, href)) { return; }
@@ -106,18 +149,19 @@
             if (!email) {
                 email = window.prompt("Confirm the email address this sign-in link was sent to:");
             }
-            if (!email) { return; }
+            if (!email) { hideSigningIn(); window.location.replace("/login"); return; }
             var result = await f.mod.signInWithEmailLink(f.auth, email.trim(), href);
             try { window.localStorage.removeItem(EMAIL_KEY); } catch (e) { /* private mode */ }
             await finish(result);
         } catch (err) {
-            var msg = (err && err.code === "auth/invalid-action-code")
-                ? "This sign-in link has expired or was already used. Request a new one."
-                : (err && err.message) || "The sign-in link could not be completed.";
-            // The login page may not be rendered yet; wait briefly for the status box.
+            hideSigningIn();
+            var msg = linkErrorMessage(err);
+            // The page may not be rendered yet; wait briefly for the status box.
             var tries = 0;
             (function show() {
                 if (document.getElementById("link-status") || tries++ > 20) {
+                    var spinner = document.querySelector(".twin-signing-inline");
+                    if (spinner) { spinner.style.display = "none"; }
                     say("link-status", msg, false);
                     if (!document.getElementById("link-status")) { window.alert(msg); }
                 } else { setTimeout(show, 250); }

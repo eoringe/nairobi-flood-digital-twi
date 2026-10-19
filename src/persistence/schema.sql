@@ -213,7 +213,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_log(occurred_at);
 CREATE TABLE IF NOT EXISTS alert_subscriptions (
     subscription_id INTEGER PRIMARY KEY,
     user_id         INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    sub_county      TEXT NOT NULL,
+    sub_county      TEXT NOT NULL,           -- neighbourhood the warnings are issued for
     active          INTEGER NOT NULL DEFAULT 1,
+    label           TEXT,                    -- what the person picked, e.g. a landmark in it
     UNIQUE (user_id, sub_county)
 );

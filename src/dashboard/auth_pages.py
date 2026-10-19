@@ -5,7 +5,7 @@ Role-specific pages and tools: sign-in, the citizen's alert areas, the planner's
 and responder's tools beside the map, and the administrator's console.
 
     /           the map. Public; signed-in users also get their role's tools panel
-    /login      sign-in and registration: email + password, or Google (Firebase)
+    /login      sign in with Google or an emailed link (Firebase); no passwords
     /2fa        administrators: authenticator code, or first-time app setup
     /2fa-codes  shown once after setup: the recovery codes
     /account, /admin...  the signed-in dashboard (src/dashboard/admin_dashboard.py)
@@ -28,7 +28,7 @@ from flask import session
 
 from src.auth import google, totp
 from src.auth.access import ROLE_LABELS, can, csrf_token, current_user, mfa_subject
-from src.auth.store import AuthError, get_store
+from src.auth.store import get_store
 
 EAT = timezone(timedelta(hours=3))
 
@@ -86,76 +86,58 @@ def account_area(user: dict | None) -> list:
     return links
 
 
-def _field(label: str, name: str, kind: str = "text", auto: str | None = None) -> html.Div:
-    fid = f"f-{name}-{kind}"
-    return html.Div(className="mb-2", children=[
-        html.Label(label, className="twin-field-label", htmlFor=fid),
-        dcc.Input(id=fid, name=name, type=kind, required=True, autoComplete=auto,
-                  className="form-control twin-input"),
-    ])
-
-
-def _firebase_options() -> list:
+def _sign_in_options() -> list:
     """
-    'Continue with Google' and 'Email me a sign-in link', when Firebase is
-    configured. Both run in assets/firebase_login.js and work for every account:
-    the account is matched by its verified email.
+    'Continue with Google' and 'Email me a sign-in link', the only ways in. Both
+    run in assets/firebase_login.js; the account is matched by its verified email.
     """
-    if not google.firebase_config():
-        return []
     return [
-        html.Div(className="twin-auth-divider", children=html.Span("or")),
         html.Button([html.Span("G", className="twin-google-g"), "Continue with Google"],
                     id="btn-google", type="button", className="btn twin-google-btn w-100"),
         html.Div(id="google-error", className="twin-auth-error mt-2"),
-        html.Div(className="twin-auth-divider", children=html.Span("or, without a password")),
+        html.Div(className="twin-auth-divider", children=html.Span("or")),
         html.Label("Email me a sign-in link", className="twin-field-label", htmlFor="f-link-email"),
-        html.Div(className="d-flex gap-2", children=[
+        html.Div(className="twin-link-row", children=[
             dcc.Input(id="f-link-email", type="email", placeholder="you@example.com", autoComplete="email",
                       className="form-control twin-input"),
             html.Button("Send link", id="btn-email-link", type="button",
                         className="btn btn-outline-info text-nowrap"),
         ]),
         html.Div(id="link-status", className="mt-2"),
+        html.P("No password needed. Open the link in this browser to finish signing in.",
+               className="twin-empty-state mt-2 mb-0"),
     ]
 
 
 # ------------------------------------------------------------------ login --
 def render_login(search: str | None) -> html.Div:
-    """Sign in or register: email and password, or Google, for every account."""
+    """Sign in with Google or an emailed link; a first sign-in creates a citizen account."""
+    error = _error_from(search)
     q = parse_qs((search or "").lstrip("?"))
-    error = (q.get("error") or [""])[0]
-    tab = (q.get("tab") or ["login"])[0]
-    token = csrf_token()
-
-    login_form = html.Form(action="/auth/login", method="POST", children=[
-        dcc.Input(type="hidden", name="csrf", value=token),
-        _field("Email", "email", "email", auto="email"),
-        _field("Password", "password", "password", auto="current-password"),
-        html.Button("Sign in", type="submit", className="btn btn-primary w-100 fw-bold mt-2"),
-    ])
-    register_form = html.Form(action="/auth/register", method="POST", children=[
-        dcc.Input(type="hidden", name="csrf", value=token),
-        _field("Email", "email", "email", auto="email"),
-        _field("Password (at least 8 characters)", "password", "password", auto="new-password"),
-        _field("Confirm password", "confirm", "password", auto="new-password"),
-        html.Button("Create citizen account", type="submit", className="btn btn-primary w-100 fw-bold mt-2"),
-        html.P("Planner, responder and administrator accounts are created by an administrator.",
-               className="twin-empty-state mt-2"),
-    ])
-
+    if (q.get("mode") or [""])[0] == "signIn" and q.get("oobCode"):
+        # Arriving from an emailed link: assets/firebase_login.js is completing it.
+        return _page("Sign in", _narrow(_card(
+            "Signing you in",
+            html.Div(className="twin-signing-inline", children=[
+                html.Div(className="twin-signing-spinner"),
+                html.Span("Confirming your email link…"),
+            ]),
+            html.Div(id="link-status", className="mt-2"),
+            dcc.Link("Having trouble? Request a new link", href="/login", className="twin-auth-link"))))
+    if google.firebase_config():
+        body = _sign_in_options()
+    else:
+        body = [html.P("Sign-in is not set up on this server yet. The administrator needs to add the "
+                       "Firebase settings (see .env.example). The flood map, outlook and routing work "
+                       "without an account.", className="twin-empty-state")]
     return _page("Sign in", _narrow(
-        _card("Account",
+        _card("Sign in or create an account",
               html.Div(error, className="twin-auth-error mb-2") if error else None,
-              dbc.Tabs(active_tab=tab if tab in ("login", "register") else "login", className="mb-3", children=[
-                  dbc.Tab(login_form, tab_id="login", label="Sign in"),
-                  dbc.Tab(register_form, tab_id="register", label="Register"),
-              ]),
-              *_firebase_options()),
+              *body),
         html.P("The flood map, outlook and routing are open to everyone without an account. "
-               "Sign in with your password, Google or an emailed link to subscribe to alerts for "
-               "your area or to use staff tools. Administrators also confirm a code from their "
-               "authenticator app.",
+               "Signing in for the first time creates a citizen account, for alerts about your area. "
+               "Planner, responder and administrator access is granted by an administrator, and "
+               "administrators also confirm a code from their authenticator app.",
                className="twin-empty-state"),
     ))
 
@@ -243,9 +225,73 @@ def _place_names() -> list[str]:
     return [o["label"] for o in place_options()]
 
 
+# Alert areas. Warnings are issued per neighbourhood, so whatever a person picks -
+# a neighbourhood, or any place the routing search knows (a school, a stage, a
+# university) - is saved as the neighbourhood it lies in, with their pick as the
+# label. Option values: "sub:<area>|<label>" for a saved pick, or the search
+# index's "loc:<lat>,<lon>|<name>", whose neighbourhood the server works out.
+def _sub_option(area: str, label: str) -> dict:
+    text = area if label.strip().lower() == area.strip().lower() else f"{label} · alerts for {area}"
+    return {"label": text, "value": f"sub:{area}|{label}"}
+
+
+def alert_area_options(user: dict) -> tuple[list[dict], list[str]]:
+    """(options, selected values) for a user's alert-area box."""
+    items = get_store().subscription_items(user["user_id"])
+    selected = [_sub_option(i["area"], i["label"]) for i in items]
+    picked = {i["area"] for i in items}
+    neighbourhoods = [_sub_option(n, n) for n in _place_names() if n not in picked]
+    return selected + neighbourhoods, [o["value"] for o in selected]
+
+
+def alert_area_search(query: str, keep: list[dict]) -> list[dict]:
+    """Search results for the alert box: neighbourhoods first, then any indexed place."""
+    from src.dashboard.callbacks import location_search
+    from src.routing.flood_router import place_name_at
+    from src.routing.geocoder import decode_value
+    q = (query or "").strip().lower()
+    names = _place_names()
+    out = [_sub_option(n, n) for n in names if q in n.lower()][:6]
+    for opt in location_search.search(query):
+        decoded = decode_value(opt.get("value", ""))
+        if decoded is None:
+            if opt.get("disabled"):
+                out.append({"label": opt["label"], "value": opt["value"], "disabled": True})
+            continue
+        lat, lon, name = decoded
+        area = place_name_at(lat, lon)
+        if area not in names:
+            continue
+        out.append({"label": _sub_option(area, name)["label"], "value": opt["value"]})
+    seen, merged = set(), []
+    for o in out + keep:
+        if o["value"] not in seen:
+            seen.add(o["value"])
+            merged.append(o)
+    return merged
+
+
+def resolve_alert_value(value: str) -> dict | None:
+    """{"area", "label"} for a chosen option, or None if it is not a known neighbourhood."""
+    from src.routing.flood_router import place_name_at
+    from src.routing.geocoder import decode_value
+    names = set(_place_names())
+    if value.startswith("sub:"):
+        area, _, label = value[4:].partition("|")
+        return {"area": area, "label": label or area} if area in names else None
+    decoded = decode_value(value)
+    if decoded is None:
+        return None
+    lat, lon, name = decoded
+    area = place_name_at(lat, lon)              # worked out here, never taken from the browser
+    return {"area": area, "label": name or area} if area in names else None
+
+
 def _alerts_for(user: dict, nowcast: dict | None) -> list:
     """Warnings in the live outlook that touch this user's alert areas."""
-    subs = set(get_store().subscriptions(user["user_id"]))
+    items = get_store().subscription_items(user["user_id"])
+    labels = {i["area"]: i["label"] for i in items}
+    subs = set(labels)
     if not subs:
         return [html.P(["No alert areas chosen. ",
                         dcc.Link("Choose your areas", href="/account", className="twin-auth-link"), "."],
@@ -258,6 +304,7 @@ def _alerts_for(user: dict, nowcast: dict | None) -> list:
         hit = sorted(subs.intersection(w.get("places") or []))
         if not hit:
             continue
+        hit = [a if labels[a] == a else f"{a} ({labels[a]})" for a in hit]
         when = "now" if w["kind"] in ("ongoing", "rising") else f"in about {w['hour']} h"
         rows.append(html.Div(className=f"twin-warning lvl-{['CLEAR', 'MODERATE', 'HIGH', 'CRITICAL'].index(w['level'])}",
                              children=[html.Div(when.upper(), className="twin-when"),
@@ -442,42 +489,30 @@ def register_auth_callbacks(app) -> None:
     @app.callback(Output("subs-status", "children"), Output("account-alerts", "children"),
                   Input("btn-save-subs", "n_clicks"), State("sub-places", "value"),
                   prevent_initial_call=True)
-    def save_subs(_n, places):
+    def save_subs(_n, values):
         if not _n:
             raise PreventUpdate
         user = current_user()
         if not can(user, "subscribe_alerts"):
             return html.Span("Please sign in again.", className="twin-auth-error"), no_update
-        valid = set(_place_names())
-        saved = get_store().set_subscriptions(user["user_id"], [p for p in places or [] if p in valid])
+        picks = [r for r in (resolve_alert_value(v) for v in values or []) if r]
+        saved = get_store().set_subscriptions(user["user_id"], picks)
         get_store().audit("subscriptions_updated", user["user_id"], f"{len(saved)} areas")
         from src.forecast.nowcast import cached_nowcast
         nc = cached_nowcast("live")
         return (html.Span(f"Saved {len(saved)} alert area(s).", className="twin-auth-ok"),
                 _alerts_for(user, nc.to_client() if nc else None))
 
-    @app.callback(Output("pw-status", "children"),
-                  Input("btn-change-pw", "n_clicks"),
-                  State("pw-current", "value"), State("pw-new", "value"), State("pw-confirm", "value"),
+    @app.callback(Output("sub-places", "options"),
+                  Input("sub-places", "search_value"),
+                  State("sub-places", "value"), State("sub-places", "options"),
                   prevent_initial_call=True)
-    def change_password(_n, current, new, confirm):
-        if not _n:
+    def search_alert_areas(query, values, options):
+        """The alert box searches the same places as the trip planner."""
+        if not query or len(query.strip()) < 2 or not can(current_user(), "subscribe_alerts"):
             raise PreventUpdate
-        user = current_user()
-        store = get_store()
-        if not user or not user["has_password"]:
-            return html.Span("Please sign in again.", className="twin-auth-error")
-        if not store.verify_password(user["email"], current or ""):
-            store.audit("password_change_failed", user["user_id"])
-            return html.Span("Your current password is not correct.", className="twin-auth-error")
-        if (new or "") != (confirm or ""):
-            return html.Span("The new passwords do not match.", className="twin-auth-error")
-        try:
-            store.set_password(user["user_id"], new or "")
-        except AuthError as exc:
-            return html.Span(str(exc), className="twin-auth-error")
-        store.audit("password_changed", user["user_id"])
-        return html.Span("Password changed.", className="twin-auth-ok")
+        keep = [o for o in options or [] if o["value"] in (values or [])]
+        return alert_area_search(query, keep)
 
     # ---- planner / responder tools ----
     @app.callback(Output("held-scenario-store", "data"),

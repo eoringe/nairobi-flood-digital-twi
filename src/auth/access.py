@@ -12,7 +12,7 @@ as FR-01 requires. Everything below needs an account.
 
 TWO-STEP SIGN-IN FOR ADMINISTRATORS
 -----------------------------------
-A password or Google sign-in is the first step for everyone. For an
+A Google or email-link sign-in is the first step for everyone. For an
 administrator it only opens a *pending* session: no permissions, valid for
 five minutes, good only for the authenticator-code page. The session becomes a
 full one after the code is checked (session["mfa"] is then True).

@@ -1229,3 +1229,120 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card {
   .dash-main { padding: 18px 16px 32px; }
   .dash-kpis.cols-3, .dash-kpis.cols-4 { grid-template-columns: 1fr; }
 }
+
+/* ======================================================================
+   DASH 4 TEXT INPUTS
+   dcc.Input renders <div class="dash-input-container {className}"> around
+   <input class="dash-input-element">. Our classes land on the wrapper, so its
+   padding stacked on the inner input's own padding and the text began far in
+   from the edge. The wrapper now draws the box; the input fills it.
+   ====================================================================== */
+.dash-input-container.form-control,
+.dash-input-container.twin-input {
+  display: flex;
+  width: 100%;
+  height: auto;
+  min-height: 38px;
+  padding: 0;
+  overflow: hidden;
+}
+.dash-input-container.form-control > .dash-input-element,
+.dash-input-container.twin-input > .dash-input-element {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  padding: 8px 12px;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  outline: none;
+}
+.dash-input-container.form-control > .dash-input-element::placeholder,
+.dash-input-container.twin-input > .dash-input-element::placeholder { color: var(--text-muted); }
+.dash-input-container.twin-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* The authenticator code box: large, spaced, centred digits. */
+.dash-input-container.twin-code-input > .dash-input-element {
+  text-align: center;
+  letter-spacing: 0.25em;
+  font-family: var(--font-mono);
+  font-size: 20px;
+}
+
+/* Dashboard search fields sit inside .dash-search, which draws the box. */
+.dash-input-container.dash-search-input {
+  flex: 1 1 auto;
+  height: auto;
+  border: none;
+  background: transparent;
+  overflow: visible;
+}
+.dash-input-container.dash-search-input > .dash-input-element {
+  width: 100%;
+  padding: 8px 0;
+  background: transparent;
+  color: var(--text-primary);
+}
+.dash-input-container.dash-search-input:focus-within { outline: none; box-shadow: none; }
+
+/* The email-link row: the field takes all the space the button leaves. */
+.twin-link-row { display: flex; gap: 8px; align-items: stretch; }
+.twin-link-row > .dash-input-container { flex: 1 1 auto; min-width: 0; }
+.twin-link-row > button { flex: none; }
+
+/* Sign-in tabs follow the theme (Bootstrap's dark theme hard-codes their colours). */
+.nav-tabs { border-bottom-color: var(--border-strong); }
+.nav-tabs .nav-link { color: var(--text-secondary); background: transparent; border-color: transparent; }
+.nav-tabs .nav-link:hover { color: var(--accent); border-color: transparent; }
+.nav-tabs .nav-link.active { color: var(--text-primary); background: var(--bg-surface-hover); border-color: var(--border-strong) var(--border-strong) transparent; font-weight: 600; }
+
+/* ======================================================================
+   EMAIL-LINK SIGN-IN IN PROGRESS
+   assets/firebase_login.js covers the page the moment a sign-in link is
+   opened, so the sign-in form never shows while the link is completed.
+   ====================================================================== */
+#twin-signing-in {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-deep, #0a0e13);
+}
+.twin-signing-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 40px;
+  background: var(--bg-surface, #10161f);
+  border: 1px solid var(--border-subtle, #202b38);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel, none);
+}
+.twin-signing-title {
+  font-family: var(--font-display, sans-serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #eaf0f6);
+}
+.twin-signing-sub { font-size: 13px; color: var(--text-secondary, #93a2b3); }
+.twin-signing-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid var(--accent-soft, rgba(53, 194, 209, 0.12));
+  border-top-color: var(--accent, #35c2d1);
+  animation: twin-spin 0.8s linear infinite;
+}
+.twin-signing-inline { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-secondary); }
+.twin-signing-inline .twin-signing-spinner { width: 22px; height: 22px; border-width: 2px; }
+@keyframes twin-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .twin-signing-spinner { animation-duration: 2.4s; } }

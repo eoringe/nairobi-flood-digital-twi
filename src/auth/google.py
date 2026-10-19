@@ -20,8 +20,9 @@ apps -> Web app):
     FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID, FIREBASE_APP_ID
 
 In the console, enable Authentication -> Sign-in method -> Google, and
-Email/Password with "Email link (passwordless sign-in)". Without
-FIREBASE_PROJECT_ID only email + password sign-in is offered.
+Email/Password with "Email link (passwordless sign-in)". These are the only
+ways to sign in, so without FIREBASE_PROJECT_ID nobody can sign in and the
+sign-in page says so (the public map still works).
 
 Role assignment: a first-time user becomes a citizen. Emails listed in
 TWIN_ADMIN_EMAILS (comma separated) become administrators.
@@ -105,5 +106,5 @@ def user_from_claims(store: AuthStore, claims: dict, method: str = "google") -> 
         store.set_display_name(user["user_id"], claims.get("name"))
         return user, False
     role = "admin" if email in _admin_emails() else "citizen"
-    user = store.create_user(email, None, role, provider=method, display_name=claims.get("name"))
+    user = store.create_user(email, role, provider=method, display_name=claims.get("name"))
     return user, True

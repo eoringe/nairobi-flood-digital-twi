@@ -95,10 +95,10 @@ All are optional; the image sets sensible defaults.
 | `LOG_LEVEL` | `info` | gunicorn log level |
 | `RAILWAY_RUN_UID` | unset | Set to `0` only when a volume is attached (see above) |
 | `TWIN_SECRET_KEY` | generated | Signs session cookies. Set a long random value so sign-ins survive redeploys |
-| `TWIN_ADMIN_EMAIL`, `TWIN_ADMIN_PASSWORD` | unset | First administrator, created only if none exists; sets up an authenticator app at first sign-in. Remove the password afterwards |
+| `TWIN_ADMIN_EMAIL` | unset | First administrator account, created only if none exists. They sign in with Google or an emailed link and set up an authenticator app |
 | `TWIN_ADMIN_EMAILS` | unset | Google accounts that become administrators when they sign in |
 | `TWIN_COOKIE_SECURE` | `0` | Set to `1` on Railway (HTTPS) so the session cookie is never sent over plain HTTP |
-| `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID` | unset | Sign in with Google. Also add the Railway domain under Firebase → Authentication → Settings → Authorized domains |
+| `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID` | unset | Sign-in with Google or an email link, the only ways to sign in. Also add the Railway domain under Firebase → Authentication → Settings → Authorized domains |
 
 Accounts and the audit log are stored in `/app/state/accounts.db`, so attach the
 volume above to keep them across deploys. Without it, every redeploy starts with

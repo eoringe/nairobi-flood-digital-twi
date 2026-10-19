@@ -4,7 +4,7 @@ src.dashboard.admin_dashboard
 The signed-in workspace: a sidebar dashboard for the account page and the
 administrator's console.
 
-    /account          any signed-in user: profile, alert areas, password
+    /account          any signed-in user: profile, alert areas, sign-in settings
     /admin            administrators: overview (KPIs, sign-in trend, activity, health)
     /admin/users      users and roles: search, filter, create, change role, disable
     /admin/activity   the audit log, filtered by kind or text
@@ -148,8 +148,7 @@ def shell(path: str, user: dict, title: str, subtitle: str, *content, actions=No
 
 # ------------------------------------------------------------------ users --
 def _methods(u: dict) -> list:
-    chips = [html.Span("Password", className="dash-chip")] if u["has_password"] else []
-    chips += [html.Span("Google", className="dash-chip"), html.Span("Email link", className="dash-chip")]
+    chips = [html.Span("Google", className="dash-chip"), html.Span("Email link", className="dash-chip")]
     if u["role"] == "admin":
         chips.append(html.Span([_icon("shield-check", "me-1"), "2FA"], className="dash-chip tone-ok")
                      if u["totp_enabled"] else html.Span("2FA pending", className="dash-chip tone-warn"))
@@ -196,15 +195,9 @@ def _new_user_modal() -> dbc.Modal:
             html.Label("Role", className="dash-label"),
             dcc.Dropdown(id="new-role", options=[{"label": ROLE_LABELS[r], "value": r} for r in ROLES],
                          value="planner", clearable=False, className="dash-select mb-3"),
-            html.Label("How they sign in", className="dash-label"),
-            dbc.RadioItems(id="new-method", value="google", className="dash-radio mb-2", options=[
-                {"label": "Google or email link (no password)", "value": "google"},
-                {"label": "Email and password (Google and email link also work)", "value": "local"},
-            ]),
-            html.Div(id="new-password-wrap", hidden=True, children=dbc.Input(
-                id="new-password", type="password", placeholder="Temporary password (8+ characters)",
-                className="dash-input mt-2")),
-            html.P("Administrators set up an authenticator app at their first sign-in.", className="dash-hint mt-3"),
+            html.P("They sign in with Google or an emailed link for this address; no password is set. "
+                   "Administrators also set up an authenticator app at their first sign-in.",
+                   className="dash-hint"),
             html.Div(id="create-user-status", className="mt-2"),
         ]),
         dbc.ModalFooter([
@@ -483,15 +476,16 @@ def render_admin(user: dict | None, path: str = "/admin", theme: str = "dark") -
 
 
 def render_account(user: dict | None, theme: str = "dark") -> html.Div:
-    from src.dashboard.auth_pages import _alerts_for, _denied, _place_names
+    from src.dashboard.auth_pages import _alerts_for, _denied, alert_area_options
     if not user:
         return _denied("Sign in to manage your alert areas.")
     from src.forecast.nowcast import cached_nowcast
     nc = cached_nowcast("live")
     store = get_store()
     subs = store.subscriptions(user["user_id"])
+    sub_options, sub_values = alert_area_options(user)
     role = user.get("real_role") or user["role"]
-    methods = (["Password"] if user["has_password"] else []) + ["Google", "Email link"]
+    methods = ["Google", "Email link"]
     profile = _panel("Profile", html.Div(className="dash-profile", children=[
         _avatar({**user, "role": role}, "is-lg"),
         html.Div([html.Span(user.get("display_name") or user["email"], className="dash-profile-name"),
@@ -506,26 +500,19 @@ def render_account(user: dict | None, theme: str = "dark") -> html.Div:
         html.Dt("Member since"), html.Dd((user.get("created_at") or "")[:10]),
         html.Dt("Last sign-in"), html.Dd((user.get("last_login_at") or "—").replace("T", " ")[:16] + " UTC"),
     ]), icon="person-badge")
-    alerts = _panel("Alert areas", html.P("Choose the places you want flood alerts for. Warnings for them appear "
-                                          "on the map and below whenever the live outlook expects flooding there.",
+    alerts = _panel("Alert areas", html.P("Search any neighbourhood or place you care about, such as your home "
+                                          "area, school or workplace. Warnings are issued per neighbourhood, so a "
+                                          "place is followed through the neighbourhood it is in.",
                                           className="dash-hint"),
-                    dcc.Dropdown(id="sub-places", options=_place_names(), value=subs, multi=True,
-                                 placeholder="Search a neighbourhood, e.g. Mathare", className="dash-select mb-3"),
+                    dcc.Dropdown(id="sub-places", options=sub_options, value=sub_values, multi=True,
+                                 placeholder="Search a place, e.g. Strathmore University or Mathare",
+                                 className="dash-select mb-3"),
                     dbc.Button([_icon("check2", "me-1"), "Save alert areas"], id="btn-save-subs",
                                className="dash-btn-primary"),
                     html.Div(id="subs-status", className="mt-2"), icon="bell")
     current = _panel("Current alerts for your areas", html.Div(id="account-alerts", children=_alerts_for(
         user, nc.to_client() if nc else None)), icon="exclamation-diamond")
     left = [profile]
-    if user["has_password"]:
-        left.append(_panel(
-            "Change password",
-            dbc.Input(id="pw-current", type="password", placeholder="Current password", className="dash-input mb-2"),
-            dbc.Input(id="pw-new", type="password", placeholder="New password (8+ characters)",
-                      className="dash-input mb-2"),
-            dbc.Input(id="pw-confirm", type="password", placeholder="Confirm new password", className="dash-input mb-3"),
-            dbc.Button("Change password", id="btn-change-pw", color="dash", className="dash-btn-ghost"),
-            html.Div(id="pw-status", className="mt-2"), icon="key"))
     kpis = html.Div(className="dash-kpis cols-3", children=[
         _kpi("Role", ROLE_LABELS[role], "person-badge", ROLE_TONES[role] if ROLE_TONES[role] != "neutral" else "info"),
         _kpi("Alert areas", len(subs), "geo-alt", "warn", "places you follow"),
@@ -539,12 +526,6 @@ def render_account(user: dict | None, theme: str = "dark") -> html.Div:
 
 # -------------------------------------------------------------- callbacks --
 def register_admin_callbacks(app) -> None:
-    app.clientside_callback(
-        "function(method) { return method !== 'local'; }",
-        Output("new-password-wrap", "hidden"),
-        Input("new-method", "value"),
-    )
-
     @app.callback(Output("new-user-modal", "is_open", allow_duplicate=True),
                   Input("btn-new-user", "n_clicks"), Input("btn-cancel-new-user", "n_clicks"),
                   prevent_initial_call=True)
@@ -567,25 +548,21 @@ def register_admin_callbacks(app) -> None:
                   Output("new-user-modal", "is_open", allow_duplicate=True),
                   Input("btn-create-user", "n_clicks"),
                   State("new-email", "value"), State("new-role", "value"),
-                  State("new-method", "value"), State("new-password", "value"),
                   State("users-search", "value"), State("users-role-filter", "value"),
                   prevent_initial_call=True)
-    def create_user(n, email, role, method, password, query, role_filter):
+    def create_user(n, email, role, query, role_filter):
         if not n:
             raise PreventUpdate
         me = current_user()
         if not can(me, "manage_users"):
             return html.Span("Not permitted.", className="twin-auth-error"), no_update, no_update, no_update
         store = get_store()
-        provider = "local" if method == "local" else "google"
         try:
-            u = store.create_user(email or "", password if provider == "local" else None,
-                                  role or "citizen", provider=provider)
+            u = store.create_user(email or "", role or "citizen")
         except AuthError as exc:
             return html.Span(str(exc), className="twin-auth-error"), no_update, no_update, no_update
-        store.audit("user_created", me["user_id"], f"{u['email']} as {u['role']} ({provider})")
-        how = ("They sign in with Google or an emailed link." if provider == "google"
-               else "They sign in with this email and password, Google, or an emailed link.")
+        store.audit("user_created", me["user_id"], f"{u['email']} as {u['role']}")
+        how = "They sign in with Google or an emailed link."
         if u["role"] == "admin":
             how += " They will set up an authenticator app at their first sign-in."
         return (None, html.Div([_icon("check-circle", "me-2"), f"Created {u['email']} ({ROLE_LABELS[u['role']]}). {how}"],

@@ -4,12 +4,13 @@ tests.test_auth
 Accounts, roles, sign-in and access control.
 
 Traceability: FR-12 (authenticate and authorise), NFR-04 (role-restricted
-functions, tested as an access-control matrix), NFR-05 (salted password hashes),
-FR-15 / DR-09 (append-only audit log), FR-03 (alert subscriptions), FR-11
-(emergency report).
+functions, tested as an access-control matrix), NFR-05 (no recoverable
+credentials stored), FR-15 / DR-09 (append-only audit log), FR-03 (alert
+subscriptions), FR-11 (emergency report).
 
-Each test uses its own temporary account database. Firebase tokens (Google and
-email link) are faked by replacing the verifier, so no network call is made.
+There are no passwords: every sign-in goes through Firebase (Google or an
+emailed link). Each test uses its own temporary account database, and Firebase
+tokens are faked by replacing the verifier, so no network call is made.
 Authenticator codes are computed from the stored secret, as the phone app would.
 """
 
@@ -25,7 +26,7 @@ from src.auth import access, google, routes, totp
 from src.auth.store import AuthError, AuthStore, set_store
 from tests.conftest import needs_model
 
-PW = "correct horse"
+EMAIL_LINK, GOOGLE = "password", "google.com"     # Firebase sign_in_provider values
 
 
 @pytest.fixture()
@@ -65,19 +66,7 @@ def client(store, monkeypatch, tmp_path):
     return app.test_client()
 
 
-def _token(client):
-    return client.get("/csrf").get_json()["csrf"]
-
-
-def _login(client, email, password):
-    return client.post("/auth/login", data={"email": email, "password": password, "csrf": _token(client)})
-
-
-def _code(client, code):
-    return client.post("/auth/2fa", data={"code": code, "csrf": _token(client)})
-
-
-def _fake_firebase(monkeypatch, provider="google.com", **claims):
+def _fake_firebase(monkeypatch, provider=EMAIL_LINK, **claims):
     base = {"email": "jane@example.com", "email_verified": True, "name": "Jane",
             "firebase": {"sign_in_provider": provider}}
     base.update(claims)
@@ -86,40 +75,58 @@ def _fake_firebase(monkeypatch, provider="google.com", **claims):
     monkeypatch.setattr(g, "verify_firebase_token", lambda token, req, audience=None: base)
 
 
-# ------------------------------------------------------------- passwords --
-def test_passwords_are_stored_as_salted_hashes(store):
-    """NFR-05: no plaintext; the same password gives different hashes."""
-    store.create_user("alice@example.com", PW, "planner")
-    store.create_user("bob@example.com", PW, "citizen")
-    hashes = [r[0] for r in sqlite3.connect(store.path).execute("SELECT password_hash FROM users")]
-    assert all(PW not in h for h in hashes)
-    assert hashes[0] != hashes[1], "a fresh salt per password"
-    assert all(h.startswith(("scrypt:", "pbkdf2:")) for h in hashes)
+def _sign_in(client, monkeypatch, email="jane@example.com", provider=EMAIL_LINK):
+    """Sign in through /auth/firebase as this email; returns the JSON reply."""
+    _fake_firebase(monkeypatch, provider, email=email)
+    return client.post("/auth/firebase", json={"idToken": "fake"}).get_json()
 
 
-def test_password_check_accepts_only_the_right_password(store):
-    store.create_user("Alice@Example.com", PW, "planner")
-    assert store.verify_password("alice@example.com", PW)["email"] == "alice@example.com"
-    assert store.verify_password("alice@example.com", "wrong password") is None
-    assert store.verify_password("nobody@example.com", PW) is None
+def _code(client, code):
+    token = client.get("/csrf").get_json()["csrf"]
+    return client.post("/auth/2fa", data={"code": code, "csrf": token})
+
+
+class _Clock:
+    """A controllable clock for the authenticator, so tests never straddle a 30 s step."""
+    def __init__(self, t):
+        self.t = t
+
+    def time(self):
+        return self.t
+
+
+# ------------------------------------------------------ no passwords at all --
+def test_password_routes_do_not_exist(store, client):
+    for path in ("/auth/login", "/auth/register"):
+        assert client.post(path, data={"email": "a@example.com", "password": "anything"}).status_code == 404
+
+
+def test_no_credentials_are_stored(store):
+    """NFR-05: accounts hold no password; nothing recoverable is kept."""
+    store.create_user("alice@example.com", "planner")
+    assert sqlite3.connect(store.path).execute("SELECT password_hash FROM users").fetchone()[0] is None
+
+
+def test_password_hashes_from_older_databases_are_erased(tmp_path):
+    path = tmp_path / "old.db"
+    AuthStore(path).create_user("old@example.com", "planner")
+    conn = sqlite3.connect(path)
+    conn.execute("UPDATE users SET password_hash='scrypt:32768:8:1$salt$hash'")
+    conn.commit()
+    conn.close()
+    AuthStore(path)                                   # next start-up
+    assert sqlite3.connect(path).execute("SELECT password_hash FROM users").fetchone()[0] is None
 
 
 def test_invalid_accounts_are_rejected(store):
-    for email, pw, role in [("alice@example.com", "short", "citizen"), ("not-an-email", PW, "citizen"),
-                            ("carol@example.com", PW, "superuser")]:
+    for email, role, provider in [("not-an-email", "citizen", "email_link"),
+                                  ("carol@example.com", "superuser", "email_link"),
+                                  ("dave@example.com", "citizen", "local")]:
         with pytest.raises(AuthError):
-            store.create_user(email, pw, role)
-    store.create_user("dup@example.com", PW)
+            store.create_user(email, role, provider=provider)
+    store.create_user("dup@example.com")
     with pytest.raises(AuthError):
-        store.create_user("DUP@example.com", PW)
-
-
-def test_passwordless_accounts_have_no_password(store):
-    u = store.create_user("jane@example.com", None, "planner", provider="google")
-    assert not u["has_password"]
-    row = sqlite3.connect(store.path).execute("SELECT password_hash FROM users").fetchone()
-    assert row[0] is None
-    assert store.verify_password("jane@example.com", "") is None
+        store.create_user("DUP@example.com")
 
 
 # ------------------------------------------------------- access control --
@@ -158,120 +165,43 @@ def test_admin_console_is_not_rendered_for_other_roles(store, client):
             assert "Users and roles" not in page and "Audit log" not in page and "dash-shell" not in page
 
 
-def test_dashboard_figures_count_roles_sign_ins_and_failures(store):
-    from datetime import datetime, timezone
-    store.create_user("root@example.com", PW, "admin")
-    p = store.create_user("p@example.com", PW, "planner")
-    store.create_user("c@example.com", PW, "citizen")
-    store.set_subscriptions(p["user_id"], ["Mathare"])
-    store.audit("login", p["user_id"])
-    store.audit("login", p["user_id"])
-    store.audit("login_failed", None, "email=x")
-    assert store.role_counts() == {"citizen": 1, "planner": 1, "responder": 0, "admin": 1}
-    assert store.count_actions(("login",), "2000-01-01") == 2
-    assert store.count_actions(("login_failed", "2fa_failed"), "2000-01-01") == 1
-    today = datetime.now(timezone.utc).date().isoformat()
-    assert store.actions_by_day(("login",), "2000-01-01") == {today: 2}
-    assert store.subscriber_count() == 1
-
-
-def test_user_search_role_filter_and_activity_filter(store):
-    from src.dashboard.admin_dashboard import audit_table, users_table
-    store.create_user("root@example.com", PW, "admin")
-    store.create_user("planner@example.com", PW, "planner")
-    store.audit("login", None)
-    store.audit("export_geojson", None, "What-if 60 mm")
-    assert "planner@example.com" in str(users_table("plann")) and "root@" not in str(users_table("plann"))
-    assert "root@example.com" in str(users_table(None, "admin")) and "planner@" not in str(users_table(None, "admin"))
-    assert "No users match" in str(users_table("nobody"))
-    data_only = str(audit_table(None, "data"))
-    assert "Flood map exported" in data_only and "Signed in" not in data_only
-    assert "Flood map exported" in str(audit_table("60 mm", "all"))
-
-
-# ------------------------------------------------------- password sign-in --
-def test_login_starts_a_session_and_logout_ends_it(store, client):
-    store.create_user("alice@example.com", PW, "planner")
-    resp = _login(client, "alice@example.com", PW)
-    assert resp.status_code == 302 and resp.headers["Location"].endswith("/")
-    assert client.get("/whoami").get_json()["role"] == "planner"
-    client.get("/auth/logout")
-    assert client.get("/whoami").get_json()["email"] is None
-
-
-def test_wrong_password_is_refused_with_one_message_and_audited(store, client):
-    store.create_user("alice@example.com", PW, "planner")
-    store.create_user("jane@example.com", None, "planner", provider="google")
-    wrong = _login(client, "alice@example.com", "wrong password").headers["Location"]
-    nopw = _login(client, "jane@example.com", "anything at all").headers["Location"]
-    unknown = _login(client, "ghost@example.com", "anything at all").headers["Location"]
-    assert wrong == nopw == unknown, "the form must not reveal which emails exist or how they sign in"
-    assert client.get("/whoami").get_json()["email"] is None
-    assert store.recent_audit()[0]["action"] == "login_failed"
-
-
-def test_login_without_csrf_token_is_refused(store, client):
-    store.create_user("alice@example.com", PW, "planner")
-    resp = client.post("/auth/login", data={"email": "alice@example.com", "password": PW})
-    assert "/login?error=" in resp.headers["Location"]
-    assert client.get("/whoami").get_json()["email"] is None
-
-
-def test_repeated_failures_lock_the_account_temporarily(store, client):
-    store.create_user("alice@example.com", PW, "planner")
-    for _ in range(routes.MAX_FAILURES):
-        _login(client, "alice@example.com", "wrong password")
-    assert "Too+many" in _login(client, "alice@example.com", PW).headers["Location"]
-    assert client.get("/whoami").get_json()["email"] is None
-
-
-def test_self_registration_always_creates_a_citizen(store, client):
-    client.post("/auth/register", data={"email": "dan@example.com", "password": "long enough pw",
-                                        "confirm": "long enough pw", "role": "admin", "csrf": _token(client)})
-    assert store.get_by_email("dan@example.com")["role"] == "citizen"
-    assert client.get("/whoami").get_json()["role"] == "citizen"
-
-
-def test_disabled_user_loses_access_immediately(store, client):
-    store.create_user("root@example.com", PW, "admin")
-    alice = store.create_user("alice@example.com", PW, "planner")
-    _login(client, "alice@example.com", PW)
-    store.update_user(alice["user_id"], active=False)
-    assert client.get("/whoami").get_json()["email"] is None
-
-
-# --------------------------------------------- Firebase: Google and email link --
-@pytest.mark.parametrize("provider", ["google.com", "password"])
-def test_first_firebase_sign_in_creates_a_citizen(store, client, monkeypatch, provider):
-    """Google and email-link sign-ins both create a passwordless citizen account."""
-    _fake_firebase(monkeypatch, provider)
-    resp = client.post("/auth/firebase", json={"idToken": "fake"})
-    assert resp.status_code == 200 and resp.get_json() == {"ok": True, "next": "/account"}
+# --------------------------------------------- sign-in: Google and email link --
+@pytest.mark.parametrize("provider", [GOOGLE, EMAIL_LINK])
+def test_first_sign_in_creates_a_citizen_account(store, client, monkeypatch, provider):
+    """Someone with no account yet gets a citizen account and is sent to choose alert areas."""
+    assert _sign_in(client, monkeypatch, provider=provider) == {"ok": True, "next": "/account"}
     user = store.get_by_email("jane@example.com")
-    assert user["role"] == "citizen" and not user["has_password"]
-    assert user["auth_provider"] == ("google" if provider == "google.com" else "email_link")
+    assert user["role"] == "citizen"
+    assert user["auth_provider"] == ("google" if provider == GOOGLE else "email_link")
+    assert client.get("/whoami").get_json()["role"] == "citizen"
+    assert [a["action"] for a in store.recent_audit()][:2] == ["login", "register"]
 
 
-@pytest.mark.parametrize("provider", ["google.com", "password"])
-def test_firebase_sign_in_opens_the_account_the_admin_created(store, client, monkeypatch, provider):
+@pytest.mark.parametrize("provider", [GOOGLE, EMAIL_LINK])
+def test_sign_in_opens_the_account_the_admin_created(store, client, monkeypatch, provider):
     """The role comes from this system: a pre-created responder signs in as a responder either way."""
-    store.create_user("jane@example.com", None, "responder", provider="google")
-    _fake_firebase(monkeypatch, provider)
-    assert client.post("/auth/firebase", json={"idToken": "fake"}).get_json()["next"] == "/"
+    store.create_user("jane@example.com", "responder")
+    assert _sign_in(client, monkeypatch, provider=provider)["next"] == "/"
     assert client.get("/whoami").get_json() == {"email": "jane@example.com", "role": "responder",
                                                 "mfa_pending": False}
     assert len(store.list_users()) == 1
 
 
-def test_password_account_can_also_use_google(store, client, monkeypatch):
-    store.create_user("jane@example.com", PW, "planner")
-    _fake_firebase(monkeypatch)
-    client.post("/auth/firebase", json={"idToken": "fake"})
-    assert client.get("/whoami").get_json()["role"] == "planner"
+def test_google_and_email_link_open_the_same_account(store, client, monkeypatch):
+    _sign_in(client, monkeypatch, provider=GOOGLE)
+    client.get("/auth/logout")
+    _sign_in(client, monkeypatch, provider=EMAIL_LINK)
+    assert len(store.list_users()) == 1
+
+
+def test_sign_out_ends_the_session(store, client, monkeypatch):
+    _sign_in(client, monkeypatch)
+    client.get("/auth/logout")
+    assert client.get("/whoami").get_json()["email"] is None
 
 
 def test_unverified_email_is_refused(store, client, monkeypatch):
-    _fake_firebase(monkeypatch, "password", email_verified=False)
+    _fake_firebase(monkeypatch, EMAIL_LINK, email_verified=False)
     assert client.post("/auth/firebase", json={"idToken": "fake"}).status_code == 401
     assert store.get_by_email("jane@example.com") is None
 
@@ -288,10 +218,38 @@ def test_other_firebase_methods_and_forged_tokens_are_refused(store, client, mon
     assert client.get("/whoami").get_json()["email"] is None
 
 
-def test_firebase_options_are_hidden_when_not_configured(monkeypatch):
+def test_disabled_account_cannot_sign_in_and_loses_its_session(store, client, monkeypatch):
+    store.create_user("root@example.com", "admin")
+    jane = store.create_user("jane@example.com", "planner")
+    _sign_in(client, monkeypatch)
+    store.update_user(jane["user_id"], active=False)
+    assert client.get("/whoami").get_json()["email"] is None
+    _fake_firebase(monkeypatch)
+    assert client.post("/auth/firebase", json={"idToken": "fake"}).status_code == 401
+
+
+def test_sign_in_page_explains_when_firebase_is_not_configured(monkeypatch):
+    from src.dashboard.auth_pages import render_login
     monkeypatch.delenv("FIREBASE_PROJECT_ID", raising=False)
     monkeypatch.delenv("FIREBASE_API_KEY", raising=False)
     assert google.firebase_config() is None
+    app = Flask(__name__)
+    app.secret_key = "test"
+    with app.test_request_context():
+        page = str(render_login(""))
+    assert "not set up" in page and "btn-google" not in page and "password" not in page.lower()
+
+
+def test_sign_in_page_offers_only_google_and_email_link(monkeypatch):
+    from src.dashboard.auth_pages import render_login
+    monkeypatch.setenv("FIREBASE_PROJECT_ID", "p")
+    monkeypatch.setenv("FIREBASE_API_KEY", "k")
+    app = Flask(__name__)
+    app.secret_key = "test"
+    with app.test_request_context():
+        page = str(render_login(""))
+    assert "btn-google" in page and "btn-email-link" in page
+    assert "/auth/login" not in page and "'password'" not in page and "Register" not in page
 
 
 # ------------------------------------------- administrator two-step sign-in --
@@ -303,107 +261,99 @@ def test_totp_codes_follow_rfc_6238():
     assert totp.code_now(secret, at=1111111109) == "081804"
 
 
-def test_admin_password_is_only_the_first_step(store, client):
-    store.create_user("root@example.com", PW, "admin")
-    resp = _login(client, "root@example.com", PW)
-    assert resp.headers["Location"].endswith("/2fa")
+@pytest.mark.parametrize("provider", [GOOGLE, EMAIL_LINK])
+def test_admin_sign_in_is_only_the_first_step(store, client, monkeypatch, provider):
+    store.create_user("jane@example.com", "admin")
+    assert _sign_in(client, monkeypatch, provider=provider)["next"] == "/2fa"
     assert client.get("/whoami").get_json()["email"] is None, "no session until the code is checked"
 
 
-class _Clock:
-    """A controllable clock for the authenticator, so tests never straddle a 30 s step."""
-    def __init__(self, t):
-        self.t = t
-
-    def time(self):
-        return self.t
+def test_email_on_admin_list_becomes_admin_and_needs_the_code(store, client, monkeypatch):
+    monkeypatch.setenv("TWIN_ADMIN_EMAILS", "jane@example.com")
+    assert _sign_in(client, monkeypatch)["next"] == "/2fa"
+    assert store.get_by_email("jane@example.com")["role"] == "admin"
 
 
 def test_admin_enrols_authenticator_then_needs_codes(store, client, monkeypatch):
     clock = _Clock(1_800_000_000.0)
     monkeypatch.setattr(totp, "time", clock)
-    store.create_user("root@example.com", PW, "admin")
-    _login(client, "root@example.com", PW)
+    store.create_user("jane@example.com", "admin")
+    _sign_in(client, monkeypatch)
     secret = client.get("/setup-secret").get_json()["secret"]
     assert "/2fa?error=" in _code(client, "000000").headers["Location"]
     enrol_code = totp.code_now(secret)
-    resp = _code(client, enrol_code)
-    assert resp.headers["Location"].endswith("/2fa-codes")
-    assert client.get("/whoami").get_json() == {"email": "root@example.com", "role": "admin", "mfa_pending": False}
-    assert store.get_by_email("root@example.com")["totp_enabled"]
+    assert _code(client, enrol_code).headers["Location"].endswith("/2fa-codes")
+    assert client.get("/whoami").get_json() == {"email": "jane@example.com", "role": "admin", "mfa_pending": False}
+    assert store.get_by_email("jane@example.com")["totp_enabled"]
 
     # Next sign-in: the app's code is required, and the enrolment code cannot be reused.
     client.get("/auth/logout")
-    _login(client, "root@example.com", PW)
+    _sign_in(client, monkeypatch, provider=GOOGLE)
     assert "/2fa?error=" in _code(client, enrol_code).headers["Location"]
     clock.t += totp.STEP_SEC
     assert _code(client, totp.code_now(secret)).headers["Location"].endswith("/admin")
     assert client.get("/whoami").get_json()["role"] == "admin"
 
 
-def test_admin_google_and_email_link_sign_ins_also_need_the_code(store, client, monkeypatch):
-    store.create_user("jane@example.com", None, "admin", provider="google")
-    for provider in ("google.com", "password"):
-        client.get("/auth/logout")
-        _fake_firebase(monkeypatch, provider)
-        assert client.post("/auth/firebase", json={"idToken": "fake"}).get_json()["next"] == "/2fa"
-        assert client.get("/whoami").get_json()["email"] is None
-
-
-def test_recovery_codes_work_once(store, client):
-    admin = store.create_user("root@example.com", PW, "admin")
-    secret, codes = totp.new_secret(), totp.new_recovery_codes()
-    store.enable_totp(admin["user_id"], secret, codes, 0)
+def test_recovery_codes_work_once(store, client, monkeypatch):
+    admin = store.create_user("jane@example.com", "admin")
+    codes = totp.new_recovery_codes()
+    store.enable_totp(admin["user_id"], totp.new_secret(), codes, 0)
     stored = sqlite3.connect(store.path).execute("SELECT recovery_codes FROM users").fetchone()[0]
     assert codes[0] not in stored, "recovery codes are stored only as hashes"
-    _login(client, "root@example.com", PW)
+    _sign_in(client, monkeypatch)
     assert _code(client, codes[0].upper()).headers["Location"].endswith("/admin")
     assert store.recovery_codes_left(admin["user_id"]) == len(codes) - 1
     client.get("/auth/logout")
-    _login(client, "root@example.com", PW)
+    _sign_in(client, monkeypatch)
     assert "/2fa?error=" in _code(client, codes[0]).headers["Location"]
 
 
-def test_wrong_codes_lock_the_sign_in(store, client):
-    admin = store.create_user("root@example.com", PW, "admin")
+def test_wrong_codes_lock_the_sign_in(store, client, monkeypatch):
+    admin = store.create_user("jane@example.com", "admin")
     store.enable_totp(admin["user_id"], totp.new_secret(), totp.new_recovery_codes(), 0)
-    _login(client, "root@example.com", PW)
+    _sign_in(client, monkeypatch)
     for _ in range(routes.MAX_FAILURES):
         _code(client, "123456")
     assert "Too+many" in _code(client, "123456").headers["Location"]
 
 
-def test_promoted_admin_keeps_citizen_powers_until_the_code_step(store, client):
-    store.create_user("root@example.com", PW, "admin")
-    alice = store.create_user("alice@example.com", PW, "planner")
-    _login(client, "alice@example.com", PW)
-    store.update_user(alice["user_id"], role="admin")
+def test_promoted_admin_keeps_citizen_powers_until_the_code_step(store, client, monkeypatch):
+    store.create_user("root@example.com", "admin")
+    jane = store.create_user("jane@example.com", "planner")
+    _sign_in(client, monkeypatch)
+    store.update_user(jane["user_id"], role="admin")
     me = client.get("/whoami").get_json()
     assert me["role"] == "citizen" and me["mfa_pending"], "no admin rights without a second factor"
 
 
 def test_pending_sign_in_expires(store, client, monkeypatch):
-    store.create_user("root@example.com", PW, "admin")
-    _login(client, "root@example.com", PW)
+    store.create_user("jane@example.com", "admin")
+    _sign_in(client, monkeypatch)
     monkeypatch.setattr(access.time, "time", lambda: 10 ** 10)
     assert "/login?error=" in _code(client, "123456").headers["Location"]
 
 
+def test_code_form_without_csrf_token_is_refused(store, client, monkeypatch):
+    store.create_user("jane@example.com", "admin")
+    _sign_in(client, monkeypatch)
+    assert "/login?error=" in client.post("/auth/2fa", data={"code": "123456"}).headers["Location"]
+
+
 # ------------------------------------------------------- administration --
 def test_last_admin_cannot_be_demoted_or_disabled(store):
-    root = store.create_user("root@example.com", PW, "admin")
+    root = store.create_user("root@example.com", "admin")
     with pytest.raises(AuthError):
         store.update_user(root["user_id"], role="planner")
     with pytest.raises(AuthError):
         store.update_user(root["user_id"], active=False)
-    store.create_user("second@example.com", PW, "admin")
+    store.create_user("second@example.com", "admin")
     assert store.update_user(root["user_id"], role="planner")["role"] == "planner"
 
 
 def test_bootstrap_admin_from_environment(store, monkeypatch):
     from src.auth.store import bootstrap_admin
     monkeypatch.setenv("TWIN_ADMIN_EMAIL", "root@example.com")
-    monkeypatch.setenv("TWIN_ADMIN_PASSWORD", PW)
     bootstrap_admin(store)
     bootstrap_admin(store)                  # idempotent once an admin exists
     assert [(u["email"], u["role"]) for u in store.list_users()] == [("root@example.com", "admin")]
@@ -419,13 +369,15 @@ def test_old_databases_are_upgraded_in_place(tmp_path):
             auth_provider TEXT NOT NULL DEFAULT 'local' CHECK (auth_provider IN ('local','google')),
             role TEXT NOT NULL DEFAULT 'citizen', active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL, last_login_at TEXT);
-        INSERT INTO users (username, email, role, created_at) VALUES ('old', 'old@example.com', 'planner', 'x');
+        INSERT INTO users (username, email, password_hash, role, created_at)
+            VALUES ('old', 'old@example.com', 'scrypt:x', 'planner', 'x');
     """)
     conn.commit()
     conn.close()
     s = AuthStore(path)
     assert s.get_by_email("old@example.com")["role"] == "planner"
-    assert s.create_user("new@example.com", None, provider="email_link")["auth_provider"] == "email_link"
+    assert s.create_user("new@example.com", provider="email_link")["auth_provider"] == "email_link"
+    assert sqlite3.connect(path).execute("SELECT password_hash FROM users WHERE username='old'").fetchone()[0] is None
 
 
 def test_audit_log_is_append_only_in_order(store):
@@ -438,11 +390,42 @@ def test_audit_log_is_append_only_in_order(store):
 
 def test_alert_subscriptions_are_saved_per_user(store):
     """FR-03: a citizen's chosen areas are recorded against their profile."""
-    u = store.create_user("alice@example.com", PW, "citizen")
+    u = store.create_user("alice@example.com")
     store.set_subscriptions(u["user_id"], ["Mathare", "Kibera", "Mathare", " "])
     assert store.subscriptions(u["user_id"]) == ["Kibera", "Mathare"]
     store.set_subscriptions(u["user_id"], ["Eastleigh"])
     assert store.subscriptions(u["user_id"]) == ["Eastleigh"]
+
+
+def test_dashboard_figures_count_roles_sign_ins_and_failures(store):
+    from datetime import datetime, timezone
+    store.create_user("root@example.com", "admin")
+    p = store.create_user("p@example.com", "planner")
+    store.create_user("c@example.com", "citizen")
+    store.set_subscriptions(p["user_id"], ["Mathare"])
+    store.audit("login", p["user_id"])
+    store.audit("login", p["user_id"])
+    store.audit("login_failed", None, "firebase: unverified")
+    assert store.role_counts() == {"citizen": 1, "planner": 1, "responder": 0, "admin": 1}
+    assert store.count_actions(("login",), "2000-01-01") == 2
+    assert store.count_actions(("login_failed", "2fa_failed"), "2000-01-01") == 1
+    today = datetime.now(timezone.utc).date().isoformat()
+    assert store.actions_by_day(("login",), "2000-01-01") == {today: 2}
+    assert store.subscriber_count() == 1
+
+
+def test_user_search_role_filter_and_activity_filter(store):
+    from src.dashboard.admin_dashboard import audit_table, users_table
+    store.create_user("root@example.com", "admin")
+    store.create_user("planner@example.com", "planner")
+    store.audit("login", None)
+    store.audit("export_geojson", None, "What-if 60 mm")
+    assert "planner@example.com" in str(users_table("plann")) and "root@" not in str(users_table("plann"))
+    assert "root@example.com" in str(users_table(None, "admin")) and "planner@" not in str(users_table(None, "admin"))
+    assert "No users match" in str(users_table("nobody"))
+    data_only = str(audit_table(None, "data"))
+    assert "Flood map exported" in data_only and "Signed in" not in data_only
+    assert "Flood map exported" in str(audit_table("60 mm", "all"))
 
 
 # ------------------------------------------------- server-side enforcement --
@@ -453,8 +436,8 @@ def test_whatif_is_refused_on_the_server_for_roles_without_it(store):
     from src.dashboard.callbacks import _allowed_mode
     app = Flask(__name__)
     app.secret_key = "test"
-    planner = store.create_user("alice@example.com", PW, "planner")
-    citizen = store.create_user("bob@example.com", PW, "citizen")
+    planner = store.create_user("alice@example.com", "planner")
+    citizen = store.create_user("bob@example.com", "citizen")
     with app.test_request_context():
         assert _allowed_mode("WHATIF") == "LIVE", "signed out"
         session["uid"] = citizen["user_id"]
@@ -476,3 +459,55 @@ def test_emergency_report_contains_the_scenario_and_escapes_names():
     assert "Generated" in page and "rita@example.com" in page
     assert "<script>x</script>" not in page and "&lt;script&gt;" in page
     assert re.search(r"\d{2} \w{3} \d{4}, \d{2}:\d{2} EAT", page), "generation timestamp"
+
+
+def test_alert_areas_keep_the_place_people_picked(store):
+    """A landmark is followed through its neighbourhood; the person's pick is kept as the label."""
+    u = store.create_user("alice@example.com")
+    store.set_subscriptions(u["user_id"], [{"area": "Siwaka Estate", "label": "Strathmore University"},
+                                           {"area": "Siwaka Estate", "label": "Strathmore Library"},
+                                           "Mathare"])
+    assert store.subscriptions(u["user_id"]) == ["Mathare", "Siwaka Estate"]
+    assert store.subscription_items(u["user_id"]) == [
+        {"area": "Mathare", "label": "Mathare"},
+        {"area": "Siwaka Estate", "label": "Strathmore University"}]
+
+
+def test_alert_subscriptions_table_gains_a_label_column(tmp_path):
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript("""
+        CREATE TABLE alert_subscriptions (subscription_id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL,
+            sub_county TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, UNIQUE (user_id, sub_county));
+        INSERT INTO alert_subscriptions (user_id, sub_county) VALUES (1, 'Kibera');
+    """)
+    conn.commit()
+    conn.close()
+    assert AuthStore(path).subscription_items(1) == [{"area": "Kibera", "label": "Kibera"}]
+
+
+@needs_model
+def test_alert_search_finds_landmarks_and_the_server_works_out_their_neighbourhood(store):
+    """Places the trip planner knows (e.g. Strathmore University) can be followed for alerts."""
+    from src.dashboard.auth_pages import alert_area_search, resolve_alert_value
+    from src.routing.flood_router import place_name_at
+    from src.routing.geocoder import decode_value
+    opts = alert_area_search("strathmore university", [])
+    pick = next(o for o in opts if o["value"].startswith("loc:") and "Strathmore University" in o["label"])
+    lat, lon, _name = decode_value(pick["value"])
+    resolved = resolve_alert_value(pick["value"])
+    assert resolved == {"area": place_name_at(lat, lon), "label": "Strathmore University"}
+    assert f"alerts for {resolved['area']}" in pick["label"]
+    assert resolve_alert_value("sub:Not A Real Place|x") is None, "made-up neighbourhoods are refused"
+    assert resolve_alert_value("loc:5.0,40.0|Somewhere far") is None, "places outside the map are refused"
+    assert resolve_alert_value("sub:Mathare|Mathare") == {"area": "Mathare", "label": "Mathare"}
+
+
+def test_alerts_show_the_picked_place(store):
+    from src.dashboard.auth_pages import _alerts_for
+    u = store.create_user("alice@example.com")
+    store.set_subscriptions(u["user_id"], [{"area": "Siwaka Estate", "label": "Strathmore University"}])
+    nowcast = {"warnings": [{"kind": "starts", "hour": 2, "level": "MODERATE", "text": "Moderate flooding",
+                             "places": ["Siwaka Estate", "Kibera"], "places_text": "Siwaka Estate, Kibera"}]}
+    page = str(_alerts_for(u, nowcast))
+    assert "Siwaka Estate (Strathmore University)" in page and "Kibera" not in page

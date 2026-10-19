@@ -25,7 +25,6 @@ services:
     environment:
       - TWIN_SECRET_KEY
       - TWIN_ADMIN_EMAIL
-      - TWIN_ADMIN_PASSWORD
       - TWIN_ADMIN_EMAILS
       - TWIN_COOKIE_SECURE
       - FIREBASE_API_KEY
