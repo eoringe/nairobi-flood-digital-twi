@@ -64,9 +64,10 @@ app.layout = html.Div([
     html.Div(id="page-other", className="twin-app", hidden=True),
 ])
 # Runs before anything downloads: applies the saved theme (no dark flash for
-# light-theme users), and when the page is an emailed sign-in link, shows the
-# "Signing you in" screen at once instead of a blank page and then the form.
-# assets/firebase_login.js completes the link and removes the screen on error.
+# light-theme users), and when the page is an emailed sign-in link or the return
+# from a Google sign-in redirect, shows the "Signing you in" screen at once
+# instead of a blank page and then the form. assets/firebase_login.js completes
+# the sign-in and removes the screen on error.
 _EARLY_SCRIPT = """
 <script>
 (function () {
@@ -77,11 +78,13 @@ _EARLY_SCRIPT = """
     }
     document.documentElement.setAttribute("data-theme", t);
   } catch (e) { /* storage blocked: the theme callback sets it shortly */ }
-  var q = location.search;
-  if (q.indexOf("oobCode=") > -1 && q.indexOf("mode=signIn") > -1) {
+  var q = location.search, sub = null;
+  if (q.indexOf("oobCode=") > -1 && q.indexOf("mode=signIn") > -1) { sub = "Confirming your email link"; }
+  try { if (sessionStorage.getItem("twinGoogleRedirect") === "1") { sub = "Finishing Google sign-in"; } } catch (e) {}
+  if (sub) {
     document.write('<div id="twin-signing-in" role="status" aria-live="polite"><div class="twin-signing-card">' +
       '<div class="twin-signing-spinner"></div><div class="twin-signing-title">Signing you in\\u2026</div>' +
-      '<div class="twin-signing-sub">Confirming your email link</div></div></div>');
+      '<div class="twin-signing-sub">' + sub + '</div></div></div>');
   }
 })();
 </script>
