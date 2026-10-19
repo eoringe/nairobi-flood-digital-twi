@@ -938,6 +938,21 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card {
   font-weight: 600;
 }
 .twin-google-btn:hover { background: #f2f2f2; color: #1f1f1f; }
+.twin-google-btn:disabled { background: #ffffff; color: #444746; border-color: #c7c7c7; opacity: 1; }
+/* Spinner shown on a button while its action runs (assets/firebase_login.js). */
+.twin-btn-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  vertical-align: -3px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  opacity: 0.8;
+  animation: twin-spin 0.7s linear infinite;
+}
+.twin-google-btn .twin-btn-spinner { border-color: #4285f4; border-right-color: transparent; opacity: 1; }
 .twin-google-g {
   display: inline-block;
   width: 18px;
