@@ -265,6 +265,33 @@ The web dashboard is built using **Plotly Dash** and **Pydeck WebGL** with a mod
 * Deliberately does not persist on every slider-drag frame or auto-play tick (both also trigger the render callback) — only on an explicit "Run Simulation" click, so the history reflects scenarios a user actually committed to, not every intermediate render.
 * Every public function catches its own database errors and degrades to an empty/`None` result rather than crashing the live dashboard.
 
+### 6.2 Accounts, Roles and Access Control
+* **Implemented in:** `src/auth/` (store, permissions, Firebase sign-in, authenticator codes, routes, CLI) and `src/dashboard/auth_pages.py` (pages and role tools).
+* The map, outlook, warnings and routing stay public. Signing in adds the tools for each role:
+
+| Role | What they get | How the account is made |
+|---|---|---|
+| Citizen | Alert areas; in-app warnings for those places | Self-registration, or a first Google or email-link sign-in |
+| Urban planner | What-if scenarios, saved scenario history, hold-and-compare, GeoJSON export | Created or promoted by an administrator |
+| Emergency responder | Downloadable emergency report, GeoJSON export | Created or promoted by an administrator |
+| Administrator | Users and roles, audit log, system status, forecast refresh, plus every staff tool | `TWIN_ADMIN_EMAIL`/`TWIN_ADMIN_PASSWORD`, `TWIN_ADMIN_EMAILS`, or the CLI |
+
+* **Three ways to sign in, for every account:** email + password, *Continue with Google*, or a passwordless *email me a sign-in link*. Accounts are identified by email; the Google and email-link methods go through Firebase Authentication, and the server verifies the Firebase ID token with `google-auth` (no service-account key) and opens the account with that verified email. Roles always come from this system's database, never from Firebase.
+* **Administrators use two-step sign-in:** after any of the three methods they enter a 6-digit code from an authenticator app (Google Authenticator, Microsoft Authenticator, Authy). The first sign-in shows a QR code to enrol the app and then eight one-time recovery codes. Codes follow RFC 6238, cannot be reused, and five wrong codes end the attempt. An account promoted to admin keeps citizen powers until it completes this step.
+* Every permission is checked on the server in the callback or route that performs the action; hidden buttons are a convenience, not the control. Passwords and recovery codes are salted hashes, forms carry a CSRF token, five failed passwords lock that email for five minutes, the sign-in form gives one message for every failure, and logins, exports, reports, saved scenarios and role changes are written to an append-only audit log.
+* **Firebase set-up:** set `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID` and `FIREBASE_APP_ID` (see `.env.example`), and enable Google and Email link in the Firebase console. Without them, only email + password is offered.
+* First administrator from the command line: `python -m src.auth.cli create-user --email you@example.com --role admin` (prompts for the password), or `--passwordless` for Google/email-link only. `python -m src.auth.cli reset-2fa --email ...` removes a lost authenticator.
+
+---|---|---|
+| Citizen | Alert areas; in-app warnings for those places | Self-registration, or first Google sign-in |
+| Urban planner | What-if scenarios, saved scenario history, hold-and-compare, GeoJSON export | Created or promoted by an administrator |
+| Emergency responder | Downloadable emergency report, GeoJSON export | Created or promoted by an administrator |
+| Administrator | Users and roles, audit log, system status, forecast refresh, plus every staff tool | `TWIN_ADMIN_EMAIL`/`TWIN_ADMIN_PASSWORD`, `TWIN_ADMIN_EMAILS`, or the CLI |
+
+* Every permission is checked on the server in the callback or route that performs the action; hidden buttons are a convenience, not the control. Passwords are salted scrypt hashes, forms carry a CSRF token, five failed passwords lock a username for five minutes, and logins, exports, reports, saved scenarios and role changes are written to an append-only audit log.
+* **Sign in with Google** uses Firebase Authentication. Set `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID` and `FIREBASE_APP_ID` (see `.env.example`); the server verifies Firebase ID tokens with `google-auth` and needs no service-account key. Without them, only username/password sign-in is shown.
+* First administrator: `python -m src.auth.cli create-user --username alice --role admin` (prompts for the password), or in Docker `docker compose exec dashboard python -m src.auth.cli create-user --username alice --role admin`.
+
 ---
 
 ## 📂 Implementation Blueprint: File-by-File Code Mapping

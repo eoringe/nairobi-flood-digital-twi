@@ -25,5 +25,13 @@ rasterio==1.5.0
 
 loguru==0.7.3
 
+# Google and email-link sign-in: verifies Firebase ID tokens against Google's
+# public keys (src/auth/google.py). Password hashing, sessions and the
+# authenticator codes (src/auth/totp.py) use Flask/Werkzeug and the standard library.
+google-auth==2.53.0
+requests==2.34.2
+# QR code for setting up an administrator's authenticator app (pure Python).
+segno==1.6.6
+
 # Production WSGI server (the Flask development server is not for deployment).
 gunicorn==23.0.0

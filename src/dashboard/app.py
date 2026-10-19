@@ -16,10 +16,21 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from dash import Dash
+from dash import Dash, dcc, html
 import dash_bootstrap_components as dbc
 from loguru import logger
 
+try:
+    # Local runs read Firebase and account settings from .env; in Docker,
+    # docker-compose.yml passes the same variables. Existing variables win.
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+from src.auth.routes import init_auth
+from src.dashboard.admin_dashboard import register_admin_callbacks
+from src.dashboard.auth_pages import register_auth_callbacks
 from src.dashboard.layouts import build_dashboard_layout
 from src.dashboard.callbacks import register_callbacks, start_background_warmup, warmup_status
 
@@ -37,14 +48,26 @@ GOOGLE_FONTS_URL = (
 # design system (palette, type, panel/badge/slider overrides).
 app = Dash(
     __name__,
-    external_stylesheets=[dbc.themes.DARKLY, GOOGLE_FONTS_URL],
+    external_stylesheets=[dbc.themes.DARKLY, dbc.icons.BOOTSTRAP, GOOGLE_FONTS_URL],
     title="Nairobi Urban Flood Digital Twin",
     meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
+    # The account and admin pages are rendered per user, so their components
+    # are not in the initial layout.
+    suppress_callback_exceptions=True,
 )
 
-app.layout = build_dashboard_layout()
+# The map page stays mounted while other pages are shown, so its state (map,
+# route, outlook) survives a visit to the account or admin page.
+app.layout = html.Div([
+    dcc.Location(id="url"),
+    html.Div(id="page-twin", children=build_dashboard_layout()),
+    html.Div(id="page-other", className="twin-app", hidden=True),
+])
 register_callbacks(app)
+register_auth_callbacks(app)
+register_admin_callbacks(app)
 server = app.server  # Flask WSGI server instance
+init_auth(server)
 
 
 @server.route("/healthz")
@@ -67,7 +90,10 @@ if os.environ.get("TWIN_WARMUP") == "1":
 def main(host: str = "127.0.0.1", port: int = 8050, debug: bool = False) -> None:
     logger.info("============================================================")
     logger.info("🌊 Starting Nairobi Urban Flood Digital Twin Web Server...")
-    logger.info(f"   URL  : http://{host}:{port}/")
+    # Firebase sign-in treats "localhost" and "127.0.0.1" as different domains;
+    # "localhost" is authorised by default, so point people there.
+    shown_host = "localhost" if host in ("127.0.0.1", "0.0.0.0") else host
+    logger.info(f"   URL  : http://{shown_host}:{port}/")
     logger.info("   Stack: Dash + Pydeck WebGL + PyTorch U-Net (Model B)")
     logger.info("   Output: flood EXTENT as per-cell probability, not depth")
     logger.info("   Loading road network and outlooks in the background...")

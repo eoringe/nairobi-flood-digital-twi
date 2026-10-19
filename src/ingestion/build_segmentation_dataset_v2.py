@@ -115,7 +115,7 @@ STRIDE_DAYS = 1
 
 
 def parse_chirps_date(raw: str) -> date:
-    """Parse the 'YYYY-day-DDD' labels written by src.ingestion.fetch_chirps."""
+    """Converts raw CHIRPS calendar text strings into standard Python date objects."""
     parts = raw.split("-")
     if len(parts) == 3 and parts[1] == "day":
         return date(int(parts[0]), 1, 1) + timedelta(days=int(parts[2]) - 1)
@@ -123,6 +123,7 @@ def parse_chirps_date(raw: str) -> date:
 
 
 def load_rainfall() -> tuple[list[date], np.ndarray]:
+    """Reads the 4,138-day historical daily rainfall measurements and their matching dates from disk."""
     dates = [parse_chirps_date(d) for d in json.load(open(PROCESSED_DIR / "rainfall_dates.json"))]
     values = np.load(PROCESSED_DIR / "rainfall_daily_mean.npy").astype(np.float32)
     assert len(dates) == len(values), f"date/value length mismatch: {len(dates)} vs {len(values)}"
@@ -130,18 +131,7 @@ def load_rainfall() -> tuple[list[date], np.ndarray]:
 
 
 def load_static() -> tuple[np.ndarray, dict]:
-    """
-    Stack the unique static predictors. No duplicates, no constant channel.
-
-    Includes upstream drainage area (MERIT Hydro flow accumulation), which was
-    present in the repository but unused by earlier versions. It identifies where
-    water concentrates and is the basis of the drainage susceptibility model --
-    the only formulation that passes spatial validation
-    (src/validation/validate_spatial_neighbourhoods.py).
-
-    UPA spans 0.01-292 and is heavily right-skewed, so it is stored as a
-    normalised log to keep every channel on a comparable scale.
-    """
+    """Loads, normalizes, and stacks the 7 physical terrain and land-cover maps into one shared grid."""
     terrain = np.load(PROCESSED_DIR / "static_terrain_features.npy")  # (3, H, W) dem, slope, twi
     hand = np.load(PROCESSED_DIR / "predictor_hand.npy")
     built_up = np.load(PROCESSED_DIR / "predictor_built_up.npy")
@@ -168,14 +158,7 @@ def load_static() -> tuple[np.ndarray, dict]:
 
 def channel_proximity(log_upa: np.ndarray, pct: float = 99.0,
                       decay_px: float = 3.0) -> np.ndarray:
-    """
-    Distance-decayed proximity to a drainage channel.
-
-    Channels are the top `pct` of flow accumulation; proximity then decays
-    exponentially with distance. At ~70-79 m per pixel, decay_px=3 gives an
-    e-folding distance of roughly 220 m, which is the scale over which riparian
-    settlement sits relative to a watercourse.
-    """
+    """Calculates how close each pixel is to a major natural river or drainage channel."""
     channel = log_upa >= np.percentile(log_upa, pct)
     try:
         from scipy.ndimage import distance_transform_edt
@@ -186,26 +169,7 @@ def channel_proximity(log_upa: np.ndarray, pct: float = 99.0,
 
 
 def build_susceptibility_drainage(static: np.ndarray) -> np.ndarray:
-    """
-    Drainage-aware susceptibility: built-up land, close to a drainage channel,
-    on flat ground.
-
-    The terrain-only formulation below failed spatial validation -- it did not
-    separate independently mapped flood-prone neighbourhoods from controls
-    (separation +3.7 points, p=0.662). This one does (+25.0 points, p=0.045)
-    against the same benchmark.
-
-    The mechanism is riparian encroachment, which is the documented cause of
-    flooding in Nairobi: informal settlements built inside river corridors, where
-    the watercourse is constricted and drainage blocked. Mathare, Kibera and
-    Mukuru are exactly this. A terrain-only model describes where water would
-    collect on undeveloped ground and so cannot represent it.
-
-    Caveat: the validation supporting this rests on 28 flood-prone against 6
-    control locations, and p=0.045 does not survive correction for the eleven
-    predictors that were compared. It is the best-supported option available,
-    not an established one. See LIMITATIONS.md.
-    """
+    """Identifies flood-prone zones by finding built-up settlements located on flat ground next to river channels."""
     slope, built_up, perm_water, log_upa = static[1], static[4], static[5], static[6]
 
     prox = channel_proximity(log_upa)
@@ -218,21 +182,7 @@ def build_susceptibility_drainage(static: np.ndarray) -> np.ndarray:
 
 
 def build_susceptibility(static: np.ndarray) -> np.ndarray:
-    """
-    Continuous flood-susceptibility score in [0, 1], higher = more flood-prone.
-
-    A graded score rather than a binary mask, so that flood extent can grow with
-    storm intensity. If every storm produced the same fixed mask the dataset
-    would contain only two distinct labels and the model would just learn to
-    stamp a constant stencil.
-
-    Controls follow standard flood-susceptibility practice:
-      HAND  - dominant control; water pools near drainage. Decays exponentially.
-      slope - flat ground pools, steep ground sheds. Decays exponentially.
-      TWI   - topographic convergence; boosts already-favourable pixels.
-    Permanent water is excluded outright: it is always wet, so counting it as
-    flood would inflate every metric.
-    """
+    """Creates an alternative baseline susceptibility score using only natural terrain (elevation, slope, and HAND)."""
     slope, twi, hand, perm_water = static[1], static[2], static[3], static[5]
 
     s_hand = np.exp(-hand / HAND_DECAY_M)
@@ -248,16 +198,7 @@ def build_susceptibility(static: np.ndarray) -> np.ndarray:
 
 
 def flood_extent(score: np.ndarray, intensity_mm: float) -> np.ndarray:
-    """
-    Flood mask for a storm of the given accumulated rainfall.
-
-    Extent is intensity-graded: a storm just clearing the threshold inundates
-    only the most susceptible ground, while an extreme storm spreads further up
-    the susceptibility gradient. The fraction of the grid flooded is
-    interpolated between EXTENT_MIN_PCT and EXTENT_MAX_PCT as intensity rises
-    from RAIN_THRESH_MM to RAIN_SATURATION_MM, then that fraction is taken off
-    the top of the susceptibility distribution.
-    """
+    """Generates the binary flood label mask for a day, expanding the flooded area as storm rainfall gets heavier."""
     if intensity_mm < RAIN_THRESH_MM:
         return np.zeros(score.shape, dtype=np.uint8)
 
@@ -271,23 +212,7 @@ def flood_extent(score: np.ndarray, intensity_mm: float) -> np.ndarray:
 
 def build_scalars(rain: np.ndarray, i: int, day: date, mode: str,
                   forecast_days: int) -> tuple[np.ndarray, list[str]]:
-    """
-    Per-sample scalar features, broadcast to maps at training time.
-
-    Rainfall in this dataset is spatially uniform (CHIRPS was fetched as a
-    single point), so every rainfall-derived feature is a scalar rather than a
-    map. Storing them as scalars and expanding on the GPU keeps the file tiny.
-
-    Two modes:
-      forecast - only information available BEFORE day t. The model must
-                 anticipate the storm. This is the honest forecasting task and
-                 is capped by rainfall predictability (AUC ~0.65).
-      nwp      - additionally receives the rainfall over the label window, as an
-                 operational system receives a numerical weather prediction from
-                 a forecasting centre. The model's job is then the hydrological
-                 mapping from rainfall to extent, NOT forecasting weather. Scores
-                 far higher, and must be reported as a different claim.
-    """
+    """Extracts the past 7-day rainfall, 14/30-day soil moisture totals, and seasonal timing for each sample."""
     feats = list(rain[i - SEQ_LEN:i])
     names = [f"rain_t-{k}" for k in range(SEQ_LEN, 0, -1)]
 
@@ -309,7 +234,7 @@ def build_scalars(rain: np.ndarray, i: int, day: date, mode: str,
 
 
 def scalar_scales(names: list[str]) -> np.ndarray:
-    """Per-feature divisors bringing each scalar to roughly unit range."""
+    """Provides normalization scaling factors to bring all rainfall numbers into a standard numeric range for the neural network."""
     out = []
     for n in names:
         if n.startswith("rain_sum_14"):
@@ -324,7 +249,7 @@ def scalar_scales(names: list[str]) -> np.ndarray:
 
 
 def discover_events(dates: list[date]) -> list[dict]:
-    """Storm seasons covered by the CHIRPS series."""
+    """Scans the calendar to identify all historical 'Long Rains' and 'Short Rains' seasons between 2015 and 2026."""
     events = []
     for year in range(dates[0].year, dates[-1].year + 1):
         for season, (m0, m1) in STORM_WINDOWS.items():
@@ -336,6 +261,7 @@ def discover_events(dates: list[date]) -> list[dict]:
 
 
 def main() -> None:
+    """Coordinates the whole pipeline, splits data by storm season into train/val/test sets, and saves the final compressed .npz file."""
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--mode", choices=["forecast", "nwp"], default="forecast",

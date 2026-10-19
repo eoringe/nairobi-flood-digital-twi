@@ -4,7 +4,7 @@ Automated testing of the Nairobi Flood Digital Twin. Written to supply the
 evidence Chapter 5 requires (test strategy, test cases with expected and actual
 results, defects and retesting).
 
-**Last run:** 50 tests, 50 passed, 0 failed, 33.8 s
+**Last run:** 96 tests, 96 passed, 0 failed
 **Command:** `python -m pytest tests/ -q`
 **Tooling:** pytest 9.1.1, Python 3.13.9, Windows 11, 8 CPU threads, CPU-only PyTorch
 
@@ -73,6 +73,17 @@ All cases below were executed on the last run and passed. Test IDs match
 | TC-11b | Persistence | Create the database schema | At least 19 tables, including the ERD's core entities | 19 tables created | Pass |
 | TC-12 | External data | Correct a 58 mm forecast total | Corrected above 100 mm (CHIRPS scale) | 124 mm | Pass |
 | TC-12b | External data | Correct a rising series of totals | Monotone; 0 mm stays near 0 | As expected | Pass |
+| TC-13 | NFR-05 / Credentials | Two users with the same password | Stored as salted hashes; no plaintext; hashes differ | scrypt hashes, all different | Pass |
+| TC-14 | NFR-04 / Access control | Every restricted function under citizen, planner, responder, admin and signed out | Only the roles in the permission matrix succeed | Matrix matched for all 9 permissions | Pass |
+| TC-15 | FR-12 / Sign-in | Correct password; wrong password; unknown email; passwordless account; no CSRF token; 5 failures | Session only for the correct password with a valid token; one identical message for every failure; lock after 5 failures | As expected; failures audited | Pass |
+| TC-16 | FR-12 / Registration | Self-registration form posting role=admin | Account created as citizen | Citizen | Pass |
+| TC-17 | FR-12 / Google and email-link sign-in | First sign-in; account pre-created by an admin; password account using Google; unverified email; other Firebase method; forged token | Citizen; the admin-assigned role; same account; refused; refused; refused | As expected for both methods (verifier replaced, no network) | Pass |
+| TC-17b | FR-12 / Admin two-step sign-in | Admin signs in by password, Google or email link | No session until a valid authenticator code; enrolment by QR then recovery codes; reused code, wrong codes (locks after 5), expired attempt refused; recovery code works once | As expected; codes match the RFC 6238 test vectors | Pass |
+| TC-17c | FR-12 / Privilege change | Planner promoted to admin while signed in | Citizen powers until the code step | As expected | Pass |
+| TC-18 | NFR-04 / Server enforcement | What-if request from signed-out user and citizen | Held to live mode on the server | LIVE for both; WHATIF for planner | Pass |
+| TC-19 | Administration | Demote or disable the last admin | Refused | Refused until a second admin exists | Pass |
+| TC-20 | FR-11 / Report | Report for a scenario with a place named `<script>` | Parameters, extent, settlements, timestamp; name escaped | As expected | Pass |
+| TC-21 | FR-03, FR-15 | Save alert areas; write audit entries | Areas saved per user; audit append-only, newest first | As expected | Pass |
 
 Coverage by module:
 
@@ -85,6 +96,7 @@ Coverage by module:
 | `test_dashboard.py` | 6 | Layout, health endpoint, map layers, themes, place summary |
 | `test_persistence.py` | 5 | Scenario history, schema, model registration, simulation storage |
 | `test_pipeline.py` | 3 | Processed arrays and memory guard (existing tests, retained) |
+| `test_auth.py` | 46 | Password hashing, access-control matrix, password / Google / email-link sign-in, administrator two-step sign-in, lockouts, admin safeguards, database upgrade, audit log, subscriptions, report |
 
 ---
 
@@ -128,8 +140,13 @@ Stated so the evaluation is not read as stronger than it is:
 
 - **No user testing.** Usability and acceptance were not evaluated, so no claim
   is made about how easy the interface is to use.
-- **No browser automation.** The page structure and callbacks are tested in
-  Python; clicking through the interface was verified manually.
+- **No automated browser tests.** Page structure and callbacks are tested in
+  Python. The sign-in, admin, planner, responder and citizen flows were driven
+  once in headless Edge (create a user, hold and compare, export, report, alert
+  areas), but that script is not part of the suite.
+- **Google and email-link sign-in against a real Firebase project** are not
+  covered: the token verifier is replaced in the tests, so the popup, the emailed
+  link and Google's key check are exercised only when Firebase is configured.
 - **No load or concurrency testing.** The application was tested with one user
   at a time.
 - **Model accuracy is not retested here.** It is measured separately by
