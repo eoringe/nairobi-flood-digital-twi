@@ -376,13 +376,13 @@ MAP_THEMES = {
             2: ([240, 138, 60, 120], [245, 170, 105, 125]),
             3: ([239, 68, 89, 155],  [245, 120, 135, 140]),
         },
-        "halo": {1: [53, 194, 209, 26], 2: [35, 138, 205, 32], 3: [21, 82, 176, 38]},
-        "buildings": ([53, 194, 209, 205], [68, 110, 130, 180], [90, 100, 115, 150]),
-        "tooltip": {"backgroundColor": "#151d28", "color": "#eaf0f6", "border": "1px solid #202b38",
-                    "boxShadow": "0 8px 20px rgba(0,0,0,0.4)"},
-        "legend": {"bg": "rgba(16, 22, 31, 0.92)", "border": "#202b38", "text": "#eaf0f6",
-                   "muted": "#5c6b7a", "shadow": "0 10px 28px rgba(0, 0, 0, 0.45)", "bldg": "#5a6473"},
-        "pin_stroke": [16, 22, 31, 255],
+        "halo": {1: [91, 155, 255, 26], 2: [60, 120, 230, 32], 3: [40, 85, 200, 38]},
+        "buildings": ([91, 155, 255, 205], [74, 98, 140, 180], [88, 98, 118, 150]),
+        "tooltip": {"backgroundColor": "#171d29", "color": "#eef1f7", "border": "1px solid rgba(255,255,255,0.08)",
+                    "boxShadow": "0 12px 32px rgba(0,0,0,0.42)"},
+        "legend": {"bg": "rgba(17, 22, 31, 0.80)", "border": "rgba(255, 255, 255, 0.08)", "text": "#eef1f7",
+                   "muted": "#8a93a6", "shadow": "0 12px 32px rgba(0, 0, 0, 0.42)", "bldg": "#58627a"},
+        "pin_stroke": [17, 22, 31, 255],
     },
     "light": {
         "basemap": pdk.map_styles.CARTO_ROAD,
@@ -391,12 +391,12 @@ MAP_THEMES = {
             2: ([232, 112, 32, 150], [196, 84, 18, 185]),
             3: ([214, 40, 66, 170],  [176, 24, 48, 200]),
         },
-        "halo": {1: [14, 143, 156, 22], 2: [20, 110, 190, 26], 3: [20, 70, 160, 30]},
-        "buildings": ([14, 143, 156, 190], [132, 160, 174, 170], [176, 186, 198, 150]),
-        "tooltip": {"backgroundColor": "#ffffff", "color": "#0f1a24", "border": "1px solid #d5dee5",
-                    "boxShadow": "0 8px 20px rgba(15,26,36,0.14)"},
-        "legend": {"bg": "rgba(255, 255, 255, 0.94)", "border": "#d5dee5", "text": "#0f1a24",
-                   "muted": "#6b7a88", "shadow": "0 10px 28px rgba(15, 26, 36, 0.14)", "bldg": "#b0bac6"},
+        "halo": {1: [37, 99, 235, 20], 2: [30, 80, 200, 24], 3: [25, 60, 170, 28]},
+        "buildings": ([37, 99, 235, 170], [140, 158, 186, 170], [178, 188, 202, 150]),
+        "tooltip": {"backgroundColor": "#ffffff", "color": "#0f1626", "border": "1px solid #e5e9f0",
+                    "boxShadow": "0 8px 24px rgba(16,24,40,0.12)"},
+        "legend": {"bg": "rgba(255, 255, 255, 0.86)", "border": "#e5e9f0", "text": "#0f1626",
+                   "muted": "#7b8497", "shadow": "0 8px 24px rgba(16, 24, 40, 0.12)", "bldg": "#b0bac6"},
         "pin_stroke": [255, 255, 255, 255],
     },
 }
@@ -762,10 +762,10 @@ def create_3d_digital_twin_deck(
                      "<div style='opacity:0.7;font-size:11.5px;margin-top:2px'>{value_label}</div>"),
             "style": {
                 **palette["tooltip"],
-                "fontFamily": "'IBM Plex Sans', 'Segoe UI', sans-serif",
+                "fontFamily": "'Inter', 'Segoe UI', sans-serif",
                 "fontSize": "12.5px",
-                "borderRadius": "6px",
-                "padding": "6px 10px",
+                "borderRadius": "10px",
+                "padding": "8px 12px",
             },
         },
     )
@@ -790,8 +790,8 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
     # the theme's colours are written in directly.
     legend_html = f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-        #pydeck-embedded-legend .sw {{ width:8px; height:8px; border-radius:2px; display:inline-block; }}
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+        #pydeck-embedded-legend .sw {{ width:9px; height:9px; border-radius:50%; display:inline-block; }}
         #pydeck-embedded-legend .it {{ display:flex; align-items:center; gap:6px; }}
         #pydeck-embedded-legend .mu {{ color:{lg['muted']}; }}
         @media (max-width: 640px) {{ #pydeck-embedded-legend .wide {{ display:none; }} }}
@@ -802,15 +802,16 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
         left: 50%;
         transform: translateX(-50%);
         background-color: {lg['bg']};
-        backdrop-filter: blur(6px);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         border: 1px solid {lg['border']};
-        border-radius: 10px;
-        padding: 8px 16px;
+        border-radius: 999px;
+        padding: 9px 18px;
         z-index: 99999;
-        font-family: 'IBM Plex Mono', 'Consolas', monospace;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
         color: {lg['text']};
-        font-size: 10.5px;
-        letter-spacing: 0.2px;
+        font-size: 12px;
+        font-weight: 500;
         box-shadow: {lg['shadow']};
         pointer-events: none;
         white-space: nowrap;
@@ -818,12 +819,12 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
         align-items: center;
         gap: 14px;
     ">
-        <span class="mu" style="text-transform: uppercase; letter-spacing: 0.6px; font-size: 9.5px;">Flood Probability</span>
+        <span class="mu" style="font-weight: 600;">Flood probability</span>
         <span class="it"><span class="sw" style="background:#f0b93f;"></span>Moderate <span class="mu">25&ndash;55%</span></span>
         <span class="it"><span class="sw" style="background:#f08a3c;"></span>High <span class="mu">55&ndash;82%</span></span>
         <span class="it"><span class="sw" style="background:#ef4459;"></span>Critical <span class="mu">&gt;82%</span></span>
-        <span class="mu wide" style="font-size:9px;">Probability of flooding, not depth</span>
-        <span class="it wide mu"><span class="sw" style="background:{lg['bldg']};"></span>3D Buildings</span>
+        <span class="mu wide" style="font-size:11px;">Probability of flooding, not depth</span>
+        <span class="it wide mu"><span class="sw" style="background:{lg['bldg']}; border-radius:2px;"></span>3D buildings</span>
     </div>
     """
 

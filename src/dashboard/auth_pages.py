@@ -34,26 +34,29 @@ EAT = timezone(timedelta(hours=3))
 
 
 # ----------------------------------------------------------------- shared --
-def _card(title: str, *children, className: str = "mb-3") -> html.Div:
+def _card(title: str, *children, className: str = "mb-3", icon: str | None = None,
+          tone: str = "accent") -> html.Div:
+    mark = (html.Span(html.I(className=f"bi bi-{icon}"), className=f"twin-panel-icon tone-{tone}") if icon
+            else html.Span(className="status-dot dot-accent"))
     return html.Div(className=f"twin-panel {className}", children=[
-        html.Div(className="twin-panel-header", children=[
-            html.P([html.Span(className="status-dot dot-accent"), title], className="twin-eyebrow")]),
+        html.Div(className="twin-panel-header", children=[html.P([mark, title], className="twin-eyebrow")]),
         html.Div(className="twin-panel-body", children=list(children)),
     ])
 
 
 def _page(title: str, *children) -> html.Div:
     """Frame for the non-map pages: brand, a way back to the map, the content."""
-    return dbc.Container(fluid=True, style={"padding": "16px 20px", "maxWidth": "1100px"}, children=[
-        html.Div(className="twin-topbar mb-3 pb-3 d-flex align-items-center justify-content-between", children=[
-            html.Div(style={"display": "flex", "alignItems": "center", "gap": "12px"}, children=[
+    return html.Div(className="twin-page", children=[
+        html.Header(className="twin-topbar", children=[
+            html.Div(className="twin-brand", children=[
                 html.Div(className="twin-brand-mark"),
-                html.Div([html.H2(title, className="twin-title"),
-                          html.Span("Nairobi Flood Digital Twin", className="twin-subtitle")]),
+                html.Div([html.H1(title, className="twin-title"),
+                          html.Span("Nairobi Flood Twin", className="twin-subtitle")]),
             ]),
-            dcc.Link("← Back to the map", href="/", className="twin-auth-link"),
+            dcc.Link([html.I(className="bi bi-arrow-left me-2"), "Back to the map"], href="/",
+                     className="twin-back-link"),
         ]),
-        *children,
+        html.Div(className="twin-page-body", children=list(children)),
     ])
 
 
@@ -131,6 +134,11 @@ def render_login(search: str | None) -> html.Div:
                        "Firebase settings (see .env.example). The flood map, outlook and routing work "
                        "without an account.", className="twin-empty-state")]
     return _page("Sign in", _narrow(
+        html.Div(className="twin-page-hero", children=[
+            html.Div(className="twin-brand-mark"),
+            html.H2("Welcome"),
+            html.P("Sign in for flood alerts about the places you care about."),
+        ]),
         _card("Sign in or create an account",
               html.Div(error, className="twin-auth-error mb-2") if error else None,
               *body),
@@ -320,14 +328,14 @@ def _alerts_for(user: dict, nowcast: dict | None) -> list:
 def role_tools(user: dict | None) -> list:
     """The panel beside the map, built for this user's role."""
     if not user:
-        return [_card("Accounts",
+        return [_card("Your account", icon="person-circle", tone="info", *[
                       html.P("Sign in to get flood alerts for your area. Planners and responders sign in "
                              "for scenario, export and report tools.", className="twin-empty-state"),
-                      dcc.Link("Sign in or register", href="/login", className="twin-auth-btn"))]
+                      dcc.Link("Sign in or register", href="/login", className="twin-auth-btn")])]
 
-    panels = [_card("My Flood Alerts", html.Div(id="my-alerts-body", children=html.P(
+    panels = [_card("My flood alerts", icon="bell-fill", tone="warn", *[html.Div(id="my-alerts-body", children=html.P(
         "Waiting for the live outlook…", className="twin-empty-state")),
-        dcc.Link("Manage alert areas", href="/account", className="twin-auth-link"))]
+        dcc.Link("Manage alert areas", href="/account", className="twin-auth-link")])]
 
     if can(user, "compare") or can(user, "export_map"):
         # Every tool is always in the panel and hidden when the role lacks it, so
@@ -346,14 +354,14 @@ def role_tools(user: dict | None) -> list:
                 ]),
                 html.Div(id="compare-body", className="mb-2"),
             ]),
-            dbc.Button("⬇ Export flood map (GeoJSON)", id="btn-export", size="sm", style=shown("export_map"),
+            dbc.Button([html.I(className="bi bi-download me-2"), "Export flood map (GeoJSON)"], id="btn-export", size="sm", style=shown("export_map"),
                        color="outline-info", className="w-100 mb-2 twin-glyph-btn"),
-            dbc.Button("⬇ Emergency report", id="btn-report", size="sm", style=shown("emergency_report"),
+            dbc.Button([html.I(className="bi bi-file-earmark-text me-2"), "Emergency report"], id="btn-report", size="sm", style=shown("emergency_report"),
                        color="primary", className="w-100 mb-2"),
             html.Div(id="tools-status"),
         ]
-        title = {"planner": "Planning Tools", "responder": "Response Tools", "admin": "Staff Tools"}[user["role"]]
-        panels.insert(0, _card(title, *tools))
+        title = {"planner": "Planning tools", "responder": "Response tools", "admin": "Staff tools"}[user["role"]]
+        panels.insert(0, _card(title, *tools, icon="tools", tone="info"))
     return panels
 
 

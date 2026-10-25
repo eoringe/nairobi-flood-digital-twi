@@ -61,10 +61,10 @@ LEVEL_RANK = {"CLEAR": 0, "MODERATE": 1, "HIGH": 2, "CRITICAL": 3}
 
 #: Plot colours per theme, matching the tokens in assets/custom.css.
 CHART_THEME = {
-    "dark": {"bg": "#10161f", "text": "#93a2b3", "grid": "#202b38", "accent": "#35c2d1",
-             "past": "#3a4a5c", "marker_edge": "#10161f"},
-    "light": {"bg": "#ffffff", "text": "#46576a", "grid": "#e3e9ee", "accent": "#0b8795",
-              "past": "#c2ced7", "marker_edge": "#ffffff"},
+    "dark": {"bg": "rgba(0,0,0,0)", "text": "#9aa3b5", "grid": "rgba(255,255,255,0.06)", "accent": "#5b9bff",
+             "past": "#323b4f", "marker_edge": "#121722", "fill": "rgba(91,155,255,0.14)"},
+    "light": {"bg": "rgba(0,0,0,0)", "text": "#5a6478", "grid": "#e9edf3", "accent": "#2563eb",
+              "past": "#cfd6e2", "marker_edge": "#ffffff", "fill": "rgba(37,99,235,0.10)"},
 }
 LEVEL_COLORS = {0: "#35d495", 1: "#f0b93f", 2: "#f08a3c", 3: "#ef4459"}
 
@@ -426,10 +426,10 @@ def _chart_layout(fig: go.Figure, theme: str) -> None:
     ct = CHART_THEME.get(theme, CHART_THEME["dark"])
     fig.update_layout(
         paper_bgcolor=ct["bg"], plot_bgcolor=ct["bg"],
-        font=dict(color=ct["text"], size=10, family="IBM Plex Mono, Consolas, monospace"),
+        font=dict(color=ct["text"], size=11, family="Inter, Segoe UI, sans-serif"),
         margin=dict(l=45, r=45, t=24, b=35),
         showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1, font=dict(size=9),
+        legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1, font=dict(size=10.5),
                     bgcolor="rgba(0,0,0,0)"),
         bargap=0.15,
     )
@@ -449,7 +449,7 @@ def _response_figure(rainfall_val: float, flooded_pct: float, theme: str) -> go.
     fig.add_trace(go.Scatter(
         x=xs, y=ys, name="Flooded area", mode="lines",
         line=dict(color=ct["accent"], width=2.5), fill="tozeroy",
-        fillcolor="rgba(53,194,209,0.12)"))
+        fillcolor=ct["fill"]))
     fig.add_trace(go.Scatter(
         x=[rainfall_val], y=[flooded_pct], name="This scenario", mode="markers",
         marker=dict(size=11, color="#ef4459", line=dict(color=ct["marker_edge"], width=2))))
@@ -648,11 +648,11 @@ def register_callbacks(app) -> None:
                     ? "light" : "dark";
             }
             document.documentElement.setAttribute("data-theme", t);
-            return [t, t === "light" ? "Dark mode" : "Light mode"];
+            return [t, t === "light" ? "Switch to dark mode" : "Switch to light mode"];
         }
         """,
         Output("resolved-theme-store", "data"),
-        Output("btn-theme", "children"),
+        Output("btn-theme", "title"),
         Input("theme-store", "data"),
     )
 
@@ -985,16 +985,16 @@ def register_callbacks(app) -> None:
         live_ok = mode == "LIVE" and nowcast and nowcast.get("acc72_mm") and not nowcast.get("error")
         if live_ok:
             fig = _outlook_figure(nowcast, hour, theme)
-            chart_title = "Rainfall · Last 24 h and Next 12 h"
+            chart_title = "Rainfall: last 24 h and next 12 h"
             alerts = _build_timed_warnings(nowcast)
         elif mode == "LIVE":
             fig = go.Figure()
             _chart_layout(fig, theme)
-            chart_title = "Rainfall · Forecast Unavailable"
+            chart_title = "Rainfall: forecast unavailable"
             alerts = _build_timed_warnings(nowcast or {"error": "Forecast not loaded."})
         else:
             fig = _response_figure(float(rain), flooded_pct, theme)
-            chart_title = "Rainfall Response · What-if"
+            chart_title = "Rainfall response: what-if"
             alerts = _build_alert_log(region_risks)
 
         # Saving is a planner action (FR-15 records who ran it); the button is
