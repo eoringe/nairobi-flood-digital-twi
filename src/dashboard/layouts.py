@@ -137,7 +137,9 @@ def _outlook_panel() -> html.Div:
                 html.Label("Forecast source", className="twin-field-label"),
                 dcc.Dropdown(
                     id="forecast-source",
-                    options=[{"label": v["label"], "value": k} for k, v in SOURCES.items()],
+                    # The live forecast only; the replays are added for staff
+                    # when the page is routed (auth_pages.route_page).
+                    options=[{"label": SOURCES["live"]["label"], "value": "live"}],
                     value="live",
                     clearable=False,
                     searchable=False,
@@ -280,7 +282,7 @@ def _help_box() -> html.Details:
             html.Summary([_icon("lightbulb"), html.Span("How to use the map")]),
             html.Ol([
                 html.Li([html.Strong("Live: "), "the outlook uses Nairobi's hourly rainfall forecast and warns when flooding is expected to start. Drag the hour slider to see the map later on."]),
-                html.Li([html.Strong("Replay: "), "pick the April 2024 storm under Forecast source to see warnings on a real event."]),
+                html.Li([html.Strong("Replay: "), "planners and responders can pick a past storm, such as April 2024, under Forecast source to see the warnings it would have given."]),
                 html.Li([html.Strong("Plan a trip: "), "search any place, road or landmark in Nairobi for the start and destination, or pick them on the map. The blue route avoids predicted flooding and updates as the forecast changes."]),
                 html.Li([html.Strong("What-if: "), "planners set any 3-day rainfall total to explore a scenario (sign in as a planner)."]),
             ]),

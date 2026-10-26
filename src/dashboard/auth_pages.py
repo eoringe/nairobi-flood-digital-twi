@@ -455,6 +455,8 @@ def register_auth_callbacks(app) -> None:
         Output("account-area", "children"),
         Output("role-tools-panel", "children"),
         Output("mode-radio", "options"),
+        Output("forecast-source", "options"),
+        Output("forecast-source", "value"),
         Output("btn-run", "style"),
         Output("history-wrap", "hidden"),
         Input("url", "pathname"),
@@ -463,13 +465,18 @@ def register_auth_callbacks(app) -> None:
     )
     def route_page(pathname, search, theme):
         from src.dashboard.admin_dashboard import render_account, render_admin
+        from src.dashboard.callbacks import source_options
         user = current_user()
         path = (pathname or "/").rstrip("/") or "/"
         modes = [{"label": "Live forecast", "value": "LIVE"}]
         if can(user, "run_whatif"):
             modes.append({"label": "What-if", "value": "WHATIF"})
         run_style = None if can(user, "save_scenario") else {"display": "none"}
-        twin_parts = (account_area(user), role_tools(user), modes, run_style, not can(user, "save_scenario"))
+        # Without replay access the choice is reset to live (it may have been a
+        # replay before signing out); with it, the viewer's choice is kept.
+        source = no_update if can(user, "view_replays") else "live"
+        twin_parts = (account_area(user), role_tools(user), modes, source_options(user), source,
+                      run_style, not can(user, "save_scenario"))
         if path == "/login":
             if user:
                 return (False, True, None) + twin_parts

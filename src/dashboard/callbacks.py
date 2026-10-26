@@ -253,6 +253,19 @@ def _allowed_mode(mode: str | None) -> str:
     return "LIVE"
 
 
+def source_options(user: dict | None) -> list[dict]:
+    """Forecast sources this user may pick: the live forecast, plus the replays for staff."""
+    return [{"label": v["label"], "value": k} for k, v in SOURCES.items()
+            if k == "live" or can(user, "view_replays")]
+
+
+def _allowed_source(source: str | None) -> str:
+    """Replays are for staff: anyone else is held to the live forecast on the server."""
+    if source in SOURCES and (source == "live" or can(current_user(), "view_replays")):
+        return source
+    return "live"
+
+
 # -------------------------------------------------------------- renderers --
 def _build_region_risk_cards(region_risks: dict, filter_mode: str = "ALL", selected_region: str | None = None) -> list:
     """Build clickable hotspot cards with html.Div wrapper for pattern matching."""
@@ -858,7 +871,7 @@ def register_callbacks(app) -> None:
             return (no_update, no_update, no_update, no_update, no_update,
                     [dot, "What-if scenario"], "twin-mode-pill is-whatif me-2")
 
-        source = source or "live"
+        source = _allowed_source(source)
         refresh = ctx.triggered_id == "btn-refresh-forecast"
         nc = get_nowcast(source, predictor, refresh=refresh).to_client()
         card, card_class = _outlook_card(nc)

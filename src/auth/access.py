@@ -36,6 +36,9 @@ PENDING_SEC = 5 * 60
 PERMISSIONS: dict[str, frozenset[str]] = {
     "subscribe_alerts": frozenset({"citizen", "planner", "responder", "admin"}),
     "run_whatif":       frozenset({"planner", "admin"}),
+    # Past storms replayed through the model. Staff only: a replay's "flooding
+    # now" warnings could be mistaken for the live situation by the public.
+    "view_replays":     frozenset({"planner", "responder", "admin"}),
     "save_scenario":    frozenset({"planner", "admin"}),
     "compare":          frozenset({"planner", "admin"}),
     "export_map":       frozenset({"planner", "responder", "admin"}),

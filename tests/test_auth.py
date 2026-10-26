@@ -134,6 +134,7 @@ MATRIX = {
     # permission:        citizen planner responder admin
     "subscribe_alerts": (True,   True,   True,     True),
     "run_whatif":       (False,  True,   False,    True),
+    "view_replays":     (False,  True,   True,     True),
     "save_scenario":    (False,  True,   False,    True),
     "compare":          (False,  True,   False,    True),
     "export_map":       (False,  True,   True,     True),
@@ -444,6 +445,29 @@ def test_whatif_is_refused_on_the_server_for_roles_without_it(store):
         assert _allowed_mode("WHATIF") == "LIVE", "citizen"
         session["uid"] = planner["user_id"]
         assert _allowed_mode("WHATIF") == "WHATIF", "planner"
+
+
+@needs_model
+def test_replays_are_staff_only_in_the_menu_and_on_the_server(store):
+    """The public and citizens get the live forecast only; a replay request from them is refused."""
+    from flask import session
+    from src.dashboard.callbacks import _allowed_source, source_options
+    from src.forecast.nowcast import SOURCES
+    replay = next(k for k in SOURCES if k != "live")
+    app = Flask(__name__)
+    app.secret_key = "test"
+    citizen = store.create_user("bob@example.com", "citizen")
+    responder = store.create_user("cara@example.com", "responder")
+    assert [o["value"] for o in source_options(None)] == ["live"]
+    assert [o["value"] for o in source_options(citizen)] == ["live"]
+    assert [o["value"] for o in source_options(responder)] == list(SOURCES)
+    with app.test_request_context():
+        assert _allowed_source(replay) == "live", "signed out"
+        session["uid"] = citizen["user_id"]
+        assert _allowed_source(replay) == "live", "citizen"
+        assert _allowed_source("not-a-source") == "live"
+        session["uid"] = responder["user_id"]
+        assert _allowed_source(replay) == replay, "responder"
 
 
 def test_emergency_report_contains_the_scenario_and_escapes_names():
