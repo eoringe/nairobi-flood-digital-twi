@@ -267,13 +267,13 @@ The web dashboard is built using **Plotly Dash** and **Pydeck WebGL** with a mod
 
 ### 6.2 Accounts, Roles and Access Control
 * **Implemented in:** `src/auth/` (store, permissions, Firebase sign-in, authenticator codes, routes, CLI), `src/dashboard/auth_pages.py` (sign-in, 2FA and role tools) and `src/dashboard/admin_dashboard.py` (account page and admin console).
-* The map, outlook, warnings and routing stay public. Signing in adds the tools for each role:
+* The map, the live outlook, warnings and routing stay public. Replays of past storms are for staff, so their "flooding now" warnings are never mistaken for the live situation. Signing in adds the tools for each role:
 
 | Role | What they get | How the account is made |
 |---|---|---|
 | Citizen | Alert areas; in-app warnings for those places | Automatically, at a first Google or email-link sign-in |
-| Urban planner | What-if scenarios, saved scenario history, hold-and-compare, GeoJSON export | Created or promoted by an administrator |
-| Emergency responder | Downloadable emergency report, GeoJSON export | Created or promoted by an administrator |
+| Urban planner | What-if scenarios, storm replays, saved scenario history, hold-and-compare, GeoJSON export | Created or promoted by an administrator |
+| Emergency responder | Storm replays, downloadable emergency report, GeoJSON export | Created or promoted by an administrator |
 | Administrator | Dashboard of users, sign-ins and system health; users and roles; audit log; forecast refresh; every staff tool | `TWIN_ADMIN_EMAIL`, `TWIN_ADMIN_EMAILS`, or the CLI |
 
 * **No passwords.** Everyone signs in with *Continue with Google* or *Email me a sign-in link*, both through Firebase Authentication. The server verifies the Firebase ID token with `google-auth` (no service-account key), requires a verified email, and opens the account with that email. Roles always come from this system's database, never from Firebase.

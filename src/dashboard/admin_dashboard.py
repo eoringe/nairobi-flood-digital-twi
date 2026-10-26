@@ -300,7 +300,7 @@ def _style(fig: go.Figure, theme: str, height: int) -> go.Figure:
     c = _chart_colours(theme)
     fig.update_layout(height=height, margin=dict(l=8, r=8, t=8, b=8), paper_bgcolor="rgba(0,0,0,0)",
                       plot_bgcolor="rgba(0,0,0,0)", font=dict(color=c["text"], size=11,
-                                                              family="IBM Plex Sans, Segoe UI, sans-serif"),
+                                                              family="Inter, Segoe UI, sans-serif"),
                       legend=dict(orientation="h", y=1.12, x=0, bgcolor="rgba(0,0,0,0)"),
                       bargap=0.35, hovermode="x unified")
     fig.update_xaxes(showgrid=False, linecolor=c["grid"], tickfont=dict(size=10))

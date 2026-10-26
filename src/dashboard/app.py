@@ -36,9 +36,9 @@ from src.dashboard.callbacks import register_callbacks, start_background_warmup,
 
 GOOGLE_FONTS_URL = (
     "https://fonts.googleapis.com/css2?"
-    "family=Chakra+Petch:wght@500;600;700"
-    "&family=IBM+Plex+Sans:wght@400;500;600"
-    "&family=IBM+Plex+Mono:wght@400;500;600"
+    "family=Inter:wght@400;500;600;700"
+    "&family=Plus+Jakarta+Sans:wght@600;700;800"
+    "&family=JetBrains+Mono:wght@400;500;600"
     "&display=swap"
 )
 
