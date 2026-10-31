@@ -35,7 +35,9 @@ ACTION_KINDS = {
     "failure": ("Failures", set(FAILURES)),
     "account": ("Account changes", {"user_created", "user_updated", "admin_bootstrapped", "2fa_enrolled",
                                     "2fa_reset", "password_changed", "password_reset", "subscriptions_updated"}),
-    "data": ("Data and reports", {"scenario_saved", "export_geojson", "emergency_report", "forecast_refreshed"}),
+    "data": ("Data and reports", {"scenario_saved", "export_geojson", "emergency_report", "forecast_refreshed",
+                                  "report_created", "report_confirmed", "report_voted", "report_verified",
+                                  "report_removed"}),
 }
 ACTION_LABELS = {
     "login": "Signed in", "login_first_step": "Password or Google step passed", "logout": "Signed out",
@@ -46,7 +48,8 @@ ACTION_LABELS = {
     "2fa_reset": "2FA reset", "password_changed": "Password changed", "password_reset": "Password reset",
     "subscriptions_updated": "Alert areas updated", "scenario_saved": "Scenario saved",
     "export_geojson": "Flood map exported", "emergency_report": "Emergency report", "forecast_refreshed":
-        "Forecast refreshed",
+        "Forecast refreshed", "report_created": "Flooding reported", "report_confirmed": "Report confirmed",
+    "report_voted": "Report voted on", "report_verified": "Report verified", "report_removed": "Report removed",
 }
 
 

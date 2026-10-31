@@ -304,10 +304,21 @@ def _alerts_for(user: dict, nowcast: dict | None) -> list:
         return [html.P(["No alert areas chosen. ",
                         dcc.Link("Choose your areas", href="/account", className="twin-auth-link"), "."],
                        className="twin-empty-state")]
+    # Flooding reported by people in these areas, whatever the forecast says.
+    from src.dashboard.reports_ui import _ago
+    from src.reports.store import KINDS, get_reports
+    reported = []
+    for r in get_reports().active():
+        if r["place"] in subs:
+            area = r["place"] if labels[r["place"]] == r["place"] else f"{r['place']} ({labels[r['place']]})"
+            reported.append(html.Div(className="twin-warning lvl-2", children=[
+                html.Div("REPORTED", className="twin-when"),
+                html.Div([html.Div(f"{KINDS[r['kind']]}, reported by people on the ground", className="what"),
+                          html.Div(f"{area} · {_ago(r['updated_at'])}", className="where")])]))
     if not nowcast or nowcast.get("error") or nowcast.get("is_replay"):
-        return [html.P("The live outlook is not loaded; alerts appear here when it is.",
-                       className="twin-empty-state")]
-    rows = []
+        return reported + [html.P("The live outlook is not loaded; forecast alerts appear here when it is.",
+                                  className="twin-empty-state")]
+    rows = reported
     for w in nowcast.get("warnings") or []:
         hit = sorted(subs.intersection(w.get("places") or []))
         if not hit:

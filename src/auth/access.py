@@ -42,6 +42,10 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "save_scenario":    frozenset({"planner", "admin"}),
     "compare":          frozenset({"planner", "admin"}),
     "export_map":       frozenset({"planner", "responder", "admin"}),
+    # Community flood reports: any signed-in user reports and confirms;
+    # responders and administrators verify or remove.
+    "report_flood":     frozenset({"citizen", "planner", "responder", "admin"}),
+    "moderate_reports": frozenset({"responder", "admin"}),
     "emergency_report": frozenset({"responder", "admin"}),
     "manage_users":     frozenset({"admin"}),
     "view_audit":       frozenset({"admin"}),

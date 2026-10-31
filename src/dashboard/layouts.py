@@ -18,6 +18,7 @@ from pathlib import Path
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 
+from src.dashboard.reports_ui import REFRESH_SEC, report_modal
 from src.forecast.nowcast import SOURCES
 
 PLACES_FILE = Path("data/processed/nairobi_places.json")
@@ -207,6 +208,13 @@ def _outlook_panel() -> html.Div:
                 inline=True,
             ),
 
+            # Flooding seen from space (src.reports.satellite): days apart, and
+            # blind between buildings, so it says so beside the switch.
+            dbc.Switch(id="satellite-toggle", value=False, className="twin-switch mb-1",
+                       label="Satellite flood map (Sentinel-1)"),
+            dcc.Loading(type="dot", color="var(--accent)",
+                        children=html.Div(id="satellite-note", className="twin-satellite-note mb-3")),
+
             dcc.Dropdown(
                 id="basin-dropdown",
                 options=[{"label": "Nairobi County", "value": "ALL"}],
@@ -309,6 +317,14 @@ def _map_stage() -> html.Div:
                 title="Show the map full screen",
             ),
         ]),
+        # Report flooding where you are (src.dashboard.reports_ui).
+        html.Button(
+            [_icon("megaphone-fill", "me-2"), "Report flooding"],
+            id="btn-report-open",
+            type="button",
+            className="twin-report-fab",
+            title="Tell others about flooding you can see",
+        ),
         html.Div(
             id="map-loading-overlay",
             className="twin-map-loading",
@@ -349,6 +365,16 @@ def build_dashboard_layout() -> html.Div:
                         body_id="alert-log-body",
                         body_style={"maxHeight": "260px", "overflowY": "auto"},
                         body_children=[html.P("Loading warnings…", className="twin-empty-state")],
+                    ),
+
+                    # What people on the ground are reporting now, for everyone.
+                    _panel(
+                        header_label="Reported flooding",
+                        dot_class="tone-info",
+                        icon="megaphone",
+                        body_id="reports-list",
+                        body_style={"maxHeight": "320px", "overflowY": "auto"},
+                        body_children=[html.P("Loading reports…", className="twin-empty-state")],
                     ),
 
                     # Alerts for the signed-in user's areas, and the
@@ -426,6 +452,19 @@ def build_dashboard_layout() -> html.Div:
             # The planner's held scenario, kept for this browser tab.
             dcc.Store(id="held-scenario-store", storage_type="session", data=None),
             dcc.Download(id="download-file"),
+            # Community flood reports: the active set (refreshed every REFRESH_SEC
+            # for every viewer), the point chosen in the report dialog, a map
+            # click made for a report, and the dialog's reopening after one.
+            dcc.Store(id="reports-store", data=None),
+            dcc.Interval(id="reports-poll", interval=REFRESH_SEC * 1000, n_intervals=0),
+            dcc.Store(id="report-point", data=None),
+            dcc.Store(id="report-pick-store", data=None),
+            dcc.Store(id="report-reopen", data=None),
+            # The satellite layer's state (visible, image, pass date).
+            dcc.Store(id="satellite-store", data=None),
+            report_modal(),
+            html.Div(id="bridge-sink-reports", hidden=True),
+            html.Div(id="bridge-sink-satellite", hidden=True),
             html.Div(id="bridge-sink-flood", hidden=True),
             html.Div(id="bridge-sink-route", hidden=True),
         ],

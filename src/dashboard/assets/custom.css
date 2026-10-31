@@ -1503,3 +1503,62 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card, .twin
 .twin-signing-inline .twin-signing-spinner { width: 22px; height: 22px; border-width: 2px; }
 @keyframes twin-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .twin-signing-spinner { animation-duration: 2.4s; } }
+
+/* ======================================================================
+   COMMUNITY FLOOD REPORTS (src/dashboard/reports_ui.py)
+   ====================================================================== */
+.twin-report-fab {
+  position: absolute;
+  right: 14px;
+  bottom: 70px;
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #f08a3c, #ef4459);
+  box-shadow: 0 10px 26px rgba(239, 68, 89, 0.35);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.twin-report-fab:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(239, 68, 89, 0.45); }
+
+.twin-report {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  --tone: #3898ec;
+}
+.twin-report:last-child { border-bottom: none; }
+.twin-report.kind-impassable { --tone: var(--risk-high); }
+.twin-report.kind-homes { --tone: var(--risk-critical); }
+.twin-report-icon {
+  width: 34px; height: 34px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 16px;
+  color: var(--tone); background: color-mix(in srgb, var(--tone) 15%, transparent);
+}
+.twin-report-body { min-width: 0; }
+.twin-report-title { font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.twin-report-verified { font-size: 11.5px; font-weight: 600; color: var(--risk-safe); }
+.twin-report-meta { font-size: 12px; color: var(--text-secondary); margin-top: 2px; line-height: 1.45; }
+.twin-report-note { font-size: 12.5px; color: var(--text-primary); font-style: italic; margin-top: 4px; }
+.twin-report-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.twin-report-btn { padding: 4px 10px !important; font-size: 12px !important; }
+
+.twin-report-point { font-size: 13px; color: var(--text-primary); min-height: 20px; }
+.twin-report-kinds .form-check { margin-bottom: 6px; }
+.twin-report-kinds .form-check-label { font-size: 13.5px; color: var(--text-primary); }
+.twin-report-text { min-height: 70px; resize: vertical; }
+.twin-report-signin { text-align: center; }
+.twin-report-signin[hidden], #report-form[hidden] { display: none !important; }
+
+.twin-switch .form-check-label { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.twin-switch .form-check-input:checked { background-color: var(--accent-solid); border-color: var(--accent-solid); }
+.twin-satellite-note { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+.twin-satellite-note:empty { display: none; }

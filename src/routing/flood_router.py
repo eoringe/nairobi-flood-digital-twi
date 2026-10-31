@@ -68,6 +68,12 @@ LEVEL_NAMES = {0: "CLEAR", 1: "MODERATE", 2: "HIGH", 3: "CRITICAL"}
 PENALTY = {0: 1.0, 1: 3.0, 2: 25.0}
 #: Used only in the fallback search when critical flooding cannot be avoided.
 CRITICAL_FALLBACK_PENALTY = 200.0
+#: Community flood reports (src.reports.store) close to a road count as flooding
+#: on it: water on the road as high risk, an impassable road or flooded homes as
+#: critical, which the flood-aware route avoids. A report covers the roads within
+#: REPORT_RADIUS_M of it.
+REPORT_RADIUS_M = 60.0
+REPORT_PROBABILITY = {"water": 0.70, "impassable": 0.95, "homes": 0.95}
 
 #: Same smoothing the map applies before drawing bands.
 MAP_SMOOTHING_SIGMA = 2.4
@@ -256,6 +262,29 @@ class FloodAwareRouter:
             out[k] = flat[self.sample_cell[self.edge_ptr[e]:self.edge_ptr[e + 1]]].max()
         return out
 
+    def report_probability(self, reports: list[dict] | None) -> np.ndarray:
+        """
+        Per-edge flood probability implied by community reports (0 where none):
+        each report raises the edges whose midpoint is within REPORT_RADIUS_M.
+        """
+        out = np.zeros(self.n_edges, np.float32)
+        if not reports:
+            return out
+        if getattr(self, "_mid_tree", None) is None:
+            mid_lat = (self.node_lat[self.src] + self.node_lat[self.dst]) / 2
+            mid_lon = (self.node_lon[self.src] + self.node_lon[self.dst]) / 2
+            self._mid_tree = cKDTree(np.column_stack([mid_lat * _M_PER_DEG_LAT, mid_lon * _M_PER_DEG_LON]))
+        for r in reports:
+            p = REPORT_PROBABILITY.get(r.get("kind"), 0.0)
+            if not p:
+                continue
+            hits = self._mid_tree.query_ball_point([r["lat"] * _M_PER_DEG_LAT, r["lon"] * _M_PER_DEG_LON],
+                                                  REPORT_RADIUS_M)
+            if hits:
+                idx = np.asarray(hits, np.int64)
+                out[idx] = np.maximum(out[idx], p)
+        return out
+
     def nearest_node(self, lat: float, lon: float) -> tuple[int, float]:
         d, i = self._kdtree.query([lat * _M_PER_DEG_LAT, lon * _M_PER_DEG_LON])
         return int(self.routable[i]), float(d)
@@ -316,13 +345,15 @@ class FloodAwareRouter:
         )
 
     def route(self, origin: tuple[float, float], destination: tuple[float, float],
-              probability: np.ndarray | None) -> dict:
+              probability: np.ndarray | None, reports: list[dict] | None = None) -> dict:
         """
         Fastest and flood-aware routes between two (lat, lon) points.
 
         `probability` is the model's raw per-cell probability grid, or None for a
-        dry scenario. Returns a dict with `fastest`, `safe` (RouteResult or None)
-        and diagnostics about snapping and fallbacks.
+        dry scenario. `reports` are active community flood reports ({"lat", "lon",
+        "kind"}), which count as flooding on the roads beside them. Returns a dict
+        with `fastest`, `safe` (RouteResult or None) and diagnostics about
+        snapping and fallbacks.
         """
         t0 = time.perf_counter()
         s, ds = self.nearest_node(*origin)
@@ -336,6 +367,8 @@ class FloodAwareRouter:
         field = (smooth_for_routing(probability) if probability is not None
                  else np.zeros((GRID_H, GRID_W), np.float32))
         edge_prob = self.edge_probability(field)
+        reported = self.report_probability(reports)
+        edge_prob = np.maximum(edge_prob, reported)
         levels = level_of(edge_prob)
         all_edges = np.ones(self.n_edges, bool)
 
@@ -344,6 +377,8 @@ class FloodAwareRouter:
             out["note"] = "No road connection between these points."
             return out
         out["fastest"] = self._describe(fast_path, edge_prob, used_critical=False)
+        # Whether the quickest way passes flooding that people have reported.
+        out["fastest_reported"] = bool((reported[out["fastest"].edge_ids] > 0).any())
 
         penalty = np.select([levels == 0, levels == 1, levels == 2],
                             [PENALTY[0], PENALTY[1], PENALTY[2]], default=np.inf)
@@ -360,6 +395,7 @@ class FloodAwareRouter:
                            "is likely inside a flooded area. This route crosses as little "
                            "of it as possible.")
         out["safe"] = self._describe(safe_path, edge_prob, used_critical=used_critical)
+        out["safe_reported"] = bool((reported[out["safe"].edge_ids] > 0).any())
         out["outside_grid"] = bool((~self.edge_in_grid[out["safe"].edge_ids]).any())
         out["latency_sec"] = round(time.perf_counter() - t0, 3)
         return out

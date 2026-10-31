@@ -138,6 +138,8 @@ MATRIX = {
     "save_scenario":    (False,  True,   False,    True),
     "compare":          (False,  True,   False,    True),
     "export_map":       (False,  True,   True,     True),
+    "report_flood":     (True,   True,   True,     True),
+    "moderate_reports": (False,  False,  True,     True),
     "emergency_report": (False,  False,  True,     True),
     "manage_users":     (False,  False,  False,    True),
     "view_audit":       (False,  False,  False,    True),

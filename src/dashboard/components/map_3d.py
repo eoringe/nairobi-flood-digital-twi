@@ -667,6 +667,10 @@ CITY_STYLE = {
     },
 }
 
+#: A transparent 1x1 image: the satellite layer's picture while it is hidden.
+BLANK_PNG = ("data:image/png;base64,"
+             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+
 #: Layer ids the live-update bridge can patch. Every one is created in every
 #: document, empty if need be: a layer that does not exist cannot be updated by
 #: id, so a route requested after the map loaded would have nowhere to go.
@@ -686,12 +690,17 @@ def create_3d_digital_twin_deck(
     highlight_coords: tuple[float, float] | None = None,
     theme: str = "dark",
     route_layers: dict | None = None,
+    report_rows: list[dict] | None = None,
+    satellite: dict | None = None,
 ) -> pdk.Deck:
     """
     Construct Pydeck 3D Viewport with street-accurate flood overlay and crisp 3D buildings.
 
     `route_layers` maps each id in ROUTE_LAYER_IDS to its data rows, so a
     rebuilt document (theme or camera change) keeps an active route on screen.
+    `report_rows` are the community flood report pins
+    (src.dashboard.reports_ui.map_rows) and `satellite` the satellite layer's
+    state ({"visible", "image"}), kept across a rebuild in the same way.
     """
     palette = MAP_THEMES.get(theme, MAP_THEMES["dark"])
     route_layers = route_layers or {}
@@ -751,6 +760,8 @@ def create_3d_digital_twin_deck(
         material=False,
     ))
 
+    no_depth = {"depthCompare": "always", "depthWriteEnabled": False}
+
     # 2. LOD2 Solid 3D Volumetric Building Footprint Extrusions
     building_data = _building_rows(theme)
 
@@ -783,7 +794,6 @@ def create_3d_digital_twin_deck(
     # vanished on zoom-out while the pins beside it stayed. Measured: a pixel
     # path visible at zoom 12.5 is gone at 11.9; the same path in metres with
     # a pixel minimum stays drawn at every zoom.
-    no_depth = {"depthCompare": "always", "depthWriteEnabled": False}
     path_common = dict(get_path="path", get_color="color", get_width="width",
                        width_units="meters", cap_rounded=True, joint_rounded=True,
                        pickable=False, parameters=no_depth)
@@ -798,6 +808,22 @@ def create_3d_digital_twin_deck(
         id="route-endpoints", get_position="position", get_fill_color="color",
         get_line_color=palette["pin_stroke"], stroked=True, line_width_min_pixels=3,
         get_radius=9, radius_units="pixels", pickable=False, parameters=no_depth,
+    ))
+
+    # 4. Community flood reports: a soft ring on the ground and a pin above it,
+    # always on top. Patched in place every refresh (layer ids in REPORT_LAYER_IDS).
+    report_rows = report_rows or []
+    layers.append(pdk.Layer(
+        "ScatterplotLayer", report_rows, id="flood-reports-halo",
+        get_position="position", get_fill_color="color", get_line_color="line",
+        get_radius=45, radius_units="meters", radius_min_pixels=10,
+        stroked=True, line_width_min_pixels=2, pickable=False, parameters=no_depth,
+    ))
+    layers.append(pdk.Layer(
+        "ScatterplotLayer", report_rows, id="flood-reports",
+        get_position="position", get_fill_color="pin", get_line_color=[255, 255, 255, 255],
+        get_radius=9, radius_units="pixels", stroked=True, line_width_min_pixels=3,
+        pickable=True, auto_highlight=True, parameters=no_depth,
     ))
 
     view_state = pdk.ViewState(
@@ -844,6 +870,9 @@ def create_3d_digital_twin_deck(
     deck._flood_features = flood_geojson.get("features", [])
     deck._halo_features = halo_geojson.get("features", [])
     deck._theme = theme
+    # The satellite layer is created in the browser (CITY_JS): pydeck would read
+    # its image address as an expression.
+    deck._satellite = satellite or {}
     return deck
 
 
@@ -980,6 +1009,8 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
     city_js = CITY_JS.replace("__CITY__", json.dumps({
         "tiles": CITY_TILES, "names": BUILDING_NAMES_URL,
         "tooltip": getattr(deck, "_tooltip_style", {}),
+        "satellite": {**getattr(deck, "_satellite", {}), "blank": BLANK_PNG,
+                      "bounds": [LON_WEST, LAT_SOUTH, LON_EAST, LAT_NORTH]},
         **CITY_STYLE.get(getattr(deck, "_theme", "dark"), CITY_STYLE["dark"])}))
     extra = legend_html + updater_js + city_js
     if "</body>" in base_html:
@@ -1255,6 +1286,12 @@ CITY_JS = r"""
     if (!info || !info.object) return null;
     var id = (info.layer && info.layer.id) || "";
     var p = info.object.properties || info.object;
+    if (id === "flood-reports") {
+      return { style: CITY.tooltip, html:
+        "<div style='font-weight:600;font-size:13px;margin-bottom:2px'>" + esc(p.title) + "</div>" +
+        "<div style='opacity:0.8'>" + esc(p.detail) + "</div>" +
+        (p.note ? "<div style='opacity:0.75;margin-top:4px;font-style:italic'>\u201c" + esc(p.note) + "\u201d</div>" : "") };
+    }
     if (id.indexOf("buildings-city") === 0) {
       var h = Math.round(+p.render_height || 0);
       var name = nameFor(info.object, info.coordinate);
@@ -1321,11 +1358,34 @@ CITY_JS = r"""
       }
       return layer;
     });
+    // The satellite flood map (src.reports.satellite): over the predicted water,
+    // under the buildings, hidden until the switch on the page turns it on.
+    var sat = CITY.satellite || {};
+    var satellite = D.BitmapLayer ? new D.BitmapLayer({
+      id: "satellite-flood",
+      image: (sat.visible && sat.image) || sat.blank,
+      bounds: sat.bounds,
+      visible: !!(sat.visible && sat.image),
+      pickable: false,
+      parameters: { depthCompare: "always", depthWriteEnabled: false }
+    }) : null;
     var at = layers.findIndex(function (l) { return l.id.indexOf("route-") === 0; });
     layers.splice(at < 0 ? layers.length : at, 0, city);
+    if (satellite) layers.splice(at < 0 ? layers.length : at, 0, satellite);
     // _animate redraws every frame, which moves the ripples.
     d.setProps({ layers: layers, effects: [lighting(D)], getTooltip: tooltip, _animate: !!water });
     loadNames();
+
+    // The satellite switch on the page shows or hides the satellite layer.
+    window.addEventListener("message", function (ev) {
+      var msg = ev.data;
+      if (!msg || msg.type !== "satellite") return;
+      d.setProps({ layers: d.props.layers.map(function (layer) {
+        if (layer.id !== "satellite-flood") return layer;
+        return msg.visible && msg.image ? layer.clone({ image: msg.image, visible: true })
+                                        : layer.clone({ visible: false });
+      })});
+    });
   })();
 })();
 </script>

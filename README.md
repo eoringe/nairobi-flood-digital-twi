@@ -283,6 +283,17 @@ The web dashboard is built using **Plotly Dash** and **Pydeck WebGL** with a mod
 * **Firebase set-up:** set `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID` and `FIREBASE_APP_ID` (see `.env.example`); in the console enable Google and Email/Password with *Email link (passwordless sign-in)*, and add your domain under Authorized domains. Without these, nobody can sign in, though the public map still works.
 * First administrator: put your email in `TWIN_ADMIN_EMAILS` and sign in, or run `python -m src.auth.cli create-user --email you@example.com --role admin`. `python -m src.auth.cli reset-2fa --email ...` removes a lost authenticator.
 
+### 6.3 Community Flood Reports and the Satellite Layer
+
+The model forecasts where flooding is likely. Two layers show flooding that is happening:
+
+* **Community reports** (`src/reports/store.py`, `src/dashboard/reports_ui.py`). Any signed-in user taps *Report flooding* and gives a place (their location, a point on the map, or a searched place) and what they see: water on the road, road impassable, or homes flooded. Everyone sees the reports on the map and in *Reported flooding*, refreshed every 30 seconds; reporters are never shown.
+  * A report lasts 6 hours; each *Still flooded* from someone else keeps it for at least 3 more. A report within 150 m of an active one counts as confirming it.
+  * *Cleared* from the reporter, or from two people (more than have confirmed it), closes it. Responders and administrators can verify or remove reports. Five reports per person per hour at most. Every action is audited.
+  * The flood-aware route treats reports like predicted flooding: water on the road as high risk, an impassable road or flooded homes as critical. A route on screen re-plans when reports change.
+  * Reports in a user's alert areas appear under *My flood alerts*.
+* **Satellite flood map** (`src/reports/satellite.py`). The switch under *Map overlay* shows the newest Copernicus GFM flood map from Sentinel-1 radar (free WMS-T, no key) on or before the time on the map. It is not live: Sentinel-1 passes Nairobi about every six days, and radar cannot see water between buildings, so GFM masks out 74-87% of the city. On 1 May 2024, at the height of the floods, it detected no flooding in the part of the map area it could see. The layer shades what the radar cannot see and says so beside the switch.
+
 ---
 
 ## 📂 Implementation Blueprint: File-by-File Code Mapping
