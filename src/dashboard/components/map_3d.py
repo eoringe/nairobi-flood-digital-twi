@@ -375,32 +375,36 @@ def summarise_flooded_regions(features: list[dict]) -> dict:
 MAP_THEMES = {
     "dark": {
         "basemap": pdk.map_styles.CARTO_DARK,
+        # (water fill, edge). The fill is the water's colour, more opaque the
+        # likelier the flooding; the edge carries the risk band's colour.
         "flood": {
-            1: ([240, 185, 63, 90],  [245, 205, 110, 110]),
-            2: ([240, 138, 60, 120], [245, 170, 105, 125]),
-            3: ([239, 68, 89, 155],  [245, 120, 135, 140]),
+            1: ([26, 44, 52, 190],  [240, 185, 63, 170]),
+            2: ([26, 44, 52, 215],  [240, 138, 60, 180]),
+            3: ([26, 44, 52, 236],  [239, 68, 89, 190]),
         },
-        "halo": {1: [91, 155, 255, 26], 2: [60, 120, 230, 32], 3: [40, 85, 200, 38]},
+        "halo": {1: [26, 44, 52, 50], 2: [26, 44, 52, 60], 3: [26, 44, 52, 70]},
         "buildings": ([91, 155, 255, 205], [74, 98, 140, 180], [88, 98, 118, 150]),
         "tooltip": {"backgroundColor": "#171d29", "color": "#eef1f7", "border": "1px solid rgba(255,255,255,0.08)",
                     "boxShadow": "0 12px 32px rgba(0,0,0,0.42)"},
         "legend": {"bg": "rgba(17, 22, 31, 0.80)", "border": "rgba(255, 255, 255, 0.08)", "text": "#eef1f7",
-                   "muted": "#8a93a6", "shadow": "0 12px 32px rgba(0, 0, 0, 0.42)", "bldg": "#58627a"},
+                   "muted": "#8a93a6", "shadow": "0 12px 32px rgba(0, 0, 0, 0.42)", "bldg": "#58627a",
+                   "water": "#2f5a70"},
         "pin_stroke": [17, 22, 31, 255],
     },
     "light": {
         "basemap": pdk.map_styles.CARTO_ROAD,
         "flood": {
-            1: ([232, 160, 18, 125], [196, 128, 6, 170]),
-            2: ([232, 112, 32, 150], [196, 84, 18, 185]),
-            3: ([214, 40, 66, 170],  [176, 24, 48, 200]),
+            1: ([74, 96, 98, 185], [214, 150, 10, 170]),
+            2: ([74, 96, 98, 210], [214, 100, 20, 180]),
+            3: ([74, 96, 98, 232], [200, 30, 55, 190]),
         },
-        "halo": {1: [37, 99, 235, 20], 2: [30, 80, 200, 24], 3: [25, 60, 170, 28]},
+        "halo": {1: [74, 96, 98, 44], 2: [74, 96, 98, 54], 3: [74, 96, 98, 64]},
         "buildings": ([37, 99, 235, 170], [140, 158, 186, 170], [178, 188, 202, 150]),
         "tooltip": {"backgroundColor": "#ffffff", "color": "#0f1626", "border": "1px solid #e5e9f0",
                     "boxShadow": "0 8px 24px rgba(16,24,40,0.12)"},
         "legend": {"bg": "rgba(255, 255, 255, 0.86)", "border": "#e5e9f0", "text": "#0f1626",
-                   "muted": "#7b8497", "shadow": "0 8px 24px rgba(16, 24, 40, 0.12)", "bldg": "#b0bac6"},
+                   "muted": "#7b8497", "shadow": "0 8px 24px rgba(16, 24, 40, 0.12)", "bldg": "#b0bac6",
+                   "water": "#5f8798"},
         "pin_stroke": [255, 255, 255, 255],
     },
 }
@@ -461,10 +465,11 @@ def generate_flood_contour_geojson(
         names = {1: "MODERATE (25-55%)", 2: "HIGH (55-82%)", 3: "CRITICAL (>82%)"}
         bands = {1: (0.25, 0.55), 2: (0.55, 0.82), 3: (0.82, 1.00)}
 
-    # Same palette as RISK_COLORS in src/dashboard/callbacks.py, so a region card
-    # reading CRITICAL in red corresponds to a red polygon rather than a blue one.
-    # This trades the "water is blue" convention for agreement between the map and
-    # the panel beside it; the map communicates risk, not the presence of a lake.
+    # Drawn as water standing in the streets (the shader in CITY_JS adds ripples
+    # and reflections). Likelier flooding is more opaque water, never "deeper"
+    # water, since no depth is estimated. Each polygon's edge carries its risk
+    # band's colour, the palette of RISK_COLORS in src/dashboard/callbacks.py, so
+    # a region card reading CRITICAL in red matches a red-edged patch of water.
     palette = MAP_THEMES.get(theme, MAP_THEMES["dark"])
     styles = {
         lvl: {"fillColor": fill, "lineColor": line, "name": names[lvl]}   # amber / orange / red
@@ -639,6 +644,10 @@ CITY_STYLE = {
         "lights": [{"color": [255, 214, 170], "intensity": 0.85, "direction": [-1, -3, -2.5]},
                    {"color": [90, 130, 255], "intensity": 0.55, "direction": [2, 1.5, -1]}],
         "sun": False,
+        # Night: a dark sky with the city's warm glow along the horizon, and the
+        # glints of street and window light.
+        "water": {"horizon": [138, 118, 120], "zenith": [24, 34, 58], "glint": [255, 208, 150],
+                  "glint_strength": 1.1, "light_height": 0.22, "ripple": 2.2},
         "windows": {"night": True, "floor": 3.4, "bay": 3.2, "min_height": 7.0, "lit": 0.42,
                     "glass": [16, 21, 32], "warm": [255, 200, 120], "cool": [205, 222, 255]},
     },
@@ -650,6 +659,9 @@ CITY_STYLE = {
         # A mid-afternoon sun over Nairobi (15:30 EAT), so walls facing it are
         # lit and the others fall into shade.
         "sun": {"timestamp": 1761913800000, "color": [255, 246, 228], "intensity": 1.15},
+        # Day: a pale hazy horizon under a blue sky, and sun glints.
+        "water": {"horizon": [226, 234, 240], "zenith": [120, 160, 208], "glint": [255, 250, 236],
+                  "glint_strength": 1.3, "light_height": 0.35, "ripple": 2.2},
         "windows": {"night": False, "floor": 3.4, "bay": 3.2, "min_height": 7.0, "lit": 0.0,
                     "glass": [118, 138, 164], "warm": [150, 172, 200], "cool": [96, 114, 140]},
     },
@@ -731,8 +743,8 @@ def create_3d_digital_twin_deck(
         wireframe=False,
         get_fill_color="properties.fillColor",
         get_line_color="properties.lineColor",
-        get_line_width=1,
-        line_width_min_pixels=1,
+        get_line_width=1.5,
+        line_width_min_pixels=1.5,
         pickable=True,
         auto_highlight=True,
         highlight_color=[255, 255, 255, 60],
@@ -849,6 +861,8 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
         #pydeck-embedded-legend .sw {{ width:9px; height:9px; border-radius:50%; display:inline-block; }}
+        #pydeck-embedded-legend .wt {{ width:14px; height:10px; border-radius:3px; display:inline-block;
+            background:{lg['water']}; border:2px solid; box-sizing:border-box; }}
         #pydeck-embedded-legend .it {{ display:flex; align-items:center; gap:6px; }}
         #pydeck-embedded-legend .mu {{ color:{lg['muted']}; }}
         @media (max-width: 640px) {{ #pydeck-embedded-legend .wide {{ display:none; }} }}
@@ -876,10 +890,10 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
         align-items: center;
         gap: 14px;
     ">
-        <span class="mu" style="font-weight: 600;">Flood probability</span>
-        <span class="it"><span class="sw" style="background:#f0b93f;"></span>Moderate <span class="mu">25&ndash;55%</span></span>
-        <span class="it"><span class="sw" style="background:#f08a3c;"></span>High <span class="mu">55&ndash;82%</span></span>
-        <span class="it"><span class="sw" style="background:#ef4459;"></span>Critical <span class="mu">&gt;82%</span></span>
+        <span class="mu" style="font-weight: 600;">Likely flooding</span>
+        <span class="it"><span class="wt" style="border-color:#f0b93f; opacity:0.7;"></span>Moderate <span class="mu">25&ndash;55%</span></span>
+        <span class="it"><span class="wt" style="border-color:#f08a3c; opacity:0.85;"></span>High <span class="mu">55&ndash;82%</span></span>
+        <span class="it"><span class="wt" style="border-color:#ef4459;"></span>Critical <span class="mu">&gt;82%</span></span>
         <span class="mu wide" style="font-size:11px;">Probability of flooding, not depth</span>
         <span class="it wide mu"><span class="sw" style="background:{lg['bldg']}; border-radius:2px;"></span>3D buildings</span>
     </div>
@@ -1063,6 +1077,93 @@ CITY_JS = r"""
     return new D.LightingEffect(lights);
   }
 
+  // ---- water ---------------------------------------------------------------
+  // The flood polygons drawn as standing water. The surface is a few octaves of
+  // noise a couple of metres across, drifting slowly downstream (east, the way
+  // Nairobi's rivers run) and churning as it goes; its slope tilts the surface
+  // normal. The normal then decides what the water shows: the sky mirrored by
+  // a reflection that strengthens at low viewing angles (Schlick's Fresnel),
+  // the murky body of the water underneath, and sharp glints where a ripple
+  // catches the light. Where ripples would be smaller than a pixel they settle
+  // to a calm surface instead of shimmering. The fill's alpha is kept, so
+  // likelier flooding stays more opaque. This is the look of water only: the
+  // model predicts where flooding is likely, not depth or flow.
+  function waterExtension(D) {
+    var w = CITY.water;
+    if (!w || !D.LayerExtension) return null;
+    var block = "uniform twinWaterUniforms {\n  float time;\n} twinWater;\n";
+    var module = { name: "twinWater", vs: block, fs: block, uniformTypes: { time: "f32" } };
+    var decl = [
+      "in vec2 vTwinWaterXY;",
+      "in vec3 vTwinWaterView;",
+      // hash without sin(), so it stays stable for coordinates thousands of metres out
+      "float twinHash(vec2 p) {",
+      "  vec3 p3 = fract(vec3(p.xyx) * 0.1031);",
+      "  p3 += dot(p3, p3.yzx + 33.33);",
+      "  return fract((p3.x + p3.y) * p3.z);",
+      "}",
+      "float twinNoise(vec2 p) {",
+      "  vec2 i = floor(p), f = fract(p);",
+      "  vec2 u = f * f * (3.0 - 2.0 * f);",
+      "  return mix(mix(twinHash(i), twinHash(i + vec2(1.0, 0.0)), u.x),",
+      "             mix(twinHash(i + vec2(0.0, 1.0)), twinHash(i + vec2(1.0, 1.0)), u.x), u.y);",
+      "}",
+      "float twinWaves(vec2 p, float t) {",
+      "  float h = 0.0, a = 0.5;",
+      "  vec2 drift = vec2(0.55, 0.12) * t;",
+      "  for (int i = 0; i < 5; i++) {",
+      "    h += a * twinNoise(p + drift);",
+      "    p = mat2(1.6, 1.2, -1.2, 1.6) * p;",
+      "    drift = mat2(0.8, -0.6, 0.6, 0.8) * drift * 1.4;",
+      "    a *= 0.5;",
+      "  }",
+      "  return h;",
+      "}",
+      ""
+    ].join("\n");
+    var fs = [
+      "{",
+      "  float t = twinWater.time;",
+      "  vec2 p = vTwinWaterXY / " + Number(w.ripple).toFixed(2) + ";",
+      "  float e = 0.06;",
+      "  float h0 = twinWaves(p, t);",
+      "  vec2 slope = vec2(twinWaves(p + vec2(e, 0.0), t) - h0, twinWaves(p + vec2(0.0, e), t) - h0) / e;",
+      // calm the surface where a ripple would be smaller than a pixel
+      "  float calm = clamp(1.4 - 1.6 * length(fwidth(p)), 0.0, 1.0);",
+      "  vec3 n = normalize(vec3(-slope * 0.32 * calm, 1.0));",
+      "  vec3 v = normalize(vTwinWaterView);",
+      "  float ndv = clamp(dot(n, v), 0.0, 1.0);",
+      "  float fresnel = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);",
+      "  vec3 r = reflect(-v, n);",
+      "  vec3 sky = mix(" + glslVec3(w.horizon) + ", " + glslVec3(w.zenith) + ", pow(clamp(r.z, 0.0, 1.0), 0.6));",
+      "  vec3 body = color.rgb * (0.85 + 0.3 * h0);",
+      // The light sits low ahead of the viewer, across the water, so its glints
+      // show whichever way the map is turned.
+      "  vec3 l = normalize(vec3(-v.xy, " + Number(w.light_height).toFixed(3) + " * length(v.xy) + 0.001));",
+      "  float rl = clamp(dot(r, l), 0.0, 1.0);",
+      "  float glint = (pow(rl, 260.0) * 2.6 + pow(rl, 30.0) * 0.32 + pow(rl, 6.0) * 0.08) * calm * " + Number(w.glint_strength).toFixed(3) + ";",
+      "  vec3 water = mix(body, sky, clamp(0.32 + fresnel * 1.2, 0.0, 0.94)) + " + glslVec3(w.glint) + " * glint;",
+      "  color = vec4(water, min(1.0, color.a + glint * 0.6));",
+      "}"
+    ].join("\n");
+    class WaterExtension extends D.LayerExtension {
+      getShaders() {
+        return { modules: [module], inject: {
+          "vs:#decl": "out vec2 vTwinWaterXY;\nout vec3 vTwinWaterView;\n",
+          // Metres east and north of the city centre (float precision is kept by
+          // measuring from nearby rather than from 0,0).
+          "vs:#main-end": "vTwinWaterXY = (geometry.worldPosition.xy - vec2(36.82, -1.29)) * vec2(111292.0, 110574.0);\n" +
+                          "vTwinWaterView = project.cameraPosition - geometry.position.xyz;\n",
+          "fs:#decl": decl,
+          "fs:DECKGL_FILTER_COLOR": fs
+        }};
+      }
+      draw() { this.setShaderModuleProps({ twinWater: { time: performance.now() / 1000 } }); }
+    }
+    WaterExtension.extensionName = "TwinWaterExtension";
+    return new WaterExtension();
+  }
+
   // ---- hover labels -------------------------------------------------------
   // Named buildings, indexed on a grid of ~200 m cells so a hover checks only
   // the few footprints nearby. The tiles carry no names, so the name is the
@@ -1210,11 +1311,20 @@ CITY_JS = r"""
       onError: function () { if (failures < 3) { failures = 3; useFallback(d); } return true; },
       onTileError: function () { if (++failures === 3) useFallback(d); }
     });
+    // The flood fill (not its edge line) is drawn as water.
+    var water = null;
+    try { water = waterExtension(D); } catch (e) { console.warn("Water effect unavailable:", e); }
     // Under the routes and pins, which are drawn last so they stay on top.
-    var layers = d.props.layers.slice();
+    var layers = d.props.layers.map(function (layer) {
+      if (water && (layer.id === "flood-main" || layer.id === "flood-halo")) {
+        return layer.clone({ _subLayerProps: { "polygons-fill": { extensions: [water] } } });
+      }
+      return layer;
+    });
     var at = layers.findIndex(function (l) { return l.id.indexOf("route-") === 0; });
     layers.splice(at < 0 ? layers.length : at, 0, city);
-    d.setProps({ layers: layers, effects: [lighting(D)], getTooltip: tooltip });
+    // _animate redraws every frame, which moves the ripples.
+    d.setProps({ layers: layers, effects: [lighting(D)], getTooltip: tooltip, _animate: !!water });
     loadNames();
   })();
 })();
