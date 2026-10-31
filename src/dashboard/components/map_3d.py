@@ -9,6 +9,10 @@ PURPOSE
 2. North-Up exact raster transform so flood polygons align 100% precisely over streets and rivers.
 3. PRECISE STREET-ONLY FLOOD OVERLAYS: Building footprints are subtracted (cut out) using Shapely so flood water renders ONLY on streets, roundabouts, and river channels — NEVER on top of buildings.
 4. Floating legend pill embedded directly inside Pydeck HTML canvas document.
+5. THE CITY IN 3D: every OpenStreetMap building, streamed as vector tiles from
+   OpenFreeMap and raised to its real height (towers such as Times Tower and
+   the GTC reach 130-150 m), lit by the sun in the light theme and as a night
+   skyline in the dark theme. The local footprints are the offline fallback.
 """
 
 from __future__ import annotations
@@ -592,7 +596,12 @@ def _building_rows(theme: str) -> list[dict]:
         try:
             with open(BUILDINGS_JSON, "r") as f:
                 geo_data = json.load(f)
-            for feat in geo_data.get("features", [])[:4000]:
+            # The 4,000 tallest and largest, which carry the skyline; the file's
+            # first 4,000 were small structures scattered over the county.
+            feats = sorted(geo_data.get("features", []),
+                           key=lambda f: (f["properties"].get("height", 0), f["properties"].get("area_m2", 0)),
+                           reverse=True)
+            for feat in feats[:4000]:
                 h_val = feat["properties"].get("height", 14.0)
                 rows.append({
                     "polygon": list(_footprint_polygon(feat).exterior.coords),
@@ -604,6 +613,37 @@ def _building_rows(theme: str) -> list[dict]:
     _BUILDING_ROWS[theme] = rows
     return rows
 
+
+#: Vector tiles with every OpenStreetMap building and its height
+#: (OpenMapTiles schema: `render_height` from the `height` tag, or the number of
+#: floors). Free, no key; the TileJSON names the current tile set.
+CITY_TILES = "https://tiles.openfreemap.org/planet"
+
+#: How the city is drawn and lit in each theme: building colour by height
+#: (metres -> RGB, interpolated), surface material, and the lights. Day is a
+#: warm afternoon sun; night is a dim blue sky with a warm city glow, the tall
+#: towers brightest so the CBD and Upper Hill skyline reads at a glance.
+CITY_STYLE = {
+    "dark": {
+        "ramp": [[0, [34, 41, 58]], [12, [48, 62, 92]], [30, [70, 104, 168]],
+                 [60, [104, 156, 240]], [100, [168, 206, 255]], [150, [226, 240, 255]]],
+        "material": {"ambient": 0.5, "diffuse": 0.65, "shininess": 64, "specularColor": [120, 150, 210]},
+        "ambient": {"color": [140, 160, 215], "intensity": 1.15},
+        "lights": [{"color": [255, 214, 170], "intensity": 0.85, "direction": [-1, -3, -2.5]},
+                   {"color": [90, 130, 255], "intensity": 0.55, "direction": [2, 1.5, -1]}],
+        "sun": False,
+    },
+    "light": {
+        "ramp": [[0, [236, 233, 227]], [12, [226, 224, 220]], [30, [208, 214, 224]],
+                 [60, [182, 198, 222]], [100, [156, 182, 220]], [150, [134, 166, 214]]],
+        "material": {"ambient": 0.6, "diffuse": 0.55, "shininess": 40, "specularColor": [60, 64, 72]},
+        "ambient": {"color": [255, 255, 255], "intensity": 1.3},
+        "lights": [{"color": [200, 215, 255], "intensity": 0.45, "direction": [2, 2, -1]}],
+        # A mid-afternoon sun over Nairobi (15:30 EAT), so walls facing it are
+        # lit and the others fall into shade.
+        "sun": {"timestamp": 1761913800000, "color": [255, 246, 228], "intensity": 1.15},
+    },
+}
 
 #: Layer ids the live-update bridge can patch. Every one is created in every
 #: document, empty if need be: a layer that does not exist cannot be updated by
@@ -665,6 +705,7 @@ def create_3d_digital_twin_deck(
         extruded=False,
         get_fill_color="properties.fillColor",
         pickable=False,
+        material=False,
     ))
 
     # 1b. The readable flood fill itself - translucent so streets and terrain
@@ -685,6 +726,7 @@ def create_3d_digital_twin_deck(
         pickable=True,
         auto_highlight=True,
         highlight_color=[255, 255, 255, 60],
+        material=False,
     ))
 
     # 2. LOD2 Solid 3D Volumetric Building Footprint Extrusions
@@ -705,6 +747,9 @@ def create_3d_digital_twin_deck(
             wireframe=True,
             pickable=False,
             opacity=0.85,
+            # The offline fallback: hidden while the full city streams from
+            # CITY_TILES, shown if those tiles cannot be reached.
+            visible=False,
         ))
 
     # 3. Routes. Drawn last with depth testing off, so a route is never hidden
@@ -906,7 +951,88 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
 </script>
 """
 
-    extra = legend_html + updater_js
+    city_js = CITY_JS.replace("__CITY__", json.dumps({
+        "tiles": CITY_TILES, **CITY_STYLE.get(getattr(deck, "_theme", "dark"), CITY_STYLE["dark"])}))
+    extra = legend_html + updater_js + city_js
     if "</body>" in base_html:
         return base_html.replace("</body>", f"{extra}\n</body>")
     return base_html + extra
+
+
+#: Draws the city in the map document. The buildings come from CITY_TILES at
+#: their real heights and the scene is lit for the theme (CITY_STYLE). If the
+#: tiles cannot be reached, the local footprints (layer "buildings") are shown.
+CITY_JS = """
+<script>
+(function () {
+  var CITY = __CITY__;
+
+  function findDeck() {
+    try { if (typeof deckInstance !== "undefined" && deckInstance) return deckInstance; } catch (e) {}
+    return null;
+  }
+
+  // Building colour for a height in metres, interpolated along the ramp.
+  function colourFor(h) {
+    var r = CITY.ramp;
+    if (h <= r[0][0]) return r[0][1];
+    for (var i = 1; i < r.length; i++) {
+      if (h <= r[i][0]) {
+        var t = (h - r[i - 1][0]) / (r[i][0] - r[i - 1][0]), a = r[i - 1][1], b = r[i][1];
+        return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+      }
+    }
+    return r[r.length - 1][1];
+  }
+
+  function lighting(D) {
+    var lights = { ambient: new D.AmbientLight(CITY.ambient) };
+    CITY.lights.forEach(function (l, i) { lights["light" + i] = new D.DirectionalLight(l); });
+    if (CITY.sun) { lights.sun = new D._SunLight(CITY.sun); }
+    return new D.LightingEffect(lights);
+  }
+
+  function useFallback(d) {
+    d.setProps({ layers: d.props.layers.map(function (layer) {
+      if (layer.id === "buildings") return layer.clone({ visible: true });
+      if (layer.id === "buildings-city") return layer.clone({ visible: false });
+      return layer;
+    })});
+  }
+
+  var tries = 0;
+  (function install() {
+    var d = findDeck(), D = window.deck;
+    if (!d || !d.props || !d.props.layers || !D || !D.MVTLayer) {
+      if (tries++ < 150) setTimeout(install, 100);
+      return;
+    }
+    var failures = 0;
+    var city = new D.MVTLayer({
+      id: "buildings-city",
+      data: CITY.tiles,
+      // Buildings are in the tiles from zoom 13; zoom 14 tiles are reused beyond.
+      minZoom: 13,
+      maxZoom: 14,
+      loadOptions: { mvt: { layers: ["building"] } },
+      extruded: true,
+      filled: true,
+      stroked: false,
+      getElevation: function (f) { return Math.max(+f.properties.render_height || 0, 3); },
+      getFillColor: function (f) { return colourFor(+f.properties.render_height || 0); },
+      material: CITY.material,
+      pickable: false,
+      // The tile set's description (TileJSON) failing to load reaches onError;
+      // individual tiles failing reach onTileError.
+      onError: function () { if (failures < 3) { failures = 3; useFallback(d); } return true; },
+      onTileError: function () { if (++failures === 3) useFallback(d); }
+    });
+    // Under the routes and pins, which are drawn last so they stay on top.
+    var layers = d.props.layers.slice();
+    var at = layers.findIndex(function (l) { return l.id.indexOf("route-") === 0; });
+    layers.splice(at < 0 ? layers.length : at, 0, city);
+    d.setProps({ layers: layers, effects: [lighting(D)] });
+  })();
+})();
+</script>
+"""

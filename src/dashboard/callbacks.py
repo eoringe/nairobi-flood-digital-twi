@@ -941,7 +941,9 @@ def register_callbacks(app) -> None:
 
         # Camera target: a curated monitoring point, or any named place.
         highlight_coords = None
-        lat_c, lon_c, zoom_c = -1.2787, 36.8213, 13.0
+        # Default view: the CBD and Upper Hill skyline, close enough for the
+        # 3D buildings (drawn from zoom 13) with the city around it.
+        lat_c, lon_c, zoom_c = -1.2885, 36.8175, 14.0
         if selected_region and selected_region in NAIROBI_LOCATIONS:
             lat_c, lon_c, zoom_c = NAIROBI_LOCATIONS[selected_region]
             highlight_coords = (lat_c, lon_c)
@@ -971,8 +973,8 @@ def register_callbacks(app) -> None:
             center_lat=lat_c,
             center_lon=lon_c,
             zoom=zoom_c,
-            pitch=50.0,
-            bearing=-15.0,
+            pitch=58.0,
+            bearing=-20.0,
             display_mode=display_mode,
             highlight_region=selected_region,
             highlight_coords=highlight_coords,
