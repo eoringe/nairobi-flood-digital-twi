@@ -932,11 +932,12 @@ def register_callbacks(app) -> None:
             Input("map-rebuild-request", "data"),
         ],
         [State("map-built-store", "data"), State("route-store", "data"),
-         State("reports-store", "data"), State("satellite-store", "data")],
+         State("reports-store", "data"), State("satellite-store", "data"),
+         State("history-store", "data")],
     )
     def update_simulation(n_clicks, rainfall_val, hour, mode, nowcast, display_mode, filter_mode,
                           selected_region, theme, _rebuild, map_built, route_data,
-                          reports_data=None, satellite_data=None):
+                          reports_data=None, satellite_data=None, history_data=None):
         # Wait for the theme to resolve (instant, client side) and, in live
         # mode, for the outlook, rather than rendering a throwaway map first.
         user = current_user()
@@ -990,6 +991,7 @@ def register_callbacks(app) -> None:
             route_layers=route_layers,
             report_rows=(reports_data or {}).get("rows"),
             satellite=satellite_data,
+            history_rows=(history_data or {}).get("rows"),
         )
         # The document carries the basemap and building extrusions, which change
         # only with the camera target or theme. Other updates ship geometry alone.

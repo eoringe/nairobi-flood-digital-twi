@@ -13,6 +13,9 @@ Community flood reports and the satellite layer on the map page.
 * The satellite switch shows the newest Copernicus Sentinel-1 flood map
   (src.reports.satellite) and says plainly how old it is and how little of
   the city the radar can see.
+* The past-floods switch shows where flooding was reported in the news
+  (src.reports.history, Google's Groundsource) and, during a storm replay,
+  picks out the places reported flooded that week.
 
 Every action re-checks the permission on the server and is written to the
 audit log; who made a report is never shown to other users.
@@ -28,7 +31,7 @@ from dash.exceptions import PreventUpdate
 from src.auth.access import can, current_user
 from src.auth.store import get_store
 from src.models.predict import LAT_NORTH, LAT_SOUTH, LON_EAST, LON_WEST
-from src.reports import satellite
+from src.reports import history, satellite
 from src.reports.store import KINDS, NOTE_MAX, ReportError, get_reports
 
 REFRESH_SEC = 30
@@ -422,5 +425,60 @@ def register_report_callbacks(app) -> None:
         """,
         Output("bridge-sink-satellite", "title"),
         Input("satellite-store", "data"),
+        prevent_initial_call=True,
+    )
+
+    # Past floods in the news, picking out the replayed storm's week.
+    @app.callback(
+        Output("history-store", "data"),
+        Output("history-note", "children"),
+        Input("history-toggle", "value"),
+        Input("nowcast-store", "data"),
+        State("history-store", "data"),
+    )
+    def history_layer(on, nowcast, current):
+        if not on:
+            return ({"visible": False, "rows": []}, "") if (current or {}).get("visible") else (no_update, "")
+        around = None
+        if nowcast and nowcast.get("is_replay") and nowcast.get("as_of"):
+            around = datetime.fromisoformat(nowcast["as_of"]).date()
+        key = around.isoformat() if around else None
+        if current and current.get("visible") and current.get("around") == key:
+            raise PreventUpdate
+        info = history.summary(around)
+        if not info["events"]:
+            return ({"visible": False, "rows": []},
+                    html.Span("The past-floods file is missing (run src.ingestion.fetch_groundsource).",
+                              className="twin-auth-error"))
+        note = [html.Div([html.Strong(f"{info['events']} news reports"),
+                          f" of flooding in {info['places']} places, {info['first'].year}–{info['last'].year}. "
+                          f"The {info['shown']} neighbourhood-sized areas (up to {history.MAP_MAX_KM2:g} km²) are "
+                          "drawn; hover one for how often and when."])]
+        if around:
+            note.append(html.Div(
+                [html.Strong(f"{info['near_places']} place{'s' if info['near_places'] != 1 else ''}"),
+                 " reported flooded in the news around this storm (yellow)."]
+                if info["near_places"] else "No flooding was reported in the news around this storm."))
+        note.append(html.Div("From news articles, read by Google's Gemini (Groundsource, CC BY 4.0). About 60% "
+                             "are right in both place and date, and some areas get far more coverage than "
+                             "others: no reports does not mean no flooding.", className="twin-fine-print"))
+        return {"visible": True, "around": key, "rows": history.map_rows(around)}, note
+
+    app.clientside_callback(
+        """
+        function(hist) {
+            if (!hist) { return window.dash_clientside.no_update; }
+            var frame = document.getElementById("3d-map-frame");
+            if (frame && frame.contentWindow) {
+                try {
+                    frame.contentWindow.postMessage({type: "layerUpdate", layers: {
+                        "past-floods": hist.visible ? hist.rows : []}}, "*");
+                } catch (e) { console.warn("past floods update failed:", e); }
+            }
+            return "";
+        }
+        """,
+        Output("bridge-sink-history", "title"),
+        Input("history-store", "data"),
         prevent_initial_call=True,
     )

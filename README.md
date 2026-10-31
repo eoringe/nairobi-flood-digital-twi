@@ -294,6 +294,14 @@ The model forecasts where flooding is likely. Two layers show flooding that is h
   * Reports in a user's alert areas appear under *My flood alerts*.
 * **Satellite flood map** (`src/reports/satellite.py`). The switch under *Map overlay* shows the newest Copernicus GFM flood map from Sentinel-1 radar (free WMS-T, no key) on or before the time on the map. It is not live: Sentinel-1 passes Nairobi about every six days, and radar cannot see water between buildings, so GFM masks out 74-87% of the city. On 1 May 2024, at the height of the floods, it detected no flooding in the part of the map area it could see. The layer shades what the radar cannot see and says so beside the switch.
 
+### 6.4 Past Floods in the News (Groundsource)
+
+Google's [Groundsource](https://research.google/blog/introducing-groundsource-turning-news-reports-into-data-with-gemini/) dataset (CC BY 4.0) is 2.6 million flood events that Gemini extracted from news articles, each a polygon and dates. It is what Google's Flood Hub flash-flood model trains on. `src/ingestion/fetch_groundsource.py` keeps the 630 events inside the model grid (`data/processed/nairobi_groundsource.json`, 138 KB).
+
+* **On the map** (`src/reports/history.py`). The *Past floods in the news* switch draws the 170 neighbourhood-sized places (≤ 5 km²) reported flooded, shaded by how often; hovering one gives how many days and when. During a storm replay, places reported flooded that week turn yellow, beside the model's forecast for the same moment. The note beside the switch says that about 60% of events are right in place and date, and that no reports does not mean no flooding.
+* **As validation** (`src/validation/validate_groundsource.py`, `RESULTS.md` §4.13.4). With rainfall as it fell, the warning chain warned on 56% of reported flood days and 80% of reports, and a warning was followed by a reported flood 4.3× as often as chance. Among places of similar population, the model ranks reported areas above others at AUC 0.60.
+* **Not used for training**, so it stays independent evidence.
+
 ---
 
 ## 📂 Implementation Blueprint: File-by-File Code Mapping

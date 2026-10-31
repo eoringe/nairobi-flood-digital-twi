@@ -185,7 +185,14 @@ seconds.
 
 ---
 
-## 9. Independent validation: partial, temporal only
+## 9. Independent validation: partial, mostly temporal
+
+**Update.** Location is now checked against 630 news-reported flood polygons
+from Google's Groundsource dataset (`src/validation/validate_groundsource.py`,
+`RESULTS.md` §4.13.4). The model's ranking separates reported areas from places
+of similar population at AUC 0.60 (0.56–0.64): better than chance, modest, and
+dependent on a news source that is right in place and time only ~60% of the
+time. The checks below remain the main temporal evidence.
 
 The labels have been checked against independently documented Nairobi flood
 events (`src/validation/validate_documented_events.py`). Sources are Copernicus

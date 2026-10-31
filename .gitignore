@@ -89,6 +89,9 @@ data/*.sqlite
 # Named buildings for the map's hover labels (~0.6 MB), refreshed by
 # src/ingestion/fetch_building_names.py.
 !data/processed/nairobi_building_names.json
+# Past Nairobi floods from Google's Groundsource news dataset (~140 KB), built
+# by src/ingestion/fetch_groundsource.py. The 667 MB parquet is not kept.
+!data/processed/nairobi_groundsource.json
 
 # Small evaluation outputs travel with the code; model weights (100+ MB) do not.
 # Same three-line idiom as data/processed/arrays above.
@@ -102,3 +105,4 @@ models/time_series/*
 !models/time_series/evaluation_v2_*.json
 !models/time_series/crossval_v2_*.json
 !models/time_series/backtest_live_pipeline.json
+!models/time_series/validation_groundsource.json

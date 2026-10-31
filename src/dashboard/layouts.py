@@ -215,6 +215,12 @@ def _outlook_panel() -> html.Div:
             dcc.Loading(type="dot", color="var(--accent)",
                         children=html.Div(id="satellite-note", className="twin-satellite-note mb-3")),
 
+            # Past floods reported in the news (src.reports.history), with the
+            # same plain caveats beside the switch.
+            dbc.Switch(id="history-toggle", value=False, className="twin-switch mb-1",
+                       label="Past floods in the news (Groundsource)"),
+            html.Div(id="history-note", className="twin-satellite-note mb-3"),
+
             dcc.Dropdown(
                 id="basin-dropdown",
                 options=[{"label": "Nairobi County", "value": "ALL"}],
@@ -462,9 +468,12 @@ def build_dashboard_layout() -> html.Div:
             dcc.Store(id="report-reopen", data=None),
             # The satellite layer's state (visible, image, pass date).
             dcc.Store(id="satellite-store", data=None),
+            # The past-floods layer's state (visible, the replayed day, its rows).
+            dcc.Store(id="history-store", data=None),
             report_modal(),
             html.Div(id="bridge-sink-reports", hidden=True),
             html.Div(id="bridge-sink-satellite", hidden=True),
+            html.Div(id="bridge-sink-history", hidden=True),
             html.Div(id="bridge-sink-flood", hidden=True),
             html.Div(id="bridge-sink-route", hidden=True),
         ],

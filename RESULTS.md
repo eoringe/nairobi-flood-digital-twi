@@ -589,6 +589,67 @@ storm days is the realistic skill of warning from a forecast: most of the loss
 is the forecast's day-to-day error (r = 0.62 with CHIRPS), which no downstream
 correction can recover.
 
+### 4.13.4 Validation against news-reported floods (Groundsource)
+
+Every check above has the same gap: the truth is rainfall or a handful of
+named events, never *where* flooding was observed. Google's Groundsource
+dataset (Google Research, 2026; doi:10.5281/zenodo.18647053, CC BY 4.0) fills
+it. Gemini read news articles worldwide and extracted 2.6 million flood events,
+each a polygon for the place reported flooded and its dates; it is the dataset
+Google's Flood Hub flash-flood model is trained on. 630 neighbourhood-sized
+events (≤ 200 km², median 1.1 km²) fall inside the model grid. None of it was
+used to build the labels or train the model.
+
+`src/validation/validate_groundsource.py` runs the deployed chain (3-day
+rainfall → U-Net → place warning levels) on every day from February 2015 to
+November 2025 and asks two questions. Rainfall is CHIRPS as it fell, a perfect
+forecast, so timing is an upper bound; §4.13.3 measures the forecast's cost.
+
+**Timing: was there a warning when flooding was reported?** A report on day
+*e* counts as warned if the outlook issued on *e*−2, *e*−1 or *e* flagged it.
+
+| | flood days warned | reports warned | warning days | precision |
+|---|---|---|---|---|
+| model | 88/158 (56%) | 80% | 320 (8% of days) | 40% |
+| warn every storm-season day | 135/158 (85%) | 93% | 1,965 | 15% |
+| model, test seasons only | 7/13 (54%) | 67% | 40 | 35% |
+| model, days with 3+ reports | 55/69 (80%) | 88% | 320 | 28% |
+
+A warning is followed by a news-reported flood 4.3× as often as a random day
+(precision 40% against 9%). The model catches the big days (80% of days with
+three or more reports) and 80% of all reports. **All 70 missed days had under
+30 mm of city-average rain in every covering outlook**: they are local
+downpours, drain failures, or reporting errors that a single city-wide rainfall
+figure cannot see (`LIMITATIONS.md` §2).
+
+**Place: did the map point at the neighbourhoods reported flooded?** Each event
+polygon (≤ 25 km²) is scored by AUC: the chance that a cell inside the reported
+area ranks above a cell outside it (0.5 = no skill). Intervals resample places,
+because many events repeat the same neighbourhood.
+
+| field | events | places | mean AUC (95% interval) |
+|---|---|---|---|
+| the day's map, on warned days | 432 | 171 | 0.55 (0.52–0.58) |
+| model's ranking (heavy storm, raw output) | 579 | 189 | 0.68 (0.64–0.71) |
+| drainage susceptibility (label source) | 579 | 189 | 0.70 (0.66–0.75) |
+| population density (baseline) | 579 | 189 | 0.68 (0.65–0.71) |
+| **model's ranking, population-matched** | 579 | 189 | **0.60 (0.56–0.64)** |
+
+The day's map scores lowest because it floods only 2–18% of the grid and ties
+everything else at zero; on warned days a reported area was still predicted
+flooded 3.1× as often as the city as a whole. The model's full ranking is well
+above chance, but so is population: news reports come from where people (and
+reporters) are. The population-matched row compares each reported area only with
+places of similar population; the model still separates them (0.60, interval
+clear of 0.5), so its spatial skill is not just a map of where people live.
+
+**Cautions.** Google's review found 60% of Groundsource events right in both
+place and timing. Coverage is uneven, so an unreported day or place is not a dry
+one and the precision above is a lower bound. Test seasons hold only 13 flood
+days. This is the first check of predicted *location* against observed
+flooding; it supports the drainage formulation (§4.8.3) at modest strength
+rather than establishing it.
+
 ---
 
 ## Outstanding work
@@ -598,6 +659,10 @@ correction can recover.
   37 storm-positive test samples. It is ready to run in section 7 of the Colab
   notebook and needs a GPU, since each fold is a full training run. §4.11 gives
   a per-season interim result.
-- **Spatial validation.** All external validation above is temporal. Documented
-  reports name affected settlements but provide no inundation polygons, so
-  predicted flood *location* remains unverified (`LIMITATIONS.md` §9).
+- **Spatial validation.** §4.13.4 gives the first check of predicted location
+  against observed flooding (news-reported polygons, AUC 0.60 after matching
+  for population). Surveyed inundation extents would be stronger evidence.
+- **Groundsource as training labels.** Not done, deliberately: training on it
+  would spend the only independent evidence the model has. A future version
+  could use it to fit the rainfall onset threshold (§8 of `LIMITATIONS.md`),
+  holding out years for testing.

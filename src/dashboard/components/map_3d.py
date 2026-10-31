@@ -692,6 +692,7 @@ def create_3d_digital_twin_deck(
     route_layers: dict | None = None,
     report_rows: list[dict] | None = None,
     satellite: dict | None = None,
+    history_rows: list[dict] | None = None,
 ) -> pdk.Deck:
     """
     Construct Pydeck 3D Viewport with street-accurate flood overlay and crisp 3D buildings.
@@ -700,7 +701,8 @@ def create_3d_digital_twin_deck(
     rebuilt document (theme or camera change) keeps an active route on screen.
     `report_rows` are the community flood report pins
     (src.dashboard.reports_ui.map_rows) and `satellite` the satellite layer's
-    state ({"visible", "image"}), kept across a rebuild in the same way.
+    state ({"visible", "image"}), kept across a rebuild in the same way, as are
+    `history_rows`, the past-floods areas (src.reports.history.map_rows).
     """
     palette = MAP_THEMES.get(theme, MAP_THEMES["dark"])
     route_layers = route_layers or {}
@@ -761,6 +763,17 @@ def create_3d_digital_twin_deck(
     ))
 
     no_depth = {"depthCompare": "always", "depthWriteEnabled": False}
+
+    # 1c. Past floods reported in the news (src.reports.history), drawn over the
+    # water but under the buildings. Patched in place by the "Past floods" switch.
+    layers.append(pdk.Layer(
+        "PolygonLayer", history_rows or [], id="past-floods",
+        get_polygon="polygon", get_fill_color="fill", get_line_color="edge",
+        get_line_width="width", line_width_units="pixels", line_width_min_pixels=1,
+        stroked=True, filled=True, extruded=False,
+        pickable=True, auto_highlight=True, highlight_color=[255, 255, 255, 50],
+        parameters=no_depth,
+    ))
 
     # 2. LOD2 Solid 3D Volumetric Building Footprint Extrusions
     building_data = _building_rows(theme)
@@ -1291,6 +1304,13 @@ CITY_JS = r"""
         "<div style='font-weight:600;font-size:13px;margin-bottom:2px'>" + esc(p.title) + "</div>" +
         "<div style='opacity:0.8'>" + esc(p.detail) + "</div>" +
         (p.note ? "<div style='opacity:0.75;margin-top:4px;font-style:italic'>\u201c" + esc(p.note) + "\u201d</div>" : "") };
+    }
+    if (id === "past-floods") {
+      return { style: CITY.tooltip, html:
+        "<div style='font-weight:600;font-size:13px;margin-bottom:2px'>" + esc(p.title) + "</div>" +
+        "<div style='opacity:0.8'>" + esc(p.detail) + "</div>" +
+        (p.near ? "<div style='color:#facc15;margin-top:4px'>" + esc(p.near) + "</div>" : "") +
+        "<div style='opacity:0.55;font-size:11px;margin-top:4px'>" + esc(p.source) + "</div>" };
     }
     if (id.indexOf("buildings-city") === 0) {
       var h = Math.round(+p.render_height || 0);
