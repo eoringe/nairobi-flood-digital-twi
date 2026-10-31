@@ -62,6 +62,20 @@ def test_cell_mask_covers_the_polygon_and_never_drops_a_tiny_one(events):
     assert tiny.sum() == 1, "a polygon smaller than a cell still marks its cell"
 
 
+def test_areas_are_named_after_the_places_in_them(events, tmp_path, monkeypatch):
+    path = tmp_path / "places.json"
+    path.write_text(json.dumps({"places": [
+        {"name": "Mathare North", "lat": -1.255, "lon": 36.86, "place_type": "neighbourhood"},
+        {"name": "Mathare", "lat": -1.262, "lon": 36.858, "place_type": "suburb"},
+        {"name": "Kibera", "lat": -1.312, "lon": 36.786, "place_type": "suburb"},
+    ]}))
+    monkeypatch.setattr(history, "PLACES_FILE", path)
+    history._named_points.cache_clear(); history.places.cache_clear()
+    names = sorted(r["name"] for r in history.map_rows())
+    assert names == ["Mathare, Mathare North", "Near Kibera"], "suburbs first; a tiny area takes the nearest name"
+    history._named_points.cache_clear()
+
+
 def test_areas_larger_than_a_neighbourhood_are_not_drawn(events, monkeypatch):
     monkeypatch.setattr(history, "MAP_MAX_KM2", 1.0)
     rows = history.map_rows()

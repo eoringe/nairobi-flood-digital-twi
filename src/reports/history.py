@@ -31,6 +31,10 @@ import numpy as np
 from src.grid_config import GRID_H, GRID_W, LAT_NORTH, LAT_SOUTH, LON_EAST, LON_WEST
 
 EVENTS_FILE = Path("data/processed/nairobi_groundsource.json")
+#: Named places (src.ingestion.fetch_place_names), used to name each area.
+PLACES_FILE = Path("data/processed/nairobi_places.json")
+#: Place kinds tried first when naming an area: the names people use.
+NAME_ORDER = ("suburb", "neighbourhood", "quarter", "village", "locality", "hamlet")
 ATTRIBUTION = "Groundsource (Google Research), news reports 2000–2026, CC BY 4.0"
 #: Around a replayed storm, reports this many days before and after count as
 #: "reported that week".
@@ -96,6 +100,37 @@ def _fmt(d: date) -> str:
 
 
 @lru_cache(maxsize=1)
+def _named_points() -> tuple[np.ndarray, np.ndarray, list[str], list[int]]:
+    if not PLACES_FILE.exists():
+        return np.empty(0), np.empty(0), [], []
+    pts = json.loads(PLACES_FILE.read_text(encoding="utf-8"))["places"]
+    rank = {k: i for i, k in enumerate(NAME_ORDER)}
+    return (np.array([q["lon"] for q in pts]), np.array([q["lat"] for q in pts]),
+            [q["name"] for q in pts], [rank.get(q.get("place_type"), len(NAME_ORDER)) for q in pts])
+
+
+def area_name(geom) -> str:
+    """
+    A name people recognise for an area: the named places inside it (suburbs
+    first, at most three), or "near <place>" for an area too small to contain
+    one. Empty if no place names are available.
+    """
+    import shapely
+    xs, ys, names, ranks = _named_points()
+    if not names:
+        return ""
+    inside = np.nonzero(shapely.contains_xy(geom, xs, ys))[0]
+    if len(inside):
+        picked = sorted(inside, key=lambda i: (ranks[i], names[i]))
+        label = ", ".join(names[i] for i in picked[:3])
+        return label + (f" and {len(picked) - 3} more" if len(picked) > 3 else "")
+    c = geom.representative_point()
+    kx = np.cos(np.radians(c.y))
+    i = int(np.argmin(((xs - c.x) * kx) ** 2 + (ys - c.y) ** 2))
+    return f"Near {names[i]}"
+
+
+@lru_cache(maxsize=1)
 def places() -> tuple[dict, ...]:
     """One entry per reported place: its polygon and the days flooding was reported there."""
     by_place: dict[str, dict] = {}
@@ -106,6 +141,7 @@ def places() -> tuple[dict, ...]:
     out = []
     for wkt, p in by_place.items():
         p["days"] = tuple(sorted(days[wkt]))
+        p["name"] = area_name(p["geom"])
         out.append(p)
     # Largest first, so smaller places draw on top and stay hoverable.
     out.sort(key=lambda p: -p["area_km2"])
@@ -124,7 +160,7 @@ def map_rows(around: date | None = None) -> list[dict]:
         n = len(p["days"])
         near = [d for d in p["days"] if around and around - NEAR_BEFORE <= d <= around + NEAR_AFTER]
         polys = list(getattr(p["geom"], "geoms", [p["geom"]]))
-        title = f"Flooding reported here on {n} day{'s' if n != 1 else ''}"
+        count = f"Flooding reported in the news on {n} day{'s' if n != 1 else ''}"
         first, last = p["days"][0], p["days"][-1]
         detail = (f"{_fmt(first)}" if n == 1 else f"{first.year}–{last.year} · most recently {_fmt(last)}")
         alpha = int(min(80, 14 + 8 * n))
@@ -134,7 +170,8 @@ def map_rows(around: date | None = None) -> list[dict]:
                 "fill": (FILL_NEAR + [70]) if near else (FILL + [alpha]),
                 "edge": (EDGE_NEAR + [240]) if near else (EDGE + [170]),
                 "width": 2 if near else 1,
-                "title": title,
+                "name": p["name"] or "Past flood area",
+                "title": count,
                 "detail": detail,
                 "near": f"In the news that week: {', '.join(_fmt(d) for d in near)}" if near else "",
                 "source": ATTRIBUTION,

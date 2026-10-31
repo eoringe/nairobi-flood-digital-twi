@@ -886,6 +886,7 @@ def create_3d_digital_twin_deck(
     # The satellite layer is created in the browser (CITY_JS): pydeck would read
     # its image address as an expression.
     deck._satellite = satellite or {}
+    deck._history_rows = history_rows or []
     return deck
 
 
@@ -895,6 +896,8 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
     """
     base_html = deck.to_html(as_string=True)
     lg = MAP_THEMES.get(getattr(deck, "_theme", "dark"), MAP_THEMES["dark"])["legend"]
+    history_rows = getattr(deck, "_history_rows", [])
+    history_near = any(r.get("near") for r in history_rows)
 
     # Matches the token system in src/dashboard/assets/custom.css. This HTML is
     # rendered inside the map's own iframe and cannot reach that stylesheet, so
@@ -903,10 +906,10 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
         #pydeck-embedded-legend .sw {{ width:9px; height:9px; border-radius:50%; display:inline-block; }}
-        #pydeck-embedded-legend .wt {{ width:14px; height:10px; border-radius:3px; display:inline-block;
+        #pydeck-embedded-legend .wt, #past-floods-legend .wt {{ width:14px; height:10px; border-radius:3px; display:inline-block;
             background:{lg['water']}; border:2px solid; box-sizing:border-box; }}
-        #pydeck-embedded-legend .it {{ display:flex; align-items:center; gap:6px; }}
-        #pydeck-embedded-legend .mu {{ color:{lg['muted']}; }}
+        #pydeck-embedded-legend .it, #past-floods-legend .it {{ display:flex; align-items:center; gap:6px; }}
+        #pydeck-embedded-legend .mu, #past-floods-legend .mu {{ color:{lg['muted']}; }}
         @media (max-width: 640px) {{ #pydeck-embedded-legend .wide {{ display:none; }} }}
     </style>
     <div id="pydeck-embedded-legend" style="
@@ -938,6 +941,17 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
         <span class="it"><span class="wt" style="border-color:#ef4459;"></span>Critical <span class="mu">&gt;82%</span></span>
         <span class="mu wide" style="font-size:11px;">Probability of flooding, not depth</span>
         <span class="it wide mu"><span class="sw" style="background:{lg['bldg']}; border-radius:2px;"></span>3D buildings</span>
+    </div>
+    <div id="past-floods-legend" style="
+        position: fixed; bottom: 64px; left: 16px;
+        background-color: {lg['bg']}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+        border: 1px solid {lg['border']}; border-radius: 999px; padding: 7px 14px; z-index: 99999;
+        font-family: 'Inter', 'Segoe UI', sans-serif; color: {lg['text']}; font-size: 12px; font-weight: 500;
+        box-shadow: {lg['shadow']}; pointer-events: none; white-space: nowrap;
+        display: {'flex' if history_rows else 'none'}; align-items: center; gap: 12px;">
+        <span class="mu" style="font-weight: 600;">Past floods in the news</span>
+        <span class="it"><span class="wt" style="background:rgba(168,85,247,0.45); border-color:#c084fc;"></span>Flooded before <span class="mu">darker = more often</span></span>
+        <span class="it" id="past-floods-legend-near" style="display:{'flex' if history_near else 'none'};"><span class="wt" style="background:rgba(250,204,21,0.35); border-color:#facc15;"></span>Reported this storm's week</span>
     </div>
     """
 
@@ -995,6 +1009,12 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
         if (msg.halo) updates["flood-halo"] = msg.halo;
       }
       patchLayers(d, updates);
+      if (updates["past-floods"]) {
+        var rows = updates["past-floods"], lg = document.getElementById("past-floods-legend");
+        if (lg) lg.style.display = rows.length ? "flex" : "none";
+        var nr = document.getElementById("past-floods-legend-near");
+        if (nr) nr.style.display = rows.some(function (r) { return r.near; }) ? "flex" : "none";
+      }
       if (msg.fit) fitTo(d, msg.fit);
       post({ type: "layerUpdateAck", ok: true });
     } catch (e) {
@@ -1306,8 +1326,13 @@ CITY_JS = r"""
         (p.note ? "<div style='opacity:0.75;margin-top:4px;font-style:italic'>\u201c" + esc(p.note) + "\u201d</div>" : "") };
     }
     if (id === "past-floods") {
+      var key = p.near
+        ? "<span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:#facc15;margin-right:5px'></span>Reported flooded the week of this storm"
+        : "<span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:#a855f7;margin-right:5px'></span>Past flood in the news, not a forecast";
       return { style: CITY.tooltip, html:
-        "<div style='font-weight:600;font-size:13px;margin-bottom:2px'>" + esc(p.title) + "</div>" +
+        "<div style='font-weight:600;font-size:13px;margin-bottom:2px'>" + esc(p.name) + "</div>" +
+        "<div style='opacity:0.75;font-size:11.5px;margin-bottom:4px'>" + key + "</div>" +
+        "<div>" + esc(p.title) + "</div>" +
         "<div style='opacity:0.8'>" + esc(p.detail) + "</div>" +
         (p.near ? "<div style='color:#facc15;margin-top:4px'>" + esc(p.near) + "</div>" : "") +
         "<div style='opacity:0.55;font-size:11px;margin-top:4px'>" + esc(p.source) + "</div>" };

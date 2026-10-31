@@ -450,14 +450,20 @@ def register_report_callbacks(app) -> None:
             return ({"visible": False, "rows": []},
                     html.Span("The past-floods file is missing (run src.ingestion.fetch_groundsource).",
                               className="twin-auth-error"))
-        note = [html.Div([html.Strong(f"{info['events']} news reports"),
+        swatch = lambda c: html.Span(style={"display": "inline-block", "width": "10px", "height": "10px",
+                                            "borderRadius": "2px", "background": c, "marginRight": "6px"})
+        note = [html.Div([swatch("#a855f7"), html.Strong("Violet areas"),
+                          " are places where the news reported flooding in the past (darker = more often). "
+                          "They are a record, not a forecast."], className="mb-1"),
+                html.Div([html.Strong(f"{info['events']} news reports"),
                           f" of flooding in {info['places']} places, {info['first'].year}–{info['last'].year}. "
                           f"The {info['shown']} neighbourhood-sized areas (up to {history.MAP_MAX_KM2:g} km²) are "
                           "drawn; hover one for how often and when."])]
         if around:
             note.append(html.Div(
-                [html.Strong(f"{info['near_places']} place{'s' if info['near_places'] != 1 else ''}"),
-                 " reported flooded in the news around this storm (yellow)."]
+                [swatch("#facc15"), html.Strong("Yellow areas"),
+                 f": {info['near_places']} place{'s' if info['near_places'] != 1 else ''} reported flooded in the "
+                 "news the week of this storm."]
                 if info["near_places"] else "No flooding was reported in the news around this storm."))
         note.append(html.Div("From news articles, read by Google's Gemini (Groundsource, CC BY 4.0). About 60% "
                              "are right in both place and date, and some areas get far more coverage than "
