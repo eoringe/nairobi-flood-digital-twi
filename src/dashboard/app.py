@@ -126,6 +126,14 @@ def healthz():
     """
     return {"status": "ok", **warmup_status()}, 200
 
+@server.route("/data/building-names.json")
+def building_names():
+    """Named buildings for the map's hover labels (src.ingestion.fetch_building_names)."""
+    from flask import send_file
+    return send_file(Path("data/processed/nairobi_building_names.json").resolve(),
+                     mimetype="application/json", max_age=86400)
+
+
 # A WSGI server such as gunicorn (the Docker image) imports `server` and never
 # calls main(), so warm-up is started here when the environment asks for it.
 if os.environ.get("TWIN_WARMUP") == "1":

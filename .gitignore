@@ -86,6 +86,9 @@ data/*.sqlite
 # 3D building footprints drawn on the map (7.4 MB). Tracked because a
 # git-based build (Railway) only sees committed files.
 !data/processed/nairobi_buildings_3d.json
+# Named buildings for the map's hover labels (~0.6 MB), refreshed by
+# src/ingestion/fetch_building_names.py.
+!data/processed/nairobi_building_names.json
 
 # Small evaluation outputs travel with the code; model weights (100+ MB) do not.
 # Same three-line idiom as data/processed/arrays above.

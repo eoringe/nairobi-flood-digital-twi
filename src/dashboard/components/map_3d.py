@@ -619,29 +619,39 @@ def _building_rows(theme: str) -> list[dict]:
 #: floors). Free, no key; the TileJSON names the current tile set.
 CITY_TILES = "https://tiles.openfreemap.org/planet"
 
-#: How the city is drawn and lit in each theme: building colour by height
-#: (metres -> RGB, interpolated), surface material, and the lights. Day is a
-#: warm afternoon sun; night is a dim blue sky with a warm city glow, the tall
-#: towers brightest so the CBD and Upper Hill skyline reads at a glance.
+#: Named buildings for the hover labels (src.ingestion.fetch_building_names),
+#: served by the app at this path (src/dashboard/app.py).
+BUILDING_NAMES_URL = "/data/building-names.json"
+
+#: How the city is drawn and lit in each theme: one building colour, the
+#: surface material, the lights, and the windows. Day is a warm afternoon sun
+#: with glass windows; night is a dim blue sky with lit windows, some warm and
+#: some cool, so the towers read as an occupied skyline.
+#:
+#: Windows (drawn by a shader on every wall, see CITY_JS): one per `bay` metres
+#: along the wall and per `floor` metres up it, on buildings at least `min_height`
+#: tall; at night `lit` is the share of windows with the lights on.
 CITY_STYLE = {
     "dark": {
-        "ramp": [[0, [34, 41, 58]], [12, [48, 62, 92]], [30, [70, 104, 168]],
-                 [60, [104, 156, 240]], [100, [168, 206, 255]], [150, [226, 240, 255]]],
+        "color": [50, 58, 78],
         "material": {"ambient": 0.5, "diffuse": 0.65, "shininess": 64, "specularColor": [120, 150, 210]},
         "ambient": {"color": [140, 160, 215], "intensity": 1.15},
         "lights": [{"color": [255, 214, 170], "intensity": 0.85, "direction": [-1, -3, -2.5]},
                    {"color": [90, 130, 255], "intensity": 0.55, "direction": [2, 1.5, -1]}],
         "sun": False,
+        "windows": {"night": True, "floor": 3.4, "bay": 3.2, "min_height": 7.0, "lit": 0.42,
+                    "glass": [16, 21, 32], "warm": [255, 200, 120], "cool": [205, 222, 255]},
     },
     "light": {
-        "ramp": [[0, [236, 233, 227]], [12, [226, 224, 220]], [30, [208, 214, 224]],
-                 [60, [182, 198, 222]], [100, [156, 182, 220]], [150, [134, 166, 214]]],
+        "color": [234, 231, 225],
         "material": {"ambient": 0.6, "diffuse": 0.55, "shininess": 40, "specularColor": [60, 64, 72]},
         "ambient": {"color": [255, 255, 255], "intensity": 1.3},
         "lights": [{"color": [200, 215, 255], "intensity": 0.45, "direction": [2, 2, -1]}],
         # A mid-afternoon sun over Nairobi (15:30 EAT), so walls facing it are
         # lit and the others fall into shade.
         "sun": {"timestamp": 1761913800000, "color": [255, 246, 228], "intensity": 1.15},
+        "windows": {"night": False, "floor": 3.4, "bay": 3.2, "min_height": 7.0, "lit": 0.0,
+                    "glass": [118, 138, 164], "warm": [150, 172, 200], "cool": [96, 114, 140]},
     },
 }
 
@@ -795,6 +805,13 @@ def create_3d_digital_twin_deck(
         controller={"minZoom": 10.3, "maxZoom": 20},
     )
 
+    tooltip_style = {
+        **palette["tooltip"],
+        "fontFamily": "'Inter', 'Segoe UI', sans-serif",
+        "fontSize": "12.5px",
+        "borderRadius": "10px",
+        "padding": "8px 12px",
+    }
     deck = pdk.Deck(
         layers=layers,
         initial_view_state=view_state,
@@ -805,15 +822,10 @@ def create_3d_digital_twin_deck(
             "html": ("<div style='font-weight:600;font-size:13px;margin-bottom:3px'>{region}</div>"
                      "<div style='opacity:0.85'>{name}</div>"
                      "<div style='opacity:0.7;font-size:11.5px;margin-top:2px'>{value_label}</div>"),
-            "style": {
-                **palette["tooltip"],
-                "fontFamily": "'Inter', 'Segoe UI', sans-serif",
-                "fontSize": "12.5px",
-                "borderRadius": "10px",
-                "padding": "8px 12px",
-            },
+            "style": tooltip_style,
         },
     )
+    deck._tooltip_style = tooltip_style
     # The side panel summarises the polygons that were actually drawn, so they
     # travel with the deck rather than being recomputed and risking divergence
     # between what the map shows and what the panel reports.
@@ -952,7 +964,9 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
 """
 
     city_js = CITY_JS.replace("__CITY__", json.dumps({
-        "tiles": CITY_TILES, **CITY_STYLE.get(getattr(deck, "_theme", "dark"), CITY_STYLE["dark"])}))
+        "tiles": CITY_TILES, "names": BUILDING_NAMES_URL,
+        "tooltip": getattr(deck, "_tooltip_style", {}),
+        **CITY_STYLE.get(getattr(deck, "_theme", "dark"), CITY_STYLE["dark"])}))
     extra = legend_html + updater_js + city_js
     if "</body>" in base_html:
         return base_html.replace("</body>", f"{extra}\n</body>")
@@ -962,7 +976,7 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
 #: Draws the city in the map document. The buildings come from CITY_TILES at
 #: their real heights and the scene is lit for the theme (CITY_STYLE). If the
 #: tiles cannot be reached, the local footprints (layer "buildings") are shown.
-CITY_JS = """
+CITY_JS = r"""
 <script>
 (function () {
   var CITY = __CITY__;
@@ -972,17 +986,74 @@ CITY_JS = """
     return null;
   }
 
-  // Building colour for a height in metres, interpolated along the ramp.
-  function colourFor(h) {
-    var r = CITY.ramp;
-    if (h <= r[0][0]) return r[0][1];
-    for (var i = 1; i < r.length; i++) {
-      if (h <= r[i][0]) {
-        var t = (h - r[i - 1][0]) / (r[i][0] - r[i - 1][0]), a = r[i - 1][1], b = r[i][1];
-        return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-      }
+  function glslVec3(c) {
+    return "vec3(" + c.map(function (v) { return (v / 255).toFixed(4); }).join(", ") + ")";
+  }
+  function glslFloat(v) { return Number(v).toFixed(4); }
+
+  // Windows, drawn on the walls in the shader rather than modelled: a grid of
+  // one window per bay along each wall and per floor up it, measured in metres.
+  // The wall shader knows where along the wall edge and how far up it a point
+  // is, and the building's height. By day the windows are glass; at night a
+  // share of them, picked at random per window, are lit warm or cool.
+  // Far away, where a window would be smaller than a pixel, the grid fades to
+  // its average colour instead of shimmering.
+  function windowsExtension(D) {
+    var w = CITY.windows;
+    if (!w || !D.LayerExtension) return null;
+    var fs = [
+      "if (vTwinWall > 0.5 && vTwinHeight >= " + glslFloat(w.min_height) + ") {",
+      "  vec2 cell = vec2(vTwinWallPos.x / " + glslFloat(w.bay) + ", vTwinWallPos.y / " + glslFloat(w.floor) + ");",
+      "  vec2 f = fract(cell);",
+      "  vec2 aa = max(fwidth(cell), vec2(1e-4));",
+      "  float inX = smoothstep(0.2 - aa.x, 0.2 + aa.x, f.x) * (1.0 - smoothstep(0.8 - aa.x, 0.8 + aa.x, f.x));",
+      "  float inY = smoothstep(0.3 - aa.y, 0.3 + aa.y, f.y) * (1.0 - smoothstep(0.82 - aa.y, 0.82 + aa.y, f.y));",
+      // no windows on the ground floor or in the parapet at the top
+      "  float floors = vTwinHeight / " + glslFloat(w.floor) + ";",
+      "  float band = step(1.0, cell.y) * step(cell.y, floors - 0.5);",
+      "  float win = inX * inY * band;",
+      "  vec2 id = floor(cell);",
+      "  float r = fract(sin(dot(id, vec2(12.9898, 78.233)) + vTwinHeight * 1.618) * 43758.5453);",
+      "  float r2 = fract(r * 17.31);",
+      "  vec3 glass = " + glslVec3(w.glass) + ";",
+      w.night
+        ? "  float lit = step(1.0 - " + glslFloat(w.lit) + ", r);\n" +
+          "  vec3 light = mix(" + glslVec3(w.warm) + ", " + glslVec3(w.cool) + ", step(0.7, r2)) * (0.7 + 0.45 * r2);\n" +
+          "  vec3 detail = mix(glass, light, lit);\n" +
+          "  vec3 average = mix(glass, " + glslVec3(w.warm) + " * 0.85, " + glslFloat(w.lit) + ");"
+        : "  vec3 detail = mix(" + glslVec3(w.cool) + ", " + glslVec3(w.warm) + ", r2) * 0.9 + glass * 0.1;\n" +
+          "  vec3 average = mix(" + glslVec3(w.cool) + ", " + glslVec3(w.warm) + ", 0.5);",
+      "  float sharp = clamp(1.6 - 2.0 * max(aa.x, aa.y), 0.0, 1.0);",
+      "  vec3 winColor = mix(average, detail, sharp);",
+      "  float coverage = mix(0.6 * 0.52 * band, win, sharp);",
+      "  color.rgb = mix(color.rgb, winColor, coverage);",
+      "}"
+    ].join("\n");
+    class WindowsExtension extends D.LayerExtension {
+      getShaders() { return windowShaders; }
     }
-    return r[r.length - 1][1];
+    WindowsExtension.extensionName = "TwinWindowsExtension";
+    var windowShaders = { inject: {
+        "vs:#decl": "out vec2 vTwinWallPos;\nout float vTwinHeight;\nout float vTwinWall;\n",
+        // Only the wall shader defines IS_SIDE_VERTEX; roofs get no windows.
+        "vs:#main-end": [
+          "#ifdef IS_SIDE_VERTEX",
+          "vec3 twinA = project_position(pos, pos64Low);",
+          "vec3 twinB = project_position(nextPos, nextPos64Low);",
+          "float twinLen = length((twinB - twinA).xy) / project.commonUnitsPerMeter.x;",
+          "vTwinWallPos = vec2(positions.x * twinLen, positions.y * elevations);",
+          "vTwinHeight = elevations;",
+          "vTwinWall = 1.0;",
+          "#else",
+          "vTwinWallPos = vec2(0.0);",
+          "vTwinHeight = 0.0;",
+          "vTwinWall = 0.0;",
+          "#endif"
+        ].join("\n"),
+        "fs:#decl": "in vec2 vTwinWallPos;\nin float vTwinHeight;\nin float vTwinWall;\n",
+        "fs:DECKGL_FILTER_COLOR": fs
+      }};
+    return new WindowsExtension();
   }
 
   function lighting(D) {
@@ -990,6 +1061,112 @@ CITY_JS = """
     CITY.lights.forEach(function (l, i) { lights["light" + i] = new D.DirectionalLight(l); });
     if (CITY.sun) { lights.sun = new D._SunLight(CITY.sun); }
     return new D.LightingEffect(lights);
+  }
+
+  // ---- hover labels -------------------------------------------------------
+  // Named buildings, indexed on a grid of ~200 m cells so a hover checks only
+  // the few footprints nearby. The tiles carry no names, so the name is the
+  // OpenStreetMap building whose footprint holds (or nearly touches) the point.
+  var CELL = 0.002, names = null;
+  function cellKey(lon, lat) { return Math.floor(lon / CELL) + ":" + Math.floor(lat / CELL); }
+  function loadNames() {
+    fetch(CITY.names).then(function (r) { return r.json(); }).then(function (data) {
+      var index = {};
+      data.buildings.forEach(function (b) {
+        var lon0 = Infinity, lat0 = Infinity, lon1 = -Infinity, lat1 = -Infinity;
+        b.ring.forEach(function (p) {
+          lon0 = Math.min(lon0, p[0]); lon1 = Math.max(lon1, p[0]);
+          lat0 = Math.min(lat0, p[1]); lat1 = Math.max(lat1, p[1]);
+        });
+        for (var x = Math.floor(lon0 / CELL); x <= Math.floor(lon1 / CELL); x++) {
+          for (var y = Math.floor(lat0 / CELL); y <= Math.floor(lat1 / CELL); y++) {
+            (index[x + ":" + y] = index[x + ":" + y] || []).push(b);
+          }
+        }
+      });
+      names = index;
+    }).catch(function (e) { console.warn("Building names unavailable:", e); });
+  }
+  function inside(ring, lon, lat) {
+    var hit = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+      if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  }
+  // Metres from the point to the footprint's outline (the pointer can rest on a
+  // wall, just outside the footprint drawn on the ground).
+  function edgeMetres(ring, lon, lat) {
+    var best = Infinity, kx = 111320 * Math.cos(lat * Math.PI / 180), ky = 110574;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var ax = (ring[j][0] - lon) * kx, ay = (ring[j][1] - lat) * ky;
+      var bx = (ring[i][0] - lon) * kx, by = (ring[i][1] - lat) * ky;
+      var dx = bx - ax, dy = by - ay, len = dx * dx + dy * dy;
+      var t = len ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len)) : 0;
+      best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+    }
+    return best;
+  }
+  function centroid(ring) {
+    var x = 0, y = 0;
+    ring.forEach(function (p) { x += p[0]; y += p[1]; });
+    return [x / ring.length, y / ring.length];
+  }
+  // The outer ring of the hovered building, in longitude and latitude.
+  function footprintOf(feature) {
+    var g = feature && feature.geometry;
+    if (!g || !g.coordinates) return null;
+    var ring = g.type === "Polygon" ? g.coordinates[0] : (g.type === "MultiPolygon" ? g.coordinates[0][0] : null);
+    return ring && ring.length > 2 && Math.abs(ring[0][0]) <= 180 ? ring : null;
+  }
+  // The named building matching the hovered footprint: one whose outline holds
+  // the footprint's centre, or whose centre lies inside the footprint (tiles
+  // can cut a building at their edge). Without a footprint, the nearest outline
+  // to the point under the pointer.
+  function nameFor(feature, coordinate) {
+    if (!names) return null;
+    var ring = footprintOf(feature);
+    if (ring) {
+      var c = centroid(ring), near = names[cellKey(c[0], c[1])] || [];
+      for (var i = 0; i < near.length; i++) {
+        var nc = centroid(near[i].ring);
+        if (inside(near[i].ring, c[0], c[1]) || inside(ring, nc[0], nc[1])) return near[i].name;
+      }
+      return null;
+    }
+    if (!coordinate) return null;
+    var lon = coordinate[0], lat = coordinate[1];
+    var cand = names[cellKey(lon, lat)] || [], best = null, bestD = 10;
+    for (var j = 0; j < cand.length; j++) {
+      if (inside(cand[j].ring, lon, lat)) return cand[j].name;
+      var d = edgeMetres(cand[j].ring, lon, lat);
+      if (d < bestD) { bestD = d; best = cand[j].name; }
+    }
+    return best;
+  }
+  function esc(t) {
+    return String(t).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function tooltip(info) {
+    if (!info || !info.object) return null;
+    var id = (info.layer && info.layer.id) || "";
+    var p = info.object.properties || info.object;
+    if (id.indexOf("buildings-city") === 0) {
+      var h = Math.round(+p.render_height || 0);
+      var name = nameFor(info.object, info.coordinate);
+      var floors = h >= 6 ? " · about " + Math.max(1, Math.round(h / 3.4)) + " floors" : "";
+      return { style: CITY.tooltip, html:
+        "<div style='font-weight:600;font-size:13px;margin-bottom:2px'>" + esc(name || "Building") + "</div>" +
+        "<div style='opacity:0.75'>" + h + " m" + floors + "</div>" };
+    }
+    if (p.region === undefined) return null;
+    return { style: CITY.tooltip, html:
+      "<div style='font-weight:600;font-size:13px;margin-bottom:3px'>" + esc(p.region) + "</div>" +
+      "<div style='opacity:0.85'>" + esc(p.name || "") + "</div>" +
+      "<div style='opacity:0.7;font-size:11.5px;margin-top:2px'>" + esc(p.value_label || "") + "</div>" };
   }
 
   function useFallback(d) {
@@ -1008,6 +1185,8 @@ CITY_JS = """
       return;
     }
     var failures = 0;
+    var windows = null;
+    try { windows = windowsExtension(D); } catch (e) { console.warn("Building windows unavailable:", e); }
     var city = new D.MVTLayer({
       id: "buildings-city",
       data: CITY.tiles,
@@ -1019,9 +1198,13 @@ CITY_JS = """
       filled: true,
       stroked: false,
       getElevation: function (f) { return Math.max(+f.properties.render_height || 0, 3); },
-      getFillColor: function (f) { return colourFor(+f.properties.render_height || 0); },
+      getFillColor: CITY.color,
       material: CITY.material,
-      pickable: false,
+      extensions: windows ? [windows] : [],
+      // Hovering a building names it (see tooltip) and lights it up.
+      pickable: true,
+      autoHighlight: true,
+      highlightColor: [255, 255, 255, 46],
       // The tile set's description (TileJSON) failing to load reaches onError;
       // individual tiles failing reach onTileError.
       onError: function () { if (failures < 3) { failures = 3; useFallback(d); } return true; },
@@ -1031,7 +1214,8 @@ CITY_JS = """
     var layers = d.props.layers.slice();
     var at = layers.findIndex(function (l) { return l.id.indexOf("route-") === 0; });
     layers.splice(at < 0 ? layers.length : at, 0, city);
-    d.setProps({ layers: layers, effects: [lighting(D)] });
+    d.setProps({ layers: layers, effects: [lighting(D)], getTooltip: tooltip });
+    loadNames();
   })();
 })();
 </script>
