@@ -99,11 +99,11 @@ exist.
 
 | # | task | closes | status |
 |---|---|---|---|
-| 5.1 | Persist every prediction run (issue time, horizon, inputs, flood chance, place levels, model version) | §2.6, FR-007 | ⬜ |
-| 5.2 | Prediction screen: risk by area, horizons, generation time, confidence and uncertainty, model details, run history | §6.6, UC-005, AC-8, AC-9 | 🟡 |
-| 5.3 | Prediction vs observation: pick a run and area, show predicted level beside community reports, news reports, satellite and (when connected) gauges; hit/miss indicators | FR-021, UC-010, AC-16 | ⬜ |
-| 5.4 | Observed vs predicted styling: predictions hatched and labelled *Model output*; observations solid | §2.6, AC-10 | 🟡 |
-| 5.5 | Active alerts screen: list with severity, status, affected areas, created/published times, recommended actions, acknowledgement status, full record for authorised users, filters. Internal outlook warnings now; Automated Alert System when connected | §2.8, §6.7, FR-009, UC-006, AC-11 | 🟡 🔌 |
+| 5.1 | Persist every prediction run (issue time, horizon, inputs, flood chance, place levels, model version) | §2.6, FR-007 | ✅ |
+| 5.2 | Prediction screen: risk by area, horizons, generation time, confidence and uncertainty, model details, run history | §6.6, UC-005, AC-8, AC-9 | ✅ |
+| 5.3 | Prediction vs observation: pick a run and area, show predicted level beside community reports, news reports, satellite and (when connected) gauges; hit/miss indicators | FR-021, UC-010, AC-16 | ✅ |
+| 5.4 | Observed vs predicted styling: predictions hatched and labelled *Model output*; observations solid | §2.6, AC-10 | ✅ |
+| 5.5 | Active alerts screen: list with severity, status, affected areas, created/published times, recommended actions, acknowledgement status, full record for authorised users, filters. Internal outlook warnings now; Automated Alert System when connected | §2.8, §6.7, FR-009, UC-006, AC-11 | ✅ screen · 🔌 published alerts |
 
 ## Phase 6: Infrastructure, incidents, history
 
