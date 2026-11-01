@@ -122,6 +122,28 @@ class ReportStore:
                 "ORDER BY updated_at DESC", (now,)).fetchall()
         return [dict(r) for r in rows]
 
+    def history(self, start: str | None = None, end: str | None = None, limit: int = 2000) -> list[dict]:
+        """
+        Reports created between `start` and `end` (ISO dates or times), newest
+        first, for incident history. Removed reports are left out. A report past
+        its expiry reads as 'expired'. Reporter and moderator ids are not
+        returned: reporters are never shown (FR-14).
+        """
+        q, args = "SELECT * FROM flood_reports WHERE status != 'removed'", []
+        if start:
+            q += " AND created_at >= ?"; args.append(str(start))
+        if end:
+            q += " AND created_at <= ?"; args.append(str(end) + ("T23:59:59" if len(str(end)) == 10 else ""))
+        now = _iso(self._now())
+        with self._conn() as conn:
+            rows = [dict(r) for r in conn.execute(q + " ORDER BY created_at DESC LIMIT ?", (*args, limit))]
+        for r in rows:
+            if r["status"] == "active" and r["expires_at"] <= now:
+                r["status"] = "expired"
+            r["verified"] = r.pop("verified_by") is not None
+            r.pop("user_id", None)
+        return rows
+
     def vote_of(self, report_id: int, user_id: int) -> str | None:
         with self._conn() as conn:
             row = conn.execute("SELECT vote FROM report_votes WHERE report_id=? AND user_id=?",

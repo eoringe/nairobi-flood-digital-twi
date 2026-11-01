@@ -488,7 +488,26 @@ def get_nowcast(source: str, predictor, refresh: bool = False) -> Nowcast:
         if nc is None or refresh or stale:
             nc = build_nowcast(source, predictor)
             _CACHE[source] = nc
+            if not nc.is_replay:
+                _save_run(nc, predictor)
         return nc
+
+
+def _save_run(nc: Nowcast, predictor) -> None:
+    """Keep each live outlook for run history and prediction-vs-observation (FR-007, FR-021)."""
+    if nc.error or nc.place_levels is None:
+        return
+    try:
+        from src.integrations.store import get_ops_store
+        peak = {w_place: w["level"] for w in nc.warnings for w_place in w["places"]}
+        get_ops_store().save_prediction_run({
+            "issued_at": nc.as_of, "source": nc.source, "model_version": getattr(predictor, "model_version", "?"),
+            "horizon_h": HORIZON_H, "rain_72h_mm": round(max(nc.acc72_mm), 1),
+            "chance": (nc.chance or {}).get("p"), "chance_call": (nc.chance or {}).get("call"),
+            "city_level": int(max(nc.city_level)), "place_levels": peak, "headline": nc.headline,
+        })
+    except Exception as exc:                                    # noqa: BLE001
+        logger.warning(f"Could not save prediction run: {exc}")
 
 
 def cached_nowcast(source: str) -> Nowcast | None:
