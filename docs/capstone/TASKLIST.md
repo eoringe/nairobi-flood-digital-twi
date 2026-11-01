@@ -76,14 +76,14 @@ exist.
 
 | # | task | closes | status |
 |---|---|---|---|
-| 3.1 | Administrative boundaries: Nairobi's sub-counties and wards (geoBoundaries, CC BY 4.0), drawn on the map and available as filters | §2.2, FR-013, UC-007, AC-12 | ⬜ |
-| 3.2 | River network layer (from flow accumulation already in the repo) and permanent water bodies | §2.2 | ⬜ |
-| 3.3 | Station markers layer, health-coloured, click for details | FR-003, UC-002, AC-3 | 🔌 |
-| 3.4 | Active alert area layer | FR-009 | ⬜ |
-| 3.5 | Infrastructure layer: schools, hospitals and health centres, bridges, public buildings from OpenStreetMap as an interim source until the Infrastructure Risk Mapping System connects | §2.9, FR-010, AC-14 | ⬜ |
-| 3.6 | Layer manager: every layer listed with a description and source; visibility saved per user | FR-014, AC-13 | 🟡 |
-| 3.7 | Filters applied across map, cards and tables: sub-county, ward, risk level, alert severity, date; *Reset filters* | §2.12, FR-013 | ⬜ |
-| 3.8 | Risk classes aligned to the specification: Low, Moderate, High, Very High (Critical shown as Very High), with filtering by class | §2.7, FR-008 | 🟡 |
+| 3.1 | Administrative boundaries: Nairobi's sub-counties and wards (geoBoundaries, CC BY 4.0), drawn on the map and available as filters | §2.2, FR-013, UC-007, AC-12 | ✅ |
+| 3.2 | River network layer (from flow accumulation already in the repo) and permanent water bodies | §2.2 | ✅ |
+| 3.3 | Station markers layer, health-coloured, click for details | FR-003, UC-002, AC-3 | ✅ layer · 🔌 data |
+| 3.4 | Active alert area layer | FR-009 | ✅ |
+| 3.5 | Infrastructure layer: schools, hospitals and health centres, bridges, public buildings from OpenStreetMap as an interim source until the Infrastructure Risk Mapping System connects | §2.9, FR-010, AC-14 | ✅ |
+| 3.6 | Layer manager: every layer listed with a description and source; visibility saved per user | FR-014, AC-13 | ✅ |
+| 3.7 | Filters applied across map, cards and tables: sub-county, ward, risk level, alert severity, date; *Reset filters* | §2.12, FR-013 | ✅ |
+| 3.8 | Risk classes aligned to the specification (the console uses Low/Moderate/High/Very High; the map legend keeps Critical, its Very High): Low, Moderate, High, Very High (Critical shown as Very High), with filtering by class | §2.7, FR-008 | ✅ |
 
 ## Phase 4: Sensors, rainfall and water levels
 

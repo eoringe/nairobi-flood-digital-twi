@@ -1642,3 +1642,14 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card, .twin
 .ops-setup { margin: 8px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.9; }
 .ops-setup code { font-size: 12px; }
 @media (max-width: 860px) { .ops-refresh-bar { width: 100%; } }
+
+/* Map layers checklist (src/dashboard/map_layers_ui.py), styled like .twin-switch */
+.twin-checklist .form-check { margin-bottom: 4px; }
+.twin-checklist .form-check-label { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.twin-checklist .form-check-input:checked { background-color: var(--accent-solid); border-color: var(--accent-solid); }
+
+.ops-filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -6px 0 16px; }
+.ops-filter-icon { color: var(--text-muted); }
+.ops-filter-area { min-width: 280px; }
+.ops-filter-risk { min-width: 190px; }
+.ops-filter-note { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }

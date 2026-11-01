@@ -677,6 +677,10 @@ BLANK_PNG = ("data:image/png;base64,"
 ROUTE_LAYER_IDS = ("route-fastest", "route-casing", "route-safe", "route-endpoints")
 
 
+#: Operational map layers (src.geo.layers), patched by the "Map layers" checklist.
+OPS_LAYER_IDS = ("admin-boundaries", "rivers", "water-bodies", "infrastructure", "stations", "alert-areas")
+
+
 def create_3d_digital_twin_deck(
     depth_grid: np.ndarray | None = None,
     value_is_probability: bool = False,
@@ -693,6 +697,7 @@ def create_3d_digital_twin_deck(
     report_rows: list[dict] | None = None,
     satellite: dict | None = None,
     history_rows: list[dict] | None = None,
+    ops_rows: dict | None = None,
 ) -> pdk.Deck:
     """
     Construct Pydeck 3D Viewport with street-accurate flood overlay and crisp 3D buildings.
@@ -702,8 +707,10 @@ def create_3d_digital_twin_deck(
     `report_rows` are the community flood report pins
     (src.dashboard.reports_ui.map_rows) and `satellite` the satellite layer's
     state ({"visible", "image"}), kept across a rebuild in the same way, as are
-    `history_rows`, the past-floods areas (src.reports.history.map_rows).
+    `history_rows`, the past-floods areas (src.reports.history.map_rows), and
+    `ops_rows`, the operational layers by id (OPS_LAYER_IDS, src.geo.layers).
     """
+    ops_rows = ops_rows or {}
     palette = MAP_THEMES.get(theme, MAP_THEMES["dark"])
     route_layers = route_layers or {}
     layers = []
@@ -775,6 +782,34 @@ def create_3d_digital_twin_deck(
         parameters=no_depth,
     ))
 
+    # 1d. Operational layers (src.geo.layers), patched in place by the "Map
+    # layers" checklist: area outlines and alert areas on the ground, rivers and
+    # water over the flood fill, facilities and stations as pins (drawn after the
+    # buildings, below).
+    layers.append(pdk.Layer(
+        "PolygonLayer", ops_rows.get("alert-areas", []), id="alert-areas",
+        get_polygon="polygon", get_fill_color="fill", get_line_color="edge", line_width_min_pixels=2,
+        stroked=True, filled=True, extruded=False, pickable=True, auto_highlight=True,
+        highlight_color=[255, 255, 255, 40], parameters=no_depth,
+    ))
+    layers.append(pdk.Layer(
+        "PolygonLayer", ops_rows.get("water-bodies", []), id="water-bodies",
+        get_polygon="polygon", get_fill_color="fill", get_line_color="edge", line_width_min_pixels=1,
+        stroked=True, filled=True, extruded=False, pickable=True, parameters=no_depth,
+    ))
+    layers.append(pdk.Layer(
+        "PathLayer", ops_rows.get("rivers", []), id="rivers",
+        get_path="path", get_color="color", get_width="width", width_units="pixels",
+        width_min_pixels=1, cap_rounded=True, joint_rounded=True, pickable=True,
+        auto_highlight=True, highlight_color=[255, 255, 255, 120], parameters=no_depth,
+    ))
+    layers.append(pdk.Layer(
+        "PathLayer", ops_rows.get("admin-boundaries", []), id="admin-boundaries",
+        get_path="path", get_color="color", get_width="width", width_units="pixels",
+        width_min_pixels=1, pickable=True, auto_highlight=True, highlight_color=[129, 140, 248, 200],
+        parameters=no_depth,
+    ))
+
     # 2. LOD2 Solid 3D Volumetric Building Footprint Extrusions
     building_data = _building_rows(theme)
 
@@ -838,6 +873,14 @@ def create_3d_digital_twin_deck(
         get_radius=9, radius_units="pixels", stroked=True, line_width_min_pixels=3,
         pickable=True, auto_highlight=True, parameters=no_depth,
     ))
+
+    for lid, radius in (("infrastructure", "radius"), ("stations", 9)):
+        layers.append(pdk.Layer(
+            "ScatterplotLayer", ops_rows.get(lid, []), id=lid,
+            get_position="position", get_fill_color="color", get_line_color="line",
+            get_radius=radius, radius_units="pixels", stroked=True, line_width_min_pixels=2,
+            pickable=True, auto_highlight=True, parameters=no_depth,
+        ))
 
     view_state = pdk.ViewState(
         latitude=center_lat,
@@ -1315,6 +1358,7 @@ CITY_JS = r"""
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
+  var OPS_LAYERS = ["admin-boundaries", "rivers", "water-bodies", "infrastructure", "stations", "alert-areas"];
   function tooltip(info) {
     if (!info || !info.object) return null;
     var id = (info.layer && info.layer.id) || "";
@@ -1324,6 +1368,12 @@ CITY_JS = r"""
         "<div style='font-weight:600;font-size:13px;margin-bottom:2px'>" + esc(p.title) + "</div>" +
         "<div style='opacity:0.8'>" + esc(p.detail) + "</div>" +
         (p.note ? "<div style='opacity:0.75;margin-top:4px;font-style:italic'>\u201c" + esc(p.note) + "\u201d</div>" : "") };
+    }
+    if (OPS_LAYERS.indexOf(id) >= 0) {
+      return { style: CITY.tooltip, html:
+        "<div style='font-weight:600;font-size:13px;margin-bottom:2px'>" + esc(p.title) + "</div>" +
+        "<div style='opacity:0.85'>" + esc(p.detail || "") + "</div>" +
+        "<div style='opacity:0.55;font-size:11px;margin-top:4px'>" + esc(p.source || "") + "</div>" };
     }
     if (id === "past-floods") {
       var key = p.near

@@ -92,6 +92,9 @@ data/*.sqlite
 # Past Nairobi floods from Google's Groundsource news dataset (~140 KB), built
 # by src/ingestion/fetch_groundsource.py. The 667 MB parquet is not kept.
 !data/processed/nairobi_groundsource.json
+!data/processed/nairobi_boundaries.json
+!data/processed/nairobi_rivers.json
+!data/processed/nairobi_infrastructure.json
 
 # Small evaluation outputs travel with the code; model weights (100+ MB) do not.
 # Same three-line idiom as data/processed/arrays above.

@@ -10,13 +10,14 @@ from __future__ import annotations
 import os
 
 from src.integrations.base import DataSource, as_utc
-from src.integrations.internal import (CommunityReports, ForecastFeed, NewsFloods, OutlookAlerts,
-                                       PredictionModel, SatelliteFloodMap)
+from src.integrations.internal import (CommunityReports, ForecastFeed, InfrastructureOSM, NewsFloods,
+                                       OutlookAlerts, PredictionModel, SatelliteFloodMap)
 from src.integrations.partners import (AutomatedAlertSystem, BeneficiarySystem, InfrastructureRiskSystem,
                                        IoTSensorPlatform, SupplyChainSystem)
 
 SOURCES: dict[str, DataSource] = {s.key: s for s in (
     ForecastFeed(), PredictionModel(), OutlookAlerts(), CommunityReports(), NewsFloods(), SatelliteFloodMap(),
+    InfrastructureOSM(),
     IoTSensorPlatform(), AutomatedAlertSystem(), InfrastructureRiskSystem(), SupplyChainSystem(),
     BeneficiarySystem(),
 )}

@@ -181,3 +181,47 @@ class SatelliteFloodMap(DataSource):
         if day is None:
             return [], None
         return [{"pass_date": day.isoformat()}], datetime.combine(day, datetime.min.time(), EAT)
+
+
+def live_peak_probability():
+    """
+    The flood probability grid at the outlook's wettest hour, and its issue time:
+    what the map shows as the worst of the next 12 hours. (None, None) without
+    an outlook.
+    """
+    from src.dashboard.callbacks import predictor
+    nc = _live_nowcast()
+    if nc.error or not nc.acc72_mm:
+        return None, None
+    peak = max(range(len(nc.acc72_mm)), key=lambda h: nc.acc72_mm[h])
+    return predictor.probability_for(nc.rain_key(peak), scenario_date=nc.as_of.date()), nc.as_of
+
+
+class InfrastructureOSM(DataSource):
+    key = "infrastructure"
+    name = "Infrastructure (OpenStreetMap)"
+    system = "OpenStreetMap, interim infrastructure source"
+    kind = "external"
+    description = ("Schools, health facilities, bridges, public buildings and emergency services, with the "
+                   "predicted risk at each. Used until the Infrastructure Risk Mapping System is connected.")
+    provides = ("assets",)
+    probe = "assets"
+    live_within = timedelta(days=365)          # reference data: refreshed by re-running the ingestion
+    stale_after = timedelta(days=3 * 365)
+
+    def _fetch(self, what: str, **params):
+        import json
+        from src.geo import layers
+        fetched = json.loads(layers.INFRA_FILE.read_text(encoding="utf-8"))["fetched"]
+        prob = None
+        if params.get("with_risk", True):
+            prob, _issued = live_peak_probability()
+        rows = layers.exposure(prob)
+        if params.get("categories"):
+            rows = [a for a in rows if a["category"] in params["categories"]]
+        if params.get("area_ids"):
+            ids = set(params["area_ids"])
+            rows = [a for a in rows if {a.get("ward"), a.get("sub_county")} & ids]
+        if params.get("min_level"):
+            rows = [a for a in rows if a["level"] >= params["min_level"]]
+        return rows, datetime.combine(date.fromisoformat(fetched), datetime.min.time(), EAT)

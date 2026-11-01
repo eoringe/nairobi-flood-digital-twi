@@ -127,13 +127,14 @@ class IoTSensorPlatform(HttpSource):
         if what in ("stations", "health"):
             rows = []
             for s in DEMO_STATIONS:
-                last = now - (timedelta(hours=9) if s["health"] == "offline" else timedelta(minutes=10))
+                last = utc_now() - (timedelta(hours=9) if s["health"] == "offline" else timedelta(minutes=10))
                 latest = {k: {"value": _demo_value(s, k, last), "observed_at": last.isoformat(),
                               "unit": "mm/h" if k == "rainfall" else "m"} for k in s["types"]}
                 rows.append({**{k: v for k, v in s.items() if k != "health"}, "health": s["health"],
                              "status": "inactive" if s["health"] == "offline" else "active",
                              "last_communication": last.isoformat(), "latest": latest})
-            return rows, now
+            # The newest contact, not the hour it falls in: healthy demo stations report every 10 minutes.
+            return rows, utc_now() - timedelta(minutes=10)
         station = next((s for s in DEMO_STATIONS if s["id"] == params.get("station_id")), None)
         if station is None:
             raise KeyError(f"unknown station {params.get('station_id')}")

@@ -105,6 +105,8 @@ def fake_sources(tmp_path, monkeypatch):
         "alerts": _Fake("alerts", state=base.NOT_CONNECTED),
         "community": _Fake("community", observed=now),
         "infrastructure_system": _Fake("infrastructure_system", state=base.NOT_CONNECTED),
+        "infrastructure": _Fake("infrastructure", observed=now, records=[
+            {"name": "Mathare North Health Centre", "category": "health_centre", "level": 2}]),
     }
     monkeypatch.setattr(registry, "SOURCES", fakes)
     monkeypatch.setattr(registry, "check_unknown", lambda: None)
@@ -138,3 +140,39 @@ def test_the_console_is_closed_to_the_public(fake_sources):
     from src.dashboard import ops_console
     assert "operations console is for" in _text(ops_console.render_ops(_user("citizen"), "/ops"))
     assert "Your role does not include" in _text(ops_console.render_ops(_user("data_analyst"), "/ops/status"))
+
+
+def test_overview_counts_interim_infrastructure_from_openstreetmap(fake_sources):
+    from src.dashboard import ops_console
+    page = _text(ops_console.overview(_user("monitoring_officer"), "dark"))
+    assert "(OpenStreetMap)" in page and "Exposed infrastructure" in page
+
+
+def test_area_and_risk_filters_narrow_the_risk_table(fake_sources):
+    from src.dashboard import ops_console
+    from src.geo import boundaries
+    mathare = boundaries.ids_by_name(["Mathare"])
+    page = _text(ops_console.overview(_user("monitoring_officer"), "dark", {"areas": mathare, "min_risk": 0}))
+    assert "Mabatini" in page and "Kibera" not in page
+    page = _text(ops_console.overview(_user("monitoring_officer"), "dark", {"areas": [], "min_risk": 3}))
+    assert "at this risk level" in page, "no Very High places in the fake outlook"
+
+
+def test_a_county_officer_never_sees_beyond_assigned_areas():
+    from src.dashboard.ops_console import effective_filter
+    from src.geo import boundaries
+    kibra = boundaries.ids_by_name(["Kibra"])
+    officer = {**_user("county_officer"), "assigned_areas": ["Kibra"]}
+    other = boundaries.ids_by_name(["Mathare"])[0]
+    assert effective_filter(officer, other, 0)["areas"] == kibra, "a request for another area is refused"
+    assert effective_filter({**officer, "assigned_areas": []}, None, 0).get("unassigned")
+    assert effective_filter(_user("hydrologist"), None, 0)["areas"] == [], "others see the whole city by default"
+
+
+def test_boundaries_place_lookup():
+    from src.geo import boundaries
+    ward = boundaries.place_areas()["Mabatini"]["ward"]
+    assert boundaries.label(ward) == "Mabatini ward, Mathare"
+    assert boundaries.place_in("Mabatini", boundaries.ids_by_name(["Mathare"]))
+    assert not boundaries.place_in("Mabatini", boundaries.ids_by_name(["Kibra"]))
+    assert len(boundaries.load()["sub_county"]) == 19

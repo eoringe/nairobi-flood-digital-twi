@@ -21,10 +21,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import dash_bootstrap_components as dbc
-from dash import Input, Output, State, dcc, html
+from dash import Input, Output, State, ctx, dcc, html
 from dash.exceptions import PreventUpdate
 
 from src.auth.access import can, current_user
+from src.geo import boundaries
 from src.integrations import base, registry
 from src.integrations.store import get_ops_store
 
@@ -108,8 +109,10 @@ def _live_outlook():
     return r, (r.records[0] if r.ok and r.records else None)
 
 
-def overview(user: dict, theme: str) -> list:
-    """Main flood dashboard (§2.1, §6.1, UC-FVD-001)."""
+def overview(user: dict, theme: str, flt: dict | None = None) -> list:
+    """Main flood dashboard (§2.1, §6.1, UC-FVD-001), for the filtered area and risk level."""
+    flt = flt or {}
+    areas, min_risk = flt.get("areas") or [], int(flt.get("min_risk") or 0)
     registry.check_unknown()
     pred, nc = _live_outlook()
     chance_r = registry.get("prediction").fetch("chance")
@@ -119,6 +122,15 @@ def overview(user: dict, theme: str) -> list:
     partner_alerts = registry.get("alerts").fetch("active")
     community = registry.get("community").fetch("active")
     infra = registry.get("infrastructure_system").fetch("assets")
+    if not infra.ok:                       # interim: OpenStreetMap facilities with the predicted risk
+        infra = registry.get("infrastructure").fetch("assets", area_ids=areas or None, min_level=max(1, min_risk))
+    if areas:
+        stations.records = [s for s in stations.records if boundaries.point_in(s["lat"], s["lon"], areas)]
+        community.records = [r for r in community.records if boundaries.point_in(r["lat"], r["lon"], areas)]
+        for res in (model_alerts, partner_alerts):
+            res.records = [{**a, "areas": [p for p in a.get("areas") or [] if boundaries.place_in(p, areas)]}
+                           for a in res.records]
+            res.records = [a for a in res.records if a["areas"]]
 
     # Stations and readings.
     if stations.ok:
@@ -167,7 +179,8 @@ def overview(user: dict, theme: str) -> list:
     alert_tile = tile("Areas under alert", len(alert_places), "exclamation-triangle",
                       "danger" if alert_places else "ok", alert_sub, using, href="/ops/alerts")
 
-    high = _high_risk_places(nc)
+    high = [(p, l) for p, l in _high_risk_places(nc) if boundaries.place_in(p, areas)
+            and LEVEL_RANK[l] >= min_risk]
     risk_tile = tile("High-risk areas, next 12 h", len(high), "geo-alt", "danger" if high else "ok",
                      ", ".join(p for p, _l in high[:3]) or "none forecast", pred, source="12-hour outlook",
                      href="/ops/predictions")
@@ -176,8 +189,11 @@ def overview(user: dict, theme: str) -> list:
                     "megaphone", "warn" if community.ok and community.records else "ok",
                     "active community reports", community, href="/ops/incidents")
     if infra.ok:
-        infra_tile = tile("Exposed infrastructure", len(infra.records), "building-exclamation", "warn",
-                          "assets in risk areas", infra, href="/ops/infrastructure")
+        interim = infra.source == "infrastructure"
+        infra_tile = tile("Exposed infrastructure", len(infra.records), "building-exclamation",
+                          "warn" if infra.records else "ok",
+                          "facilities in predicted flood areas, next 12 h" + (" (OpenStreetMap)" if interim else ""),
+                          infra, href="/ops/infrastructure")
     else:
         infra_tile = tile("Exposed infrastructure", not_connected(infra), "building-exclamation", "neutral",
                           registry.get("infrastructure_system").system, infra)
@@ -187,7 +203,7 @@ def overview(user: dict, theme: str) -> list:
     return [
         tiles,
         html.Div(className="dash-grid cols-7-5", children=[
-            panel("Predicted risk by area, next 12 hours", _risk_table(high, nc), icon="map",
+            panel("Predicted risk by area, next 12 hours", _risk_table(nc, areas, min_risk), icon="map",
                   actions=html.Span("Model output, not observed flooding", className="ops-model-label")),
             panel("Recent activity", _recent_activity(user), icon="clock-history"),
         ]),
@@ -209,15 +225,18 @@ def _high_risk_places(nc: dict | None) -> list[tuple[str, str]]:
     return sorted(((p, l) for p, l in peak.items() if LEVEL_RANK[l] >= 2), key=lambda x: -LEVEL_RANK[x[1]])
 
 
-def _risk_table(high: list[tuple[str, str]], nc: dict | None) -> html.Div:
+def _risk_table(nc: dict | None, areas: list[str] | None = None, min_risk: int = 0) -> html.Div:
     if not nc:
         return html.P("The outlook is not available.", className="dash-empty")
     rows = []
     for w in nc.get("warnings") or []:
         for p in w["places"]:
-            rows.append((p, w["level"], w["text"]))
+            if boundaries.place_in(p, areas) and LEVEL_RANK[w["level"]] >= min_risk:
+                rows.append((p, w["level"], w["text"]))
     if not rows:
-        return html.P("No flooding expected anywhere in the next 12 hours.", className="dash-empty")
+        where = " in the selected area" if areas else " anywhere"
+        return html.P(f"No flooding expected{where} in the next 12 hours"
+                      + (" at this risk level." if min_risk else "."), className="dash-empty")
     seen, uniq = set(), []
     for p, lvl, text in sorted(rows, key=lambda r: -LEVEL_RANK[r[1]]):
         if p not in seen:
@@ -272,7 +291,7 @@ def _source_strip() -> html.Div:
 
 
 # ---------------------------------------------------------- system status --
-def status_page(user: dict, theme: str) -> list:
+def status_page(user: dict, theme: str, flt: dict | None = None) -> list:
     """Data source availability (§2.15, §6.12, UC-FVD-012)."""
     registry.check_unknown()
     rows = registry.status_rows()
@@ -319,7 +338,15 @@ def status_page(user: dict, theme: str) -> list:
                  html.Code(registry.get(r["key"]).env_url), " and ", html.Code(registry.get(r["key"]).env_key),
                  html.Span(" (set)" if r["configured"] else " (not set)", className="dash-cell-muted")])
         for r in partners])
+    layer_rows = get_ops_store().layers()
+    catalogue = html.Div(className="dash-table-wrap", children=html.Table(className="dash-table", children=[
+        html.Thead(html.Tr([html.Th("Map layer"), html.Th("Type"), html.Th("What it shows"), html.Th("Source")])),
+        html.Tbody([html.Tr([html.Td(l["name"], className="dash-cell-strong"), html.Td(l["category"]),
+                             html.Td(l["description"], className="dash-cell-muted"),
+                             html.Td(l["source"], className="dash-cell-muted")]) for l in layer_rows]),
+    ])) if layer_rows else html.P("The layer catalogue is recorded when the app starts.", className="dash-empty")
     return [kpis, panel("Data sources", table, icon="hdd-network"),
+            panel("Map layers", catalogue, icon="layers"),
             html.Div(className="dash-grid cols-7-5", children=[
                 panel("Failed requests", failed_view, icon="exclamation-octagon"),
                 panel("Connecting partner systems",
@@ -329,13 +356,13 @@ def status_page(user: dict, theme: str) -> list:
 
 
 # ---------------------------------------------------------------- pages --
-#: path -> (nav label, icon, title, subtitle, permission, builder)
+#: path -> (nav label, icon, title, subtitle, permission, builder, has area/risk filters)
 PAGES: dict[str, tuple] = {
     "/ops": ("Overview", "speedometer2", "Flood monitoring overview",
-             "Current conditions, predictions, alerts and incidents across Nairobi.", "view_ops", overview),
+             "Current conditions, predictions, alerts and incidents across Nairobi.", "view_ops", overview, True),
     "/ops/status": ("System status", "hdd-network", "System status",
                     "Every connected data source, its last update and failed requests.", "view_system_status",
-                    status_page),
+                    status_page, False),
 }
 
 
@@ -355,10 +382,23 @@ def render_ops(user: dict | None, path: str, theme: str = "dark") -> html.Div:
         return _denied("The operations console is for monitoring and response staff. "
                        "Ask an administrator for a staff role.")
     path = path if path in PAGES else "/ops"
-    label, icon, title, subtitle, permission, _builder = PAGES[path]
+    label, icon, title, subtitle, permission, _builder, _filtered = PAGES[path]
     if not can(user, permission):
         return _denied(f"Your role does not include {label.lower()}.")
-    every = get_ops_store().preferences(user["user_id"]).get("refresh_s", DEFAULT_REFRESH_S)
+    prefs = get_ops_store().preferences(user["user_id"])
+    every = prefs.get("refresh_s", DEFAULT_REFRESH_S)
+    allowed = assigned_areas(user)
+    area = prefs.get("area") if (not allowed or prefs.get("area") in allowed) else None
+    filters = html.Div(className="ops-filter-bar", children=[
+        _icon("funnel", "ops-filter-icon"),
+        dcc.Dropdown(id="ops-area", options=area_options(user), value=area or (allowed[0] if allowed else None),
+                     clearable=not allowed, placeholder="All of Nairobi", className="dash-select ops-filter-area"),
+        dcc.Dropdown(id="ops-risk", options=RISK_CHOICES, value=prefs.get("min_risk", 0), clearable=False,
+                     searchable=False, className="dash-select ops-filter-risk"),
+        html.Button([_icon("x-circle", "me-1"), "Reset filters"], id="ops-reset", className="dash-btn-ghost btn",
+                    n_clicks=0),
+        html.Span("Limited to your assigned areas" if allowed else "", className="dash-cell-muted"),
+    ], style=None if PAGES[path][6] else {"display": "none"})
     bar = html.Div(className="ops-refresh-bar", children=[
         html.Span([_icon("clock-history", "me-1"), "Last update ", html.Strong(id="ops-updated", children="…")],
                   className="ops-updated"),
@@ -368,12 +408,43 @@ def render_ops(user: dict | None, path: str, theme: str = "dark") -> html.Div:
                    color="dash"),
     ])
     return shell(path, user, title, subtitle,
+                 filters,
                  html.Div(id="ops-notices"),
                  dcc.Store(id="ops-path", data=path),
                  dcc.Interval(id="ops-interval", interval=max(every, 60) * 1000, disabled=not every),
                  dcc.Loading(html.Div(id="ops-content", className="dash-stack"), type="dot",
                              color="var(--accent)", delay_show=400),
                  actions=bar)
+
+
+RISK_CHOICES = [{"label": "All risk levels", "value": 0}, {"label": "Moderate and above", "value": 1},
+                {"label": "High and above", "value": 2}, {"label": "Very High only", "value": 3}]
+
+
+def assigned_areas(user: dict) -> list[str]:
+    """A county/regional officer's area ids (spec §4); empty means no restriction."""
+    if user.get("role") != "county_officer":
+        return []
+    return boundaries.ids_by_name(user.get("assigned_areas") or [])
+
+
+def area_options(user: dict) -> list[dict]:
+    allowed = assigned_areas(user)
+    if allowed:
+        return boundaries.options(only=allowed)
+    return boundaries.options(("sub_county", "ward"))
+
+
+def effective_filter(user: dict, area: str | None, min_risk) -> dict:
+    """The filter actually applied: a county officer never sees beyond the assigned areas."""
+    allowed = assigned_areas(user)
+    if user.get("role") == "county_officer" and not allowed:
+        return {"areas": ["__none__"], "min_risk": int(min_risk or 0), "unassigned": True}
+    if allowed:
+        areas = [area] if area in allowed else allowed
+    else:
+        areas = [area] if area else []
+    return {"areas": areas, "min_risk": int(min_risk or 0)}
 
 
 def notices() -> list:
@@ -392,18 +463,44 @@ def notices() -> list:
     return [html.Div([_icon(ic, "me-2"), text], className=f"dash-alert tone-{tone} mb-2") for tone, ic, text in out]
 
 
+def filter_header(flt: dict, filtered_page: bool) -> list:
+    """What the filter is doing, above the content."""
+    if flt.get("unassigned"):
+        return [html.Div([_icon("geo", "me-2"), "No areas are assigned to your account yet, so no area data is "
+                          "shown. Ask an administrator to assign your sub-counties or wards."],
+                         className="dash-alert tone-warn mb-2")]
+    if flt["areas"] and filtered_page:
+        names = ", ".join(boundaries.label(a) for a in flt["areas"][:3])
+        more = f" and {len(flt['areas']) - 3} more" if len(flt["areas"]) > 3 else ""
+        return [html.Div([_icon("funnel", "me-2"), "Showing ", html.Strong(names), more,
+                          ". Rainfall and the flood chance are city-wide."], className="ops-filter-note")]
+    return []
+
+
 def register_ops_callbacks(app) -> None:
     @app.callback(Output("ops-content", "children"), Output("ops-updated", "children"),
                   Output("ops-notices", "children"),
                   Input("ops-interval", "n_intervals"), Input("ops-refresh", "n_clicks"),
+                  Input("ops-area", "value"), Input("ops-risk", "value"),
                   State("ops-path", "data"), State("resolved-theme-store", "data"))
-    def ops_content(_n, _clicks, path, theme):
+    def ops_content(_n, _clicks, area, min_risk, path, theme):
         user = current_user()
         page = PAGES.get(path or "/ops")
         if page is None or not can(user, "view_ops") or not can(user, page[4]):
             raise PreventUpdate
-        content = page[5](user, theme or "dark")
-        return content, datetime.now(EAT).strftime("%H:%M:%S"), notices()
+        flt = effective_filter(user, area, min_risk)
+        if ctx.triggered_id in ("ops-area", "ops-risk"):
+            get_ops_store().set_preferences(user["user_id"], {"area": area, "min_risk": int(min_risk or 0)})
+        return (filter_header(flt, page[6]) + page[5](user, theme or "dark", flt),
+                datetime.now(EAT).strftime("%H:%M:%S"), notices())
+
+    @app.callback(Output("ops-area", "value"), Output("ops-risk", "value"),
+                  Input("ops-reset", "n_clicks"), prevent_initial_call=True)
+    def reset_filters(n):
+        if not n:
+            raise PreventUpdate
+        allowed = assigned_areas(current_user() or {})
+        return (allowed[0] if allowed else None), 0
 
     @app.callback(Output("ops-interval", "interval"), Output("ops-interval", "disabled"),
                   Input("ops-every", "value"), prevent_initial_call=True)

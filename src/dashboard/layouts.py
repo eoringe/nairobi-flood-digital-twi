@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from src.geo.layers import CATEGORIES as INFRA_CATEGORIES
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 
@@ -220,6 +221,24 @@ def _outlook_panel() -> html.Div:
             dbc.Switch(id="history-toggle", value=False, className="twin-switch mb-1",
                        label="Past floods in the news (Groundsource)"),
             html.Div(id="history-note", className="twin-satellite-note mb-3"),
+
+            # Operational layers and the area filter (src.dashboard.map_layers_ui).
+            html.Label("Map layers", className="twin-field-label"),
+            dbc.Checklist(id="ops-layers", value=[], className="twin-checklist mb-2", switch=True,
+                          options=[{"label": "Sub-county and ward boundaries", "value": "boundaries"},
+                                   {"label": "Rivers and water bodies", "value": "rivers"},
+                                   {"label": "Schools, hospitals, bridges and public buildings",
+                                    "value": "infrastructure"},
+                                   {"label": "Alert areas", "value": "alerts"}]),
+            # Which facilities the infrastructure layer draws; schools are many (2,000+), so off by default.
+            dcc.Dropdown(id="infra-categories", multi=True, className="twin-select mb-2",
+                         value=["hospital", "health_centre", "emergency_service", "bridge"],
+                         options=[{"label": label, "value": key} for key, (label, _c) in INFRA_CATEGORIES.items()],
+                         placeholder="Facility types", style={"display": "none"}),
+            dcc.Dropdown(id="map-area-filter", placeholder="Show a sub-county or ward…", clearable=True,
+                         className="twin-select mb-2"),
+            dcc.Loading(type="dot", color="var(--accent)",
+                        children=html.Div(id="ops-layers-note", className="twin-satellite-note mb-3")),
 
             dcc.Dropdown(
                 id="basin-dropdown",
@@ -470,10 +489,13 @@ def build_dashboard_layout() -> html.Div:
             dcc.Store(id="satellite-store", data=None),
             # The past-floods layer's state (visible, the replayed day, its rows).
             dcc.Store(id="history-store", data=None),
+            # The operational layers' rows by layer id, and a map fit request.
+            dcc.Store(id="ops-layers-store", data=None),
             report_modal(),
             html.Div(id="bridge-sink-reports", hidden=True),
             html.Div(id="bridge-sink-satellite", hidden=True),
             html.Div(id="bridge-sink-history", hidden=True),
+            html.Div(id="bridge-sink-ops", hidden=True),
             html.Div(id="bridge-sink-flood", hidden=True),
             html.Div(id="bridge-sink-route", hidden=True),
         ],
