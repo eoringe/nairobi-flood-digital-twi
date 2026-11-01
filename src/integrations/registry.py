@@ -35,6 +35,17 @@ def demo_mode() -> bool:
     return os.environ.get("INTEGRATION_DEMO") == "1"
 
 
+def check_unknown() -> None:
+    """Probe every configured source that has not been called yet, so status is never a guess."""
+    from src.integrations.store import get_ops_store
+    store = get_ops_store()
+    for s in SOURCES.values():
+        if s.probe and (s.configured() or s.demo()):
+            st = store.status(s.key)
+            if not st.get("last_success") and not st.get("last_failure"):
+                s.fetch(s.probe)
+
+
 def status_rows() -> list[dict]:
     """One row per source: configuration, last success/failure, failures in 24 h, freshness."""
     from src.integrations.store import get_ops_store

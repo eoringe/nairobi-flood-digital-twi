@@ -112,6 +112,7 @@ class DataSource:
     live_within: timedelta = timedelta(hours=1)
     stale_after: timedelta = timedelta(hours=6)
     archive: bool = False             # historical records: never "live"
+    probe: str | None = None          # the cheapest request, used to check the source is up
 
     def classify(self, observed_at) -> str:
         if observed_at is None:

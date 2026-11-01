@@ -37,7 +37,8 @@ class ForecastFeed(DataSource):
     kind = "external"
     description = "Hourly rainfall for Nairobi: the past 31 days and the next 2 days."
     provides = ("hourly",)
-    live_within = timedelta(hours=1)
+    probe = "hourly"
+    live_within = timedelta(hours=2)
     stale_after = timedelta(hours=6)
 
     def _fetch(self, what: str, **params):
@@ -56,7 +57,8 @@ class PredictionModel(DataSource):
     description = ("U-Net flood extent and 12-hour place outlook, with the 3-day flood chance learned "
                    "from reported floods.")
     provides = ("outlook", "chance", "model")
-    live_within = timedelta(hours=1)
+    probe = "chance"
+    live_within = timedelta(hours=2)
     stale_after = timedelta(hours=6)
 
     def _fetch(self, what: str, **params):
@@ -81,7 +83,8 @@ class OutlookAlerts(DataSource):
     description = ("Warnings raised by the 12-hour outlook. Shown in place of published alerts until the "
                    "Automated Alert System is connected.")
     provides = ("active",)
-    live_within = timedelta(hours=1)
+    probe = "active"
+    live_within = timedelta(hours=2)
     stale_after = timedelta(hours=6)
 
     def _fetch(self, what: str, **params):
@@ -119,15 +122,18 @@ class CommunityReports(DataSource):
     system = "Digital twin community reporting"
     description = "Flooding reported by signed-in users: water on the road, impassable roads, flooded homes."
     provides = ("active", "history")
+    probe = "active"
     live_within = timedelta(hours=1)
     stale_after = timedelta(hours=6)
 
     def _fetch(self, what: str, **params):
         from src.reports.store import get_reports
         store = get_reports()
-        rows = store.active() if what == "active" else store.history(params.get("start"), params.get("end"))
-        newest = max((r["updated_at"] for r in rows), default=None)
-        return rows, newest
+        if what == "active":
+            # Checked just now: no active reports is current information, not missing data.
+            return store.active(), utc_now()
+        rows = store.history(params.get("start"), params.get("end"))
+        return rows, max((r["updated_at"] for r in rows), default=None)
 
 
 class NewsFloods(DataSource):
@@ -137,6 +143,7 @@ class NewsFloods(DataSource):
     kind = "external"
     description = "Floods reported in the news inside the model area, 2000-2025, about 60% right in place and date."
     provides = ("events",)
+    probe = "events"
     archive = True
 
     def _fetch(self, what: str, **params):
@@ -163,6 +170,7 @@ class SatelliteFloodMap(DataSource):
     kind = "external"
     description = "Observed flood extent from radar, about every six days; cannot see water between buildings."
     provides = ("latest",)
+    probe = "latest"
     live_within = timedelta(days=7)
     stale_after = timedelta(days=14)
 

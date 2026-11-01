@@ -66,11 +66,11 @@ exist.
 
 | # | task | closes | status |
 |---|---|---|---|
-| 2.1 | Spec roles: system administrator, monitoring officer, hydrologist, data analyst, emergency management officer, county/regional officer (with assigned areas), infrastructure officer, disaster response team, public. Existing roles mapped; permission matrix updated | §4, FR-019, AC-19 | ⬜ |
-| 2.2 | Operations console at `/ops` with role-filtered sidebar, sharing the admin console's shell | §6, §2.14 | ⬜ |
-| 2.3 | Main dashboard: summary cards (stations total/active/inactive, latest rainfall, latest water level, areas under alert, active predictions, high-risk areas, reported incidents, exposed infrastructure), recent activity, freshness badge per card | §2.1, §6.1, FR-001, UC-001, AC-2 | ⬜ |
-| 2.4 | Global refresh bar: last successful update, manual refresh, configurable auto-refresh interval saved per user | FR-016, FR-017, §2.15 | ⬜ |
-| 2.5 | System notifications strip: data warnings (source down, stale, demo mode) | FR-020 | ⬜ |
+| 2.1 | Spec roles (assigning areas in the UI and filtering by them: 3.7, 7.5): system administrator, monitoring officer, hydrologist, data analyst, emergency management officer, county/regional officer (with assigned areas), infrastructure officer, disaster response team, public. Existing roles mapped; permission matrix updated | §4, FR-019, AC-19 | ✅ |
+| 2.2 | Operations console at `/ops` with role-filtered sidebar, sharing the admin console's shell | §6, §2.14 | ✅ |
+| 2.3 | Main dashboard: summary cards (stations total/active/inactive, latest rainfall, latest water level, areas under alert, active predictions, high-risk areas, reported incidents, exposed infrastructure), recent activity, freshness badge per card | §2.1, §6.1, FR-001, UC-001, AC-2 | ✅ |
+| 2.4 | Global refresh bar: last successful update, manual refresh, configurable auto-refresh interval saved per user | FR-016, FR-017, §2.15 | ✅ |
+| 2.5 | System notifications strip: data warnings (source down, stale, demo mode) | FR-020 | ✅ |
 
 ## Phase 3: Map completeness and geographical filtering
 
@@ -122,7 +122,7 @@ exist.
 | 7.1 | Reports screen: flood summary, station report, risk summary, alert and incident summary; preview; PDF and CSV export; generated reports recorded and audited | §2.13, §6.11, FR-018, UC-011, AC-18 | ⬜ |
 | 7.2 | REST API `/api/v1`: all endpoints in §7, session or token auth, role checks, pagination, `source` / `timestamp` / `freshness` / `demo` on every record | §7, FR-023 | ⬜ |
 | 7.3 | OpenAPI document and Swagger UI at `/api/docs` | §12 | ⬜ |
-| 7.4 | System status screen: each source's state, last success, failed requests, freshness warnings | §6.12, FR-017, UC-012, AC-17 | 🟡 |
+| 7.4 | System status screen: each source's state, last success, failed requests, freshness warnings | §6.12, FR-017, UC-012, AC-17 | ✅ |
 | 7.5 | User management screen: roles, assigned areas, access status, audit history | §6.13, FR-022 | 🟡 |
 
 ## Phase 8: Testing, documentation, deployment

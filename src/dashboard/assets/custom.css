@@ -1589,3 +1589,56 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card, .twin
 .twin-switch .form-check-input:checked { background-color: var(--accent-solid); border-color: var(--accent-solid); }
 .twin-satellite-note { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
 .twin-satellite-note:empty { display: none; }
+
+/* ======================================================================
+   OPERATIONS CONSOLE (src/dashboard/ops_console.py)
+   ====================================================================== */
+.ops-refresh-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ops-updated { font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; }
+.ops-updated strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.ops-every { min-width: 170px; }
+.ops-tile { align-items: flex-start; }
+.ops-tile .dash-kpi-value { font-size: 22px; }
+.ops-tile-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.ops-tile-source { font-size: 11.5px; color: var(--text-muted); }
+.ops-tile-link { text-decoration: none; color: inherit; display: block; }
+.ops-tile-link .dash-kpi { transition: border-color .15s ease, transform .15s ease; height: 100%; }
+.ops-tile-link:hover .dash-kpi { border-color: var(--accent); transform: translateY(-1px); }
+.ops-fresh {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: var(--radius-pill);
+  font-size: 11px; font-weight: 600; color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+.ops-fresh::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ops-fresh.is-live { --tone: var(--risk-safe); }
+.ops-fresh.is-delayed { --tone: var(--risk-moderate); }
+.ops-fresh.is-stale { --tone: var(--risk-critical); }
+.ops-fresh.is-historical { --tone: var(--tone-info); }
+.ops-fresh.is-unavailable { --tone: var(--text-muted); }
+.ops-demo-tag {
+  padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 800; letter-spacing: .06em;
+  color: #1a1300; background: repeating-linear-gradient(135deg, #facc15 0 8px, #fde047 8px 16px);
+}
+.ops-model-label { font-size: 11.5px; color: var(--text-muted); border: 1px dashed var(--border-strong);
+  padding: 2px 8px; border-radius: 6px; }
+.ops-risk {
+  display: inline-block; padding: 2px 9px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 600;
+  color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+.ops-risk.lvl-0 { --tone: var(--risk-safe); }
+.ops-risk.lvl-1 { --tone: var(--risk-moderate); }
+.ops-risk.lvl-2 { --tone: var(--risk-high); }
+.ops-risk.lvl-3 { --tone: var(--risk-critical); }
+.ops-sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.ops-source {
+  display: grid; grid-template-columns: 12px 1fr; column-gap: 10px; align-items: center; padding: 10px 12px;
+  border: 1px solid var(--border-subtle); border-radius: 10px; font-size: 13px;
+}
+.ops-source .dash-cell-muted { grid-column: 2; }
+.ops-empty {
+  display: flex; align-items: flex-start; gap: 4px; padding: 14px 16px; border-radius: 12px; font-size: 13px;
+  color: var(--text-secondary); background: var(--bg-surface-2); border: 1px dashed var(--border-strong);
+}
+.ops-state { display: inline-flex; align-items: center; white-space: nowrap; }
+.ops-setup { margin: 8px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.9; }
+.ops-setup code { font-size: 12px; }
+@media (max-width: 860px) { .ops-refresh-bar { width: 100%; } }

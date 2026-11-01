@@ -82,6 +82,7 @@ class IoTSensorPlatform(HttpSource):
     system = "IoT Sensor Data Platform"
     description = "Monitoring stations, rainfall and water-level readings, sensor health."
     provides = ("stations", "readings", "health")
+    probe = "stations"
     env_url, env_key = "IOT_API_URL", "IOT_API_KEY"
     live_within = timedelta(minutes=30)
     stale_after = timedelta(hours=3)
@@ -157,6 +158,7 @@ class AutomatedAlertSystem(HttpSource):
     system = "Automated Alert System"
     description = "Published flood alerts, their status and acknowledgements."
     provides = ("active", "alert")
+    probe = "active"
     env_url, env_key = "ALERTS_API_URL", "ALERTS_API_KEY"
     live_within = timedelta(minutes=15)
     stale_after = timedelta(hours=2)
@@ -196,6 +198,7 @@ class InfrastructureRiskSystem(HttpSource):
     system = "Infrastructure Risk Mapping System"
     description = "Infrastructure assets with their exposure and risk classification."
     provides = ("assets",)
+    probe = "assets"
     env_url, env_key = "INFRA_API_URL", "INFRA_API_KEY"
     live_within = timedelta(days=1)
     stale_after = timedelta(days=30)
@@ -217,6 +220,7 @@ class SupplyChainSystem(HttpSource):
     system = "Supply Chain Management System"
     description = "Warehouses, emergency stock and distribution progress (no financial data)."
     provides = ("warehouses", "distributions")
+    probe = "warehouses"
     env_url, env_key = "SUPPLY_API_URL", "SUPPLY_API_KEY"
     live_within = timedelta(hours=6)
     stale_after = timedelta(days=2)
@@ -244,6 +248,7 @@ class BeneficiarySystem(HttpSource):
     system = "Student Beneficiary Management System"
     description = "Aggregated beneficiary counts by area. No personal records are requested or shown."
     provides = ("aggregate",)
+    probe = "aggregate"
     env_url, env_key = "BENEFICIARY_API_URL", "BENEFICIARY_API_KEY"
     live_within = timedelta(days=1)
     stale_after = timedelta(days=30)

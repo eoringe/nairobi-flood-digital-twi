@@ -409,7 +409,8 @@ def test_dashboard_figures_count_roles_sign_ins_and_failures(store):
     store.audit("login", p["user_id"])
     store.audit("login", p["user_id"])
     store.audit("login_failed", None, "firebase: unverified")
-    assert store.role_counts() == {"citizen": 1, "planner": 1, "responder": 0, "admin": 1}
+    from src.auth.store import ROLES
+    assert store.role_counts() == {**{r: 0 for r in ROLES}, "citizen": 1, "planner": 1, "admin": 1}
     assert store.count_actions(("login",), "2000-01-01") == 2
     assert store.count_actions(("login_failed", "2fa_failed"), "2000-01-01") == 1
     today = datetime.now(timezone.utc).date().isoformat()

@@ -9,6 +9,7 @@ administrator's console.
     /admin/users      users and roles: search, filter, create, change role, disable
     /admin/activity   the audit log, filtered by kind or text
     /admin/system     model, forecast feed and service status
+    /ops/...          the operations console (src.dashboard.ops_console)
 
 Pages are rendered on the server for the current user; every action checks the
 permission again when it runs (src.auth.access).
@@ -26,7 +27,9 @@ from dash.exceptions import PreventUpdate
 from src.auth.access import ROLE_LABELS, can, current_user
 from src.auth.store import ROLES, AuthError, get_store
 
-ROLE_TONES = {"citizen": "neutral", "planner": "accent", "responder": "warn", "admin": "danger"}
+ROLE_TONES = {"citizen": "neutral", "planner": "accent", "responder": "warn", "admin": "danger",
+              "monitoring_officer": "info", "hydrologist": "info", "data_analyst": "info",
+              "emergency_officer": "warn", "county_officer": "accent", "infrastructure_officer": "accent"}
 
 SIGN_IN = ("login",)
 FAILURES = ("login_failed", "2fa_failed", "login_locked", "2fa_locked", "password_change_failed")
@@ -114,6 +117,8 @@ def shell(path: str, user: dict, title: str, subtitle: str, *content, actions=No
     nav = [html.P("Workspace", className="dash-nav-section"),
            link("Live map", "/", "map"),
            link("My account", "/account", "person-circle")]
+    from src.dashboard.ops_console import nav_links
+    nav += nav_links(user, path, link)
     if can(user, "manage_users"):
         nav += [html.P("Administration", className="dash-nav-section"),
                 link("Overview", "/admin", "speedometer2"),
@@ -330,9 +335,10 @@ def signin_chart(theme: str, days: int = 14) -> go.Figure:
 
 def roles_chart(theme: str) -> go.Figure:
     counts = get_store().role_counts()
-    colours = {"citizen": "#7b8794", "planner": _chart_colours(theme)["accent"], "responder": "#f0a35e",
-               "admin": "#ef4459"}
-    order = list(reversed(ROLES))
+    tone_colour = {"neutral": "#7b8794", "accent": _chart_colours(theme)["accent"], "warn": "#f0a35e",
+                   "danger": "#ef4459", "info": "#60a5fa"}
+    colours = {r: tone_colour[ROLE_TONES[r]] for r in ROLES}
+    order = [r for r in reversed(ROLES) if counts[r] or r in ("citizen", "admin")]
     fig = go.Figure(go.Bar(x=[counts[r] for r in order], y=[ROLE_LABELS[r] for r in order], orientation="h",
                            marker_color=[colours[r] for r in order], text=[counts[r] for r in order],
                            textposition="outside", cliponaxis=False, hovertemplate="%{y}: %{x}<extra></extra>"))
@@ -360,8 +366,8 @@ def _overview(theme: str) -> list:
         ("Degraded", "warn") if "down" not in states else ("Attention", "danger"))
     kpis = html.Div(className="dash-kpis cols-3", children=[
         _kpi("Active users", sum(counts.values()), "people", "accent", f"+{new_week} this week"),
-        _kpi("Staff accounts", counts["planner"] + counts["responder"], "briefcase", "info",
-             f"{counts['planner']} planners · {counts['responder']} responders"),
+        _kpi("Staff accounts", sum(n for r, n in counts.items() if r not in ("citizen", "admin")), "briefcase",
+             "info", f"across {sum(1 for r, n in counts.items() if n and r not in ('citizen', 'admin'))} staff roles"),
         _kpi("Administrators", len(admins), "shield-lock", "danger",
              f"{sum(1 for a in admins if a['totp_enabled'])} of {len(admins)} with 2FA"),
         _kpi("Sign-ins (24 h)", signins, "box-arrow-in-right", "ok", f"{failures} failed or locked"),

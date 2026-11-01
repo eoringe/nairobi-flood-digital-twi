@@ -83,6 +83,8 @@ def account_area(user: dict | None) -> list:
              dcc.Link("Account", href="/account", className="twin-auth-link")]
     if user.get("mfa_pending"):
         links.append(dcc.Link("Verify 2FA to use admin tools", href="/2fa", className="twin-auth-btn"))
+    if can(user, "view_ops"):
+        links.append(dcc.Link("Operations", href="/ops", className="twin-auth-link"))
     if can(user, "manage_users"):
         links.append(dcc.Link("Admin", href="/admin", className="twin-auth-link"))
     links.append(html.A("Sign out", href="/auth/logout", className="twin-auth-link"))
@@ -371,7 +373,7 @@ def role_tools(user: dict | None) -> list:
                        color="primary", className="w-100 mb-2"),
             html.Div(id="tools-status"),
         ]
-        title = {"planner": "Planning tools", "responder": "Response tools", "admin": "Staff tools"}[user["role"]]
+        title = {"planner": "Planning tools", "responder": "Response tools"}.get(user["role"], "Staff tools")
         panels.insert(0, _card(title, *tools, icon="tools", tone="info"))
     return panels
 
@@ -498,6 +500,9 @@ def register_auth_callbacks(app) -> None:
             return (True, False, render_recovery_codes()) + twin_parts
         if path == "/account":
             return (True, False, render_account(user, theme or "dark")) + twin_parts
+        if path == "/ops" or path.startswith("/ops/"):
+            from src.dashboard.ops_console import render_ops
+            return (True, False, render_ops(user, path, theme or "dark")) + twin_parts
         if path == "/admin" or path.startswith("/admin/"):
             return (True, False, render_admin(user, path, theme or "dark")) + twin_parts
         return (False, True, None) + twin_parts
