@@ -209,9 +209,28 @@ class InfrastructureRiskSystem(HttpSource):
         # gives real facilities, so no demo assets are invented here.
         return False
 
+    #: The partner's risk classes on the dashboard's 0-3 scale.
+    RISK_LEVELS = {"low": 0, "moderate": 1, "medium": 1, "high": 2, "very high": 3, "very_high": 3, "critical": 3}
+
     def _fetch(self, what: str, **params):
         rows = self._get("/assets", {"bbox": params.get("bbox"), "category": params.get("category")})
-        return rows, utc_now()
+        out = [self._normalise_asset(a) for a in rows]
+        if params.get("area_ids"):
+            ids = set(params["area_ids"])
+            out = [a for a in out if {a.get("ward"), a.get("sub_county")} & ids]
+        if params.get("min_level"):
+            out = [a for a in out if a["level"] >= params["min_level"]]
+        return out, utc_now()
+
+    @classmethod
+    def _normalise_asset(cls, a: dict) -> dict:
+        from src.geo import boundaries
+        lat, lon = float(a["lat"]), float(a["lon"])
+        ward, sub = boundaries.area_at(lat, lon, "ward"), boundaries.area_at(lat, lon, "sub_county")
+        risk = str(a.get("risk_class") or "low").lower()
+        return {"id": str(a["id"]), "name": a.get("name") or str(a["id"]), "category": a.get("category", "other"),
+                "lat": lat, "lon": lon, "risk_class": risk, "level": cls.RISK_LEVELS.get(risk, 0),
+                "ward": ward["id"] if ward else None, "sub_county": sub["id"] if sub else None}
 
 
 # -------------------------------------------------------------- supply chain --

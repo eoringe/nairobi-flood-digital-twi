@@ -313,6 +313,24 @@ The outlook card shows the chance that flooding is reported in Nairobi over the 
 
 Refit with `python -m src.forecast.flood_chance` and `python -m src.validation.validate_flood_prone`.
 
+### 6.6 Operations Console and API (Flood Visualization Dashboard)
+
+For the industry partner's *Flood Visualization Dashboard Specification v1.0*, staff roles get an operations console at `/ops`:
+- **Screens:** overview, sensors, rainfall, water levels, predictions, predicted vs observed, alerts, infrastructure, incidents, history, reports and system status.
+- **Every value** shows its source, observation time and freshness.
+- **Filters:** every page filters by sub-county or ward and by risk level.
+
+The plan and progress are in [docs/capstone/TASKLIST.md](docs/capstone/TASKLIST.md). Evidence for the 22 acceptance criteria is in [docs/capstone/ACCEPTANCE.md](docs/capstone/ACCEPTANCE.md).
+
+* **Roles.** The specification's monitoring officer, hydrologist, data analyst, emergency management officer, county/regional officer (limited to assigned areas) and infrastructure officer sit beside the original four roles. Permissions are checked on the server in every callback and endpoint.
+* **Partner systems.** The IoT Sensor Data Platform, Automated Alert System, Infrastructure Risk Mapping, Supply Chain and Beneficiary systems connect through adapters configured by `*_API_URL` / `*_API_KEY` ([integration guide](docs/capstone/INTEGRATION_GUIDE.md)).
+  * Until a system connects, its screens say it is not connected, and nothing is invented.
+  * `INTEGRATION_DEMO=1` shows labelled DEMO data for demonstrations.
+* **Map.** Sub-county and ward boundaries (geoBoundaries), rivers and 3,290 facilities (OpenStreetMap, interim) carry the predicted risk at each location. Alert areas, monitoring stations and an area filter are also available.
+* **Reports.** Five reports with preview, PDF and CSV export.
+* **REST API.** `/api/v1` covers all specification endpoints. Documentation is at `/api/v1/openapi.json`, with Swagger UI at `/api/docs`. Access is by session or bearer token (`TWIN_API_TOKENS`).
+* **Resilience.** `tests/test_resilience.py` takes each source down in turn, and all at once. Every page and API endpoint keeps working.
+
 ---
 
 ## 📂 Implementation Blueprint: File-by-File Code Mapping

@@ -31,6 +31,22 @@ services:
       - FIREBASE_AUTH_DOMAIN
       - FIREBASE_PROJECT_ID
       - FIREBASE_APP_ID
+      # Integrated Flood Monitoring System partners (docs/capstone/INTEGRATION_GUIDE.md).
+      # Unset: the dashboard shows each system as "not connected".
+      - IOT_API_URL
+      - IOT_API_KEY
+      - ALERTS_API_URL
+      - ALERTS_API_KEY
+      - INFRA_API_URL
+      - INFRA_API_KEY
+      - SUPPLY_API_URL
+      - SUPPLY_API_KEY
+      - BENEFICIARY_API_URL
+      - BENEFICIARY_API_KEY
+      # Machine access to /api/v1: "token:role,token:role".
+      - TWIN_API_TOKENS
+      # 1 = labelled demo data for partner systems that are not connected.
+      - INTEGRATION_DEMO
     restart: unless-stopped
 
   # Upgrade path for the database: swap SQLite for PostGIS once the ERD's

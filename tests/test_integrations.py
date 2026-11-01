@@ -167,3 +167,20 @@ def test_report_history_hides_reporters(tmp_path):
     store.add(42, -1.2884, 36.8233, "water", "CBD")
     row = store.history()[0]
     assert "user_id" not in row and row["verified"] is False and row["status"] == "active"
+
+
+def test_partner_infrastructure_is_normalised_with_ward_and_level(monkeypatch):
+    import requests
+    from src.integrations.partners import InfrastructureRiskSystem
+
+    class Resp:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return [{"id": 91, "name": "Mathare North Health Centre", "category": "health_centre",
+                     "lat": -1.2551, "lon": 36.8602, "risk_class": "High"}]
+    monkeypatch.setattr(requests, "get", lambda url, **kw: Resp())
+    monkeypatch.setenv("INFRA_API_URL", "https://infra.example.org")
+    a = InfrastructureRiskSystem().fetch("assets").records[0]
+    assert a["id"] == "91" and a["level"] == 2 and a["ward"] is not None

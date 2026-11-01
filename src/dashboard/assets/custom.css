@@ -1677,3 +1677,10 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card, .twin
 .ops-alert-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); }
 .ops-alert-actions { margin: 8px 0 6px; padding-left: 18px; font-size: 13px; }
 .ops-areas-dd { min-width: 230px; }
+/* Grid items default to their content width; a card's one-line sub-text pushed the
+   card past the screen edge on phones. */
+.dash-kpis > * { min-width: 0; }
+@media (max-width: 860px) {
+  .ops-filter-area, .ops-filter-risk, .ops-years, .ops-every { min-width: 0; flex: 1 1 100%; }
+  .dash-main { overflow-x: hidden; }
+}

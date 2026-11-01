@@ -5,6 +5,8 @@ Specification v1.0* (Integrated Flood Monitoring System). Every task lists the
 requirement IDs it closes (FVD-FR-xxx, use case UC-FVD-xxx, acceptance criterion
 AC-n from §11 of the specification).
 
+**Progress:** Phases 1–8 built. What remains depends on partner APIs (🔌) and TAHMO data; see ACCEPTANCE.md.
+
 **Status key**
 
 | mark | meaning |
@@ -129,11 +131,11 @@ exist.
 
 | # | task | closes | status |
 |---|---|---|---|
-| 8.1 | Tests: adapters (success, timeout, not configured), freshness rules, permissions per role, API contract, report generation | §14 Phase 6 | ⬜ |
-| 8.2 | Resilience test: each partner source down at a time, dashboard still usable | §10.2, AC-22 | ⬜ |
-| 8.3 | Acceptance checklist mapping AC-1 to AC-22 to evidence (screenshots, tests) | §11 | ⬜ |
-| 8.4 | Integration guide for partner teams: the contract each adapter expects | §9 | ⬜ |
-| 8.5 | Docker and environment variables updated | §12 | ⬜ |
+| 8.1 | Tests: adapters (success, timeout, not configured), freshness rules, permissions per role, API contract, report generation | §14 Phase 6 | ✅ |
+| 8.2 | Resilience test: each partner source down at a time, dashboard still usable | §10.2, AC-22 | ✅ |
+| 8.3 | Acceptance checklist mapping AC-1 to AC-22 to evidence (screenshots, tests) | §11 | ✅ |
+| 8.4 | Integration guide for partner teams: the contract each adapter expects | §9 | ✅ |
+| 8.5 | Docker and environment variables updated | §12 | ✅ |
 
 ---
 
