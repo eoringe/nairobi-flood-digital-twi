@@ -119,11 +119,11 @@ exist.
 
 | # | task | closes | status |
 |---|---|---|---|
-| 7.1 | Reports screen: flood summary, station report, risk summary, alert and incident summary; preview; PDF and CSV export; generated reports recorded and audited | §2.13, §6.11, FR-018, UC-011, AC-18 | ⬜ |
-| 7.2 | REST API `/api/v1`: all endpoints in §7, session or token auth, role checks, pagination, `source` / `timestamp` / `freshness` / `demo` on every record | §7, FR-023 | ⬜ |
-| 7.3 | OpenAPI document and Swagger UI at `/api/docs` | §12 | ⬜ |
+| 7.1 | Reports screen: flood summary, station report, risk summary, alert and incident summary; preview; PDF and CSV export; generated reports recorded and audited | §2.13, §6.11, FR-018, UC-011, AC-18 | ✅ |
+| 7.2 | REST API `/api/v1`: all endpoints in §7, session or token auth, role checks, pagination, `source` / `timestamp` / `freshness` / `demo` on every record | §7, FR-023 | ✅ |
+| 7.3 | OpenAPI document and Swagger UI at `/api/docs` | §12 | ✅ |
 | 7.4 | System status screen: each source's state, last success, failed requests, freshness warnings | §6.12, FR-017, UC-012, AC-17 | ✅ |
-| 7.5 | User management screen: roles, assigned areas, access status, audit history | §6.13, FR-022 | 🟡 |
+| 7.5 | User management screen: roles, assigned areas, access status, audit history | §6.13, FR-022 | ✅ |
 
 ## Phase 8: Testing, documentation, deployment
 

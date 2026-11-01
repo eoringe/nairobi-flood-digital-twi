@@ -21,10 +21,10 @@ from datetime import datetime, timedelta, timezone
 
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
-from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
+from dash import ALL, MATCH, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 
-from src.auth.access import ROLE_LABELS, can, current_user
+from src.auth.access import ROLE_DUTIES, ROLE_LABELS, can, current_user
 from src.auth.store import ROLES, AuthError, get_store
 
 ROLE_TONES = {"citizen": "neutral", "planner": "accent", "responder": "warn", "admin": "danger",
@@ -170,6 +170,8 @@ def users_table(query: str | None = None, role: str | None = None) -> html.Div:
              and (not q or q in (u["email"] or "").lower() or q in (u.get("display_name") or "").lower())]
     if not users:
         return html.P("No users match.", className="dash-empty")
+    from src.geo import boundaries
+    area_opts = boundaries.options(("sub_county", "ward"))
     rows = []
     for u in users:
         rows.append(html.Tr(className="" if u["active"] else "is-disabled", children=[
@@ -180,8 +182,15 @@ def users_table(query: str | None = None, role: str | None = None) -> html.Div:
             ])),
             html.Td(html.Div(_methods(u), className="dash-chips")),
             html.Td(dcc.Dropdown(id={"type": "role-dd", "uid": u["user_id"]},
-                                 options=[{"label": ROLE_LABELS[r], "value": r} for r in ROLES],
-                                 value=u["role"], clearable=False, className="dash-select")),
+                                 options=[{"label": ROLE_LABELS[r], "value": r, "title": ROLE_DUTIES[r]} for r in ROLES],
+                                 value=u["role"], clearable=False, className="dash-select"),
+                    title=ROLE_DUTIES[u["role"]]),
+            # Assigned areas: what a county/regional officer may see (spec §4); ignored for other roles.
+            html.Td(dcc.Dropdown(id={"type": "areas-dd", "uid": u["user_id"]}, options=area_opts, multi=True,
+                                 value=boundaries.ids_by_name(u.get("assigned_areas") or []),
+                                 placeholder="County officers only" if u["role"] != "county_officer"
+                                 else "Assign sub-counties or wards", className="dash-select ops-areas-dd",
+                                 disabled=u["role"] != "county_officer")),
             html.Td(dbc.Switch(id={"type": "active-sw", "uid": u["user_id"]}, value=u["active"],
                                label="Active" if u["active"] else "Disabled", className="dash-switch")),
             html.Td(html.Span((u.get("last_login_at") or "Never").replace("T", " ")[:16], className="dash-cell-muted")),
@@ -189,7 +198,8 @@ def users_table(query: str | None = None, role: str | None = None) -> html.Div:
                                color="dash", className="dash-btn-ghost")),
         ]))
     return html.Div(className="dash-table-wrap", children=html.Table(className="dash-table", children=[
-        html.Thead(html.Tr([html.Th(h) for h in ("User", "Sign-in", "Role", "Status", "Last sign-in (UTC)", "")])),
+        html.Thead(html.Tr([html.Th(h) for h in ("User", "Sign-in", "Role", "Assigned areas", "Status",
+                                                 "Last sign-in (UTC)", "")])),
         html.Tbody(rows),
     ]))
 
@@ -535,6 +545,14 @@ def render_account(user: dict | None, theme: str = "dark") -> html.Div:
 
 # -------------------------------------------------------------- callbacks --
 def register_admin_callbacks(app) -> None:
+    @app.callback(Output({"type": "areas-dd", "uid": MATCH}, "disabled"),
+                  Output({"type": "areas-dd", "uid": MATCH}, "placeholder"),
+                  Input({"type": "role-dd", "uid": MATCH}, "value"), prevent_initial_call=True)
+    def areas_for_role(role):
+        """Areas apply to county/regional officers; the box opens as soon as that role is chosen."""
+        on = role == "county_officer"
+        return not on, "Assign sub-counties or wards" if on else "County officers only"
+
     @app.callback(Output("new-user-modal", "is_open", allow_duplicate=True),
                   Input("btn-new-user", "n_clicks"), Input("btn-cancel-new-user", "n_clicks"),
                   prevent_initial_call=True)
@@ -582,9 +600,10 @@ def register_admin_callbacks(app) -> None:
                   Input({"type": "save-user", "uid": ALL}, "n_clicks"),
                   State({"type": "role-dd", "uid": ALL}, "value"), State({"type": "role-dd", "uid": ALL}, "id"),
                   State({"type": "active-sw", "uid": ALL}, "value"),
+                  State({"type": "areas-dd", "uid": ALL}, "value"),
                   State("users-search", "value"), State("users-role-filter", "value"),
                   prevent_initial_call=True)
-    def save_user(clicks, roles, ids, actives, query, role_filter):
+    def save_user(clicks, roles, ids, actives, areas, query, role_filter):
         me = current_user()
         if not can(me, "manage_users"):
             return html.Div("Not permitted.", className="dash-alert tone-danger"), no_update
@@ -599,9 +618,11 @@ def register_admin_callbacks(app) -> None:
         except AuthError as exc:
             return (html.Div([_icon("exclamation-triangle", "me-2"), str(exc)], className="dash-alert tone-danger"),
                     users_table(query, role_filter))
+        if after["role"] == "county_officer" or before.get("assigned_areas"):
+            after = store.set_assigned_areas(uid, areas[i] or [] if after["role"] == "county_officer" else [])
         store.audit("user_updated", me["user_id"],
                     f"{after['email']}: role {before['role']}->{after['role']}, "
-                    f"active {before['active']}->{after['active']}")
+                    f"active {before['active']}->{after['active']}, areas {after['assigned_areas']}")
         return (html.Div([_icon("check-circle", "me-2"), f"Saved {after['email']}."], className="dash-alert tone-ok"),
                 users_table(query, role_filter))
 

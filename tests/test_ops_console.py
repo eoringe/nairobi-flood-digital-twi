@@ -176,3 +176,17 @@ def test_boundaries_place_lookup():
     assert boundaries.place_in("Mabatini", boundaries.ids_by_name(["Mathare"]))
     assert not boundaries.place_in("Mabatini", boundaries.ids_by_name(["Kibra"]))
     assert len(boundaries.load()["sub_county"]) == 19
+
+
+def test_assigned_areas_are_edited_in_the_users_table(tmp_path, monkeypatch):
+    from src.auth.store import AuthStore, set_store
+    from src.dashboard import admin_dashboard
+    store = AuthStore(tmp_path / "acc.db")
+    set_store(store)
+    try:
+        u = store.create_user("county@example.org", "county_officer")
+        store.set_assigned_areas(u["user_id"], ["Kibra"])
+        text = str(admin_dashboard.users_table())
+        assert "Assigned areas" in text and "areas-dd" in text
+    finally:
+        set_store(None)
