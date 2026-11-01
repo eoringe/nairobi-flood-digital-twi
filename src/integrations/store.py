@@ -136,9 +136,13 @@ class OpsStore:
                       (source_key, now, int(ok), latency_ms, error))
             c.execute("INSERT OR IGNORE INTO data_source_status (source_key) VALUES (?)", (source_key,))
             if ok:
+                # The newest observation the source has given, whichever call it came from: a
+                # request for an offline station's old readings must not make the source look stale.
+                obs = _iso(observed_at)
                 c.execute("UPDATE data_source_status SET last_success=?, last_latency_ms=?, "
-                          "last_observed=COALESCE(?, last_observed) WHERE source_key=?",
-                          (now, latency_ms, _iso(observed_at), source_key))
+                          "last_observed=CASE WHEN ? IS NOT NULL AND (last_observed IS NULL OR ? > last_observed) "
+                          "THEN ? ELSE last_observed END WHERE source_key=?",
+                          (now, latency_ms, obs, obs, obs, source_key))
             else:
                 c.execute("UPDATE data_source_status SET last_failure=?, last_error=?, last_latency_ms=? "
                           "WHERE source_key=?", (now, error, latency_ms, source_key))

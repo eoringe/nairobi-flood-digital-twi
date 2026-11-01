@@ -1653,3 +1653,11 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card, .twin
 .ops-filter-area { min-width: 280px; }
 .ops-filter-risk { min-width: 190px; }
 .ops-filter-note { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+
+/* Monitoring screens (src/dashboard/ops_monitoring.py) */
+.ops-above { color: var(--risk-critical); font-weight: 600; }
+.ops-years { min-width: 260px; flex: 1 1 260px; }
+.ops-kind label { font-size: 13px; color: var(--text-primary); }
+.ops-range .DateRangePickerInput { background: var(--bg-surface-2); border: 1px solid var(--border-subtle); border-radius: 10px; }
+.ops-range .DateInput, .ops-range .DateInput_input { background: transparent; color: var(--text-primary); font-size: 13px; }
+.ops-risk.is-stale { --tone: var(--text-muted); font-style: italic; }

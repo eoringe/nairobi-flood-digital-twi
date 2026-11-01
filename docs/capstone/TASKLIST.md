@@ -89,11 +89,11 @@ exist.
 
 | # | task | closes | status |
 |---|---|---|---|
-| 4.1 | Sensor monitoring screen: station list, status, latest readings, last communication time, health, search by station | §2.3, §6.3, FR-003, FR-006, FR-015, AC-4, AC-7 | 🔌 |
-| 4.2 | Station detail: time-series chart with date range, threshold lines, missing data shown as gaps | UC-002, FR-024 | 🔌 |
-| 4.3 | Rainfall analytics: accumulated rainfall, intensity categories (KMD thresholds), trend charts with configurable periods, historical comparison. Works now on forecast-feed and CHIRPS rainfall; stations added when connected | §2.4, §6.4, FR-004, UC-003, AC-5 | 🟡 |
-| 4.4 | Water-level analytics: river-level charts, warning/critical thresholds, rising/stable/falling trend, station comparison | §2.5, §6.5, FR-005, UC-004, AC-6 | 🔌 |
-| 4.5 | TAHMO gauge ingestion once approved (feeds 4.1–4.3 through the IoT adapter interface) | §9.1 | ⬜ |
+| 4.1 | Sensor monitoring screen: station list, status, latest readings, last communication time, health, search by station | §2.3, §6.3, FR-003, FR-006, FR-015, AC-4, AC-7 | ✅ screen · 🔌 data |
+| 4.2 | Station detail: time-series chart with date range, threshold lines, missing data shown as gaps | UC-002, FR-024 | ✅ screen · 🔌 data |
+| 4.3 | Rainfall analytics: accumulated rainfall, intensity categories (KMD thresholds), trend charts with configurable periods, historical comparison. Works now on forecast-feed and CHIRPS rainfall; stations added when connected | §2.4, §6.4, FR-004, UC-003, AC-5 | ✅ |
+| 4.4 | Water-level analytics: river-level charts, warning/critical thresholds, rising/stable/falling trend, station comparison | §2.5, §6.5, FR-005, UC-004, AC-6 | ✅ screen · 🔌 data |
+| 4.5 | TAHMO gauge ingestion once approved (feeds 4.1–4.3 through the IoT adapter interface) | §9.1 | ⬜ awaiting TAHMO approval |
 
 ## Phase 5: Predictions, risk and alerts
 

@@ -111,6 +111,7 @@ class Nowcast:
     trend: str = ""
     warnings: list[dict] = field(default_factory=list)
     chance: dict | None = None                                 # 3-day flood chance, flood_chance.py
+    series: dict = field(default_factory=dict, repr=False)     # every fetched hour, for the rainfall screen
     headline: str = ""
     detail: str = ""
     fetched_at: float = 0.0
@@ -413,6 +414,7 @@ def build_nowcast(source: str, predictor) -> Nowcast:
         nc.headline = "Forecast unavailable"
         return nc
     nc.notice = notice
+    nc.series = series
 
     nc.as_of, nc.provider = as_of, provider
     nc.hours = [as_of + timedelta(hours=h) for h in range(HORIZON_H + 1)]
