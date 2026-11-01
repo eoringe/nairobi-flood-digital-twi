@@ -795,6 +795,33 @@ a:hover { color: var(--accent-strong); }
 .twin-outlook .detail { font-size: 13px; color: var(--text-secondary); margin-top: 6px; line-height: 1.5; }
 .twin-outlook .source { font-size: 11.5px; color: var(--text-muted); margin-top: 8px; display: block; line-height: 1.5; }
 
+/* 3-day flood chance with its 95% call (src/forecast/flood_chance.py) */
+.twin-chance {
+  --chance: var(--risk-moderate);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--chance) 30%, var(--border-subtle));
+  background: color-mix(in srgb, var(--chance) 9%, var(--bg-surface));
+}
+.twin-chance.is-likely { --chance: var(--risk-critical); }
+.twin-chance.is-unlikely { --chance: var(--risk-safe); }
+.twin-chance .pct {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--chance);
+  min-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.twin-chance .lbl { font-size: 11.5px; color: var(--text-muted); display: block; }
+.twin-chance .call { font-size: 13.5px; font-weight: 600; color: var(--text-primary); display: block; margin-top: 1px; }
+.twin-chance .how { font-size: 11.5px; color: var(--text-secondary); display: block; margin-top: 2px; line-height: 1.4; }
+
 /* ---------- timed warnings ---------- */
 .twin-warning {
   display: grid;

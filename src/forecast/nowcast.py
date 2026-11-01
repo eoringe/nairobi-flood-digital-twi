@@ -9,8 +9,9 @@ The U-Net has no clock. It was trained on daily CHIRPS rainfall and maps a
 3-day rainfall total to flood extent. It cannot, by itself, say when water
 arrives. The timing here comes from the rainfall forecast instead:
 
-1. Fetch hourly rainfall for Nairobi from Open-Meteo: the last 10 days and the
-   next 2 days for a live outlook, or archived hours for a replay.
+1. Fetch hourly rainfall for Nairobi from Open-Meteo: the last 31 days and
+   the rest of today plus 2 days for a live outlook, or archived hours for a
+   replay.
 2. For each hour from now to +12 h, total the rain over the 72 hours ending at
    that hour. That is the model's input quantity, evaluated hour by hour.
 3. Run the model on each total and find the first hour at which each place's
@@ -47,7 +48,9 @@ import numpy as np
 from loguru import logger
 from scipy.ndimage import gaussian_filter
 
+from src.forecast.flood_chance import chance_from_hourly
 from src.forecast.rain_bias_correction import correct_3day_total, is_available as bias_correction_available
+from src.reports.history import flood_prone_rank
 from src.routing.flood_router import LEVEL_NAMES, MAP_SMOOTHING_SIGMA, level_of, place_raster
 
 NAIROBI_LAT, NAIROBI_LON = -1.2864, 36.8172
@@ -57,9 +60,11 @@ WINDOW_H = 72
 #: ~0.03 km2. A place is warned only when this many cells reach a band.
 MIN_CELLS = 6
 LIVE_TTL_SEC = 20 * 60
+#: Days of past rainfall fetched: the flood chance needs the 30 days before today.
+PAST_DAYS = 31
 
 FORECAST_URL = ("https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
-                "&hourly=precipitation&past_days=10&forecast_days=2&timezone=Africa%2FNairobi")
+                "&hourly=precipitation&past_days={past}&forecast_days=3&timezone=Africa%2FNairobi")
 #: Replays use Open-Meteo's archive of its own FORECASTS, the same feed live mode
 #: reads, so a replay exercises the real pipeline, bias correction included. The
 #: reanalysis archive (ERA5) is a different product with a different bias.
@@ -105,6 +110,7 @@ class Nowcast:
     city_level: list[int] = field(default_factory=list)
     trend: str = ""
     warnings: list[dict] = field(default_factory=list)
+    chance: dict | None = None                                 # 3-day flood chance, flood_chance.py
     headline: str = ""
     detail: str = ""
     fetched_at: float = 0.0
@@ -124,7 +130,7 @@ class Nowcast:
             "bias_corrected": self.bias_corrected,
             "city_level": self.city_level, "flooded_pct": self.flooded_pct,
             "trend": self.trend, "headline": self.headline, "detail": self.detail,
-            "warnings": self.warnings, "fetched_at": self.fetched_at,
+            "warnings": self.warnings, "chance": self.chance, "fetched_at": self.fetched_at,
             "chart_offsets": [int((t - self.as_of).total_seconds() // 3600) for t in self.chart_times],
             "chart_labels": [t.strftime("%H:%M") for t in self.chart_times],
             "chart_rain_mm": [round(v, 2) for v in self.chart_rain_mm],
@@ -191,7 +197,7 @@ def _hourly_series(source: str, as_of: datetime | None):
         stored = _read_json(REPLAY_FILE).get(source)
         if stored:
             return _parse(stored["data"]), as_of, stored["provider"], None
-        start = (as_of - timedelta(days=10)).date().isoformat()
+        start = (as_of - timedelta(days=PAST_DAYS)).date().isoformat()
         end = (as_of + timedelta(days=2)).date().isoformat()
         data = _get_json(ARCHIVE_URL.format(lat=NAIROBI_LAT, lon=NAIROBI_LON, start=start, end=end), 60.0)
         provider = "Open-Meteo archived forecasts (hourly)"
@@ -203,7 +209,7 @@ def _hourly_series(source: str, as_of: datetime | None):
         return _parse(data), as_of, provider, None
 
     try:
-        data = _get_json(FORECAST_URL.format(lat=NAIROBI_LAT, lon=NAIROBI_LON), 10.0)
+        data = _get_json(FORECAST_URL.format(lat=NAIROBI_LAT, lon=NAIROBI_LON, past=PAST_DAYS), 10.0)
     except Exception as exc:                                   # noqa: BLE001
         cached = _read_json(LIVE_CACHE_FILE)
         if cached:
@@ -241,6 +247,21 @@ def _place_levels(probability: np.ndarray, place_idx: np.ndarray, n_places: int)
     return out
 
 
+def _place_order(predictor, place_idx: np.ndarray, sizes: np.ndarray, until=None) -> np.ndarray:
+    """
+    How flood-prone each place is: the mean over its cells of drainage
+    susceptibility combined with past news-reported floods
+    (history.flood_prone_rank). Falls back to place size when the predictor
+    carries no susceptibility field. A replay passes `until`, the day before it,
+    so it never ranks places by the very floods it is replaying.
+    """
+    susc = getattr(predictor, "susceptibility", None)
+    if susc is None:
+        return sizes.astype(np.float64)
+    rank = flood_prone_rank(np.asarray(susc), until).ravel()
+    return np.bincount(place_idx, weights=rank, minlength=len(sizes)) / np.maximum(sizes, 1)
+
+
 def _trend(series: dict[datetime, float], as_of: datetime) -> str:
     past3 = sum(series.get(as_of - timedelta(hours=k), 0.0) for k in range(3))
     next3 = sum(series.get(as_of + timedelta(hours=k), 0.0) for k in range(1, 4))
@@ -271,12 +292,16 @@ def _list_places(names: list[str], k: int = 3) -> str:
     return f"{', '.join(names[:k])} and {len(names) - k} more"
 
 
-def _build_warnings(nc: Nowcast, names: list[str], sizes: np.ndarray) -> None:
+def _build_warnings(nc: Nowcast, names: list[str], order: np.ndarray) -> None:
     """
     Group places that share a warning: same kind, same starting band and time,
     same peak band. The time a place peaks is not part of the key - splitting on
     it produced a dozen one-place groups differing by an hour - so each group
     reports the earliest peak among its members.
+
+    Within a group, places are listed by `order`, highest first: how flood-prone
+    each place is (see `_place_order`), so the names a warning leads with are
+    the ones most likely to flood.
     """
     L = nc.place_levels
     groups: dict[tuple, list[tuple[int, int]]] = {}
@@ -298,7 +323,7 @@ def _build_warnings(nc: Nowcast, names: list[str], sizes: np.ndarray) -> None:
     warnings = []
     for (kind, lvl, t_first, peak), members in groups.items():
         t_peak = min(tp for _p, tp in members)
-        members.sort(key=lambda m: -sizes[m[0]])
+        members.sort(key=lambda m: -order[m[0]])
         places = [names[p] for p, _tp in members]
         hh = lambda h: nc.hours[h].strftime("%H:%M")
         if kind == "ongoing":
@@ -410,10 +435,13 @@ def build_nowcast(source: str, predictor) -> Nowcast:
         nc.notice = (nc.notice + " " if nc.notice else "") + (
             "Rainfall is NOT bias-corrected, so storms are underestimated by about half.")
     nc.trend = _trend(series, as_of)
+    nc.chance = chance_from_hourly(series, as_of)
 
     place_idx, names = place_raster()
     inside = place_idx[:-1]
     sizes = np.bincount(inside, minlength=len(names))
+    order = _place_order(predictor, inside, sizes,
+                         until=as_of.date() - timedelta(days=1) if nc.is_replay else None)
     levels, flooded = [], []
     for h in range(HORIZON_H + 1):
         prob = predictor.probability_for(nc.rain_key(h), scenario_date=as_of.date())
@@ -431,10 +459,10 @@ def build_nowcast(source: str, predictor) -> Nowcast:
     if len(uniq) < len(names):
         cols = list(uniq.values())
         nc.place_levels = np.stack([nc.place_levels[:, c].max(axis=1) for c in cols], axis=1)
-        sizes = np.array([sizes[c].sum() for c in cols])
+        order = np.array([order[c].max() for c in cols])
         names = list(uniq.keys())
 
-    _build_warnings(nc, names, sizes)
+    _build_warnings(nc, names, order)
     _headline(nc)
     logger.info(f"Nowcast {source} as of {as_of:%Y-%m-%d %H:%M}: 72h {nc.acc72_mm[0]:.0f} -> "
                 f"{max(nc.acc72_mm):.0f} mm, {len(nc.warnings)} warning groups. {nc.headline}")

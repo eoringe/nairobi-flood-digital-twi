@@ -106,3 +106,5 @@ models/time_series/*
 !models/time_series/crossval_v2_*.json
 !models/time_series/backtest_live_pipeline.json
 !models/time_series/validation_groundsource.json
+!models/time_series/validation_flood_prone.json
+!models/time_series/flood_chance.json

@@ -300,7 +300,18 @@ Google's [Groundsource](https://research.google/blog/introducing-groundsource-tu
 
 * **On the map** (`src/reports/history.py`). The *Past floods in the news* switch draws the 170 neighbourhood-sized places (≤ 5 km²) reported flooded in violet, darker for more often. Each is named after the places inside it (e.g. *CBD, Grogon, Koja*, or *Near Mariakani* for a small one); hovering gives the name, how many days and when. A legend line on the map and a colour key beside the switch say what violet and yellow mean. During a storm replay, places reported flooded that week turn yellow, beside the model's forecast for the same moment. The note beside the switch says that about 60% of events are right in place and date, and that no reports does not mean no flooding.
 * **As validation** (`src/validation/validate_groundsource.py`, `RESULTS.md` §4.13.4). With rainfall as it fell, the warning chain warned on 56% of reported flood days and 80% of reports, and a warning was followed by a reported flood 4.3× as often as chance. Among places of similar population, the model ranks reported areas above others at AUC 0.60.
-* **Not used for training**, so it stays independent evidence.
+* **Used for training only with years held out.** The flood chance (§6.5) and the place ordering learn from reports up to 2021 and are judged on 2022–2025, so those years stay independent evidence. The U-Net is not trained on it.
+
+### 6.5 Flood Chance with a 95% Call
+
+The outlook card shows the chance that flooding is reported in Nairobi over the next 3 days (`src/forecast/flood_chance.py`). It is learned from the 158 Groundsource flood days, not from the rainfall rule behind the U-Net's labels. Its inputs are the 3-day forecast total and the rain over the previous 14 and 30 days, all bias-corrected to the CHIRPS scale.
+
+* **Better than the rule.** On 2022–2025, with the live forecast feed, it warned on 46 flood days instead of 41 at the same number of warnings, with 55% precision instead of 44% (`RESULTS.md` §4.14).
+* **Calibrated.** On years the calibration did not see, a stated 28% came true 30% of the time.
+* **The 95% call.** The card says *Flooding expected*, *Flooding possible* or *No flooding expected*. The confident calls were wrong on only about 5% of the days they could be wrong on: 94.7% of flood days were not called "no flooding", and 94.9% of dry days were not called "flooding expected". This is a coverage guarantee, not 95% accuracy (`LIMITATIONS.md` §16).
+* **Places.** Warnings list places most flood-prone first: drainage susceptibility combined with where floods were reported before (AUC 0.78 on 2022–2025 reports, against 0.73 for susceptibility alone).
+
+Refit with `python -m src.forecast.flood_chance` and `python -m src.validation.validate_flood_prone`.
 
 ---
 

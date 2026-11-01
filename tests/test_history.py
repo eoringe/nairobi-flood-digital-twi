@@ -30,10 +30,10 @@ def events(tmp_path, monkeypatch):
         {"uuid": "c", "start": "2024-04-24", "end": "2024-04-24", "area_km2": 0.003, "wkt": KIBERA},
     ]}))
     monkeypatch.setattr(history, "EVENTS_FILE", path)
-    for fn in (history.load_events, history.places):
+    for fn in (history.load_events, history.places, history.report_density):
         fn.cache_clear()
     yield
-    for fn in (history.load_events, history.places):
+    for fn in (history.load_events, history.places, history.report_density):
         fn.cache_clear()
 
 

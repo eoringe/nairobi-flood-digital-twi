@@ -370,6 +370,32 @@ def _build_timed_warnings(nowcast: dict) -> list:
     return rows
 
 
+#: What each 95% call means, in the words shown under it.
+CHANCE_HOW = {
+    "likely": "95% confidence: on unseen years only 5% of dry days got this call.",
+    "unlikely": "95% confidence: on unseen years only 5% of flood days got this call.",
+    "possible": "Too close to call at 95% confidence either way.",
+}
+
+
+def _chance_box(chance: dict) -> html.Div:
+    """The 3-day flood chance learned from news-reported floods (src/forecast/flood_chance.py)."""
+    return html.Div(
+        className=f"twin-chance is-{chance['call']}",
+        title=("Learned from 158 days of news-reported flooding in Nairobi (Groundsource, 2015-2025) "
+               "using the 3-day rainfall forecast and how wet the past 30 days were. "
+               "A reported flood is the event predicted, so this is a lower bound."),
+        children=[
+            html.Span(f"{round(100 * chance['p'])}%", className="pct"),
+            html.Div([
+                html.Span("Chance of flooding in Nairobi, next 3 days", className="lbl"),
+                html.Span(chance["call_text"], className="call"),
+                html.Span(CHANCE_HOW[chance["call"]], className="how"),
+            ]),
+        ],
+    )
+
+
 def _outlook_card(nowcast: dict) -> tuple[list, str]:
     if nowcast.get("error") and not nowcast.get("acc72_mm"):
         return ([html.Span("Outlook", className="eyebrow"),
@@ -391,6 +417,8 @@ def _outlook_card(nowcast: dict) -> tuple[list, str]:
     ]
     if nowcast.get("notice"):
         children.append(html.Div(nowcast["notice"], className="detail"))
+    if nowcast.get("chance"):
+        children.append(_chance_box(nowcast["chance"]))
     children.append(html.Span(
         f"{source}. Timing follows the rainfall forecast crossing the model's flooding level; "
         f"it is not a simulation of water flow.", className="source"))

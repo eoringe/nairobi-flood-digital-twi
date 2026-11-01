@@ -15,7 +15,8 @@ Two cautions travel with every use, and the interface states both:
     simply not have been written about; it is not evidence that it stays dry.
 
 Also used by src.validation.validate_groundsource to compare the model with
-floods that were actually reported.
+floods that were actually reported, and by the outlook to put the most
+flood-prone places first (`flood_prone_rank`).
 """
 
 from __future__ import annotations
@@ -40,6 +41,10 @@ ATTRIBUTION = "Groundsource (Google Research), news reports 2000–2026, CC BY 4
 #: "reported that week".
 NEAR_BEFORE = timedelta(days=2)
 NEAR_AFTER = timedelta(days=4)
+#: Events counted towards "flooded here before": neighbourhood-sized polygons
+#: only, as in the spatial validation, smoothed over ~500 m (sigma in cells).
+PRONE_MAX_KM2 = 25.0
+PRONE_SIGMA = 4.0
 #: The map shows neighbourhood-sized areas only. Larger polygons ("Eastlands",
 #: a whole sub-county) cover much of the city and bury the rest.
 MAP_MAX_KM2 = 5.0
@@ -195,3 +200,36 @@ def summary(around: date | None = None) -> dict:
         out["near_events"] = len(near)
         out["near_places"] = len({e["wkt"] for e in near if e["area_km2"] <= MAP_MAX_KM2})
     return out
+
+
+@lru_cache(maxsize=4)
+def report_density(until: date | None = None) -> np.ndarray:
+    """How often each cell lies in (or near) a reported flood area, smoothed."""
+    from scipy.ndimage import gaussian_filter
+    count = np.zeros((GRID_H, GRID_W), dtype=np.float64)
+    masks: dict[str, np.ndarray] = {}
+    for e in load_events():
+        if e["area_km2"] > PRONE_MAX_KM2 or (until is not None and e["start"] > until):
+            continue
+        if e["wkt"] not in masks:
+            masks[e["wkt"]] = cell_mask(e["geom"])
+        count += masks[e["wkt"]]
+    return gaussian_filter(count, PRONE_SIGMA)
+
+
+def flood_prone_rank(susceptibility: np.ndarray, until: date | None = None) -> np.ndarray:
+    """
+    Drainage susceptibility combined with where floods were reported before:
+    the mean of the two city-wide ranks, in 0..1. On 2022-2025 reports, with
+    reports up to 2021 as history, it ranks reported areas above the rest with
+    AUC 0.78, against 0.73 for susceptibility alone and 0.72 for history alone
+    (src.validation.validate_flood_prone). With no events it is susceptibility.
+    """
+    from scipy.stats import rankdata
+    n = susceptibility.size
+    r_susc = (rankdata(susceptibility.ravel()) - 1) / max(n - 1, 1)
+    density = report_density(until)
+    if not density.any():
+        return r_susc.reshape(susceptibility.shape)
+    r_hist = (rankdata(density.ravel()) - 1) / max(n - 1, 1)
+    return ((r_susc + r_hist) / 2).reshape(susceptibility.shape)

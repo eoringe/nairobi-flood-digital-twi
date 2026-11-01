@@ -1,0 +1,138 @@
+{
+ "method": "logistic regression on CHIRPS-scale rainfall totals, Platt-calibrated on the bias-corrected forecast feed; 95% call by class-conditional split conformal prediction",
+ "target": "a flood reported in the news (Groundsource) inside the model grid on any of the 3 outlook days",
+ "features": [
+  "rain_3d",
+  "ante_14d",
+  "ante_30d"
+ ],
+ "fitted": {
+  "model": "CHIRPS 2015-2025",
+  "calibration": "Open-Meteo forecast feed 2022-01-01-2025"
+ },
+ "mean": [
+  7.0434,
+  32.5401,
+  69.7171
+ ],
+ "scale": [
+  16.1464,
+  47.2218,
+  79.2248
+ ],
+ "coef": [
+  0.57269,
+  0.29402,
+  0.41568
+ ],
+ "intercept": -2.69827,
+ "platt": [
+  0.8151,
+  0.24117
+ ],
+ "confidence": 0.95,
+ "t_flood": 0.06819,
+ "t_dry": 0.31196,
+ "evaluation": {
+  "chirps_perfect_rain": {
+   "outlook_days": 1458,
+   "flood_outlooks": 210,
+   "auc": {
+    "rule_3day_total": 0.711,
+    "model": 0.792
+   },
+   "at_rule_warning_count": {
+    "warnings": 125,
+    "rule": {
+     "flood_days_warned": 52,
+     "of": 97,
+     "precision": 0.568
+    },
+    "model": {
+     "flood_days_warned": 50,
+     "of": 97,
+     "precision": 0.635
+    }
+   },
+   "brier": {
+    "model": 0.1038,
+    "climatology": 0.1233
+   }
+  },
+  "operational_feed": {
+   "outlook_days": 1428,
+   "flood_outlooks": 207,
+   "auc": {
+    "rule_3day_total": 0.697,
+    "model": 0.726
+   },
+   "at_rule_warning_count": {
+    "warnings": 115,
+    "rule": {
+     "flood_days_warned": 41,
+     "of": 96,
+     "precision": 0.435
+    },
+    "model": {
+     "flood_days_warned": 46,
+     "of": 96,
+     "precision": 0.548
+    }
+   },
+   "brier": {
+    "model": 0.1168,
+    "climatology": 0.1239
+   }
+  },
+  "feed_calibration_cross_fitted": {
+   "split": "2022-2023 calibrates 2024-2025 and vice versa",
+   "reliability": [
+    {
+     "band": "0.0-0.1",
+     "n": 905,
+     "predicted": 0.075,
+     "observed": 0.08
+    },
+    {
+     "band": "0.1-0.2",
+     "n": 290,
+     "predicted": 0.139,
+     "observed": 0.169
+    },
+    {
+     "band": "0.2-0.4",
+     "n": 156,
+     "predicted": 0.278,
+     "observed": 0.301
+    },
+    {
+     "band": "0.4-1.0",
+     "n": 77,
+     "predicted": 0.582,
+     "observed": 0.506
+    }
+   ],
+   "call_95": {
+    "flood_days_not_called_unlikely": 0.947,
+    "dry_days_not_called_likely": 0.949,
+    "calls": {
+     "likely": {
+      "days": 129,
+      "share": 0.09,
+      "flood_reported": 0.519
+     },
+     "possible": {
+      "days": 1085,
+      "share": 0.76,
+      "flood_reported": 0.119
+     },
+     "unlikely": {
+      "days": 214,
+      "share": 0.15,
+      "flood_reported": 0.051
+     }
+    }
+   }
+  }
+ }
+}
