@@ -35,6 +35,7 @@ from src.dashboard.ops_console import register_ops_callbacks
 from src.dashboard.map_layers_ui import register_map_layer_callbacks
 from src.dashboard.ops_monitoring import register_monitoring_callbacks
 from src.dashboard.ops_predictions import register_prediction_callbacks
+from src.dashboard.ops_assets import register_asset_callbacks
 from src.dashboard.auth_pages import register_auth_callbacks
 from src.dashboard.layouts import build_dashboard_layout
 from src.dashboard.callbacks import register_callbacks, start_background_warmup, warmup_status
@@ -121,6 +122,7 @@ register_ops_callbacks(app)
 register_map_layer_callbacks(app)
 register_monitoring_callbacks(app)
 register_prediction_callbacks(app)
+register_asset_callbacks(app)
 server = app.server  # Flask WSGI server instance
 init_auth(server)
 

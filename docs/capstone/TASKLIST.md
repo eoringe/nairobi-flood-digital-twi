@@ -109,11 +109,11 @@ exist.
 
 | # | task | closes | status |
 |---|---|---|---|
-| 6.1 | Infrastructure risk screen: facilities in or near predicted and observed flood areas, counts by type, details | §2.9, §6.8, UC-008, AC-14 | ⬜ |
-| 6.2 | Vulnerable communities and beneficiary statistics, aggregated, restricted roles only | §2.9, §9.6 | 🔌 |
-| 6.3 | Emergency supplies panel (warehouses, stock, distribution), restricted | §9.5 | 🔌 |
-| 6.4 | Incident screen: community + news incidents with severity, type, status, date filters, distribution charts | §2.10, §6.9, FR-011, UC-009, AC-15 | 🟡 |
-| 6.5 | Historical analysis: rainfall and water-level history, past incidents, historical alerts, period comparison, summary statistics | §2.11, §6.10, FR-012 | 🟡 |
+| 6.1 | Infrastructure risk screen: facilities in or near predicted and observed flood areas, counts by type, details | §2.9, §6.8, UC-008, AC-14 | ✅ |
+| 6.2 | Vulnerable communities and beneficiary statistics, aggregated, restricted roles only | §2.9, §9.6 | ✅ panel · 🔌 data |
+| 6.3 | Emergency supplies panel (warehouses, stock, distribution), restricted | §9.5 | ✅ panel · 🔌 data |
+| 6.4 | Incident screen: community + news incidents with severity, type, status, date filters, distribution charts | §2.10, §6.9, FR-011, UC-009, AC-15 | ✅ |
+| 6.5 | Historical analysis: rainfall and water-level history, past incidents, historical alerts, period comparison, summary statistics | §2.11, §6.10, FR-012 | ✅ (published-alert history 🔌) |
 
 ## Phase 7: Reports, API and status
 
