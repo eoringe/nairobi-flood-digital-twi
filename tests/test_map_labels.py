@@ -65,6 +65,19 @@ def test_the_map_does_not_redraw_every_frame():
     assert 'type: "perf"' in CITY_JS or "msg.type !== \"perf\"" in CITY_JS
 
 
+def test_zooming_over_flooding_stays_light():
+    from src.dashboard.components.map_3d import CITY_JS
+    # The water shader runs once per pixel on the main flood fill only, at 3 octaves.
+    assert 'layer.id === "flood-main" || layer.id === "flood-halo"' not in CITY_JS
+    assert "i < 5; i++" not in CITY_JS and "dFdx(h0)" in CITY_JS
+    # Lighter flattens buildings (their walls were most of each frame) and drops water.
+    assert "extruded: !lite" in CITY_JS
+    assert "extensions: lite ? [] : [water]" in CITY_JS
+    # Auto also watches real frame times while panning or zooming.
+    assert "onInteractionStateChange" in CITY_JS and 'applyPerf(true, "moving")' in CITY_JS
+    assert 'refinementStrategy: "no-overlap"' in CITY_JS
+
+
 def test_fallback_buildings_are_served_on_request():
     from src.dashboard.app import server
     r = server.test_client().get("/data/buildings-fallback.json?theme=light")

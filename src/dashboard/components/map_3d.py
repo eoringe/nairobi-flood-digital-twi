@@ -1276,7 +1276,7 @@ CITY_JS = r"""
       "float twinWaves(vec2 p, float t) {",
       "  float h = 0.0, a = 0.5;",
       "  vec2 drift = vec2(0.55, 0.12) * t;",
-      "  for (int i = 0; i < 5; i++) {",
+      "  for (int i = 0; i < 3; i++) {",
       "    h += a * twinNoise(p + drift);",
       "    p = mat2(1.6, 1.2, -1.2, 1.6) * p;",
       "    drift = mat2(0.8, -0.6, 0.6, 0.8) * drift * 1.4;",
@@ -1290,9 +1290,11 @@ CITY_JS = r"""
       "{",
       "  float t = twinWater.time;",
       "  vec2 p = vTwinWaterXY / " + Number(w.ripple).toFixed(2) + ";",
-      "  float e = 0.06;",
+      // One evaluation per pixel; the slope is read from how the height changes to
+      // the neighbouring pixel (dFdx/dFdy) rather than from two more evaluations.
       "  float h0 = twinWaves(p, t);",
-      "  vec2 slope = vec2(twinWaves(p + vec2(e, 0.0), t) - h0, twinWaves(p + vec2(0.0, e), t) - h0) / e;",
+      "  vec2 dp = max(vec2(length(dFdx(p)), length(dFdy(p))), vec2(1e-4));",
+      "  vec2 slope = clamp(vec2(dFdx(h0), dFdy(h0)) / dp, -6.0, 6.0);",
       // calm the surface where a ripple would be smaller than a pixel
       "  float calm = clamp(1.4 - 1.6 * length(fwidth(p)), 0.0, 1.0);",
       "  vec3 n = normalize(vec3(-slope * 0.32 * calm, 1.0));",
@@ -1488,6 +1490,9 @@ CITY_JS = r"""
       // Buildings are in the tiles from zoom 13; zoom 14 tiles are reused beyond.
       minZoom: 13,
       maxZoom: 14,
+      // While zooming, draw either the old tiles or the new ones, never both on
+      // top of each other.
+      refinementStrategy: "no-overlap",
       loadOptions: { mvt: { layers: ["building"] } },
       extruded: true,
       filled: true,
@@ -1510,7 +1515,7 @@ CITY_JS = r"""
     try { water = waterExtension(D); } catch (e) { console.warn("Water effect unavailable:", e); }
     // Under the routes and pins, which are drawn last so they stay on top.
     var layers = d.props.layers.map(function (layer) {
-      if (water && (layer.id === "flood-main" || layer.id === "flood-halo")) {
+      if (water && layer.id === "flood-main") {
         return layer.clone({ _subLayerProps: { "polygons-fill": { extensions: [water] } } });
       }
       return layer;
@@ -1540,51 +1545,92 @@ CITY_JS = r"""
     // "Lighter 3D" drops what costs most per frame: moving water, lit windows,
     // the extra lights, and high-density pixels. The page sends the viewer's
     // choice (auto / off / on); on auto, a short frame-rate probe decides.
-    var perf = { mode: "auto", lite: false, fps: null };
+    var perf = { mode: "auto", lite: false, fps: null, moving: false, reason: "" };
     function floodOnScreen() {
       var l = d.props.layers.find(function (x) { return x.id === "flood-main"; });
       var data = l && l.props.data;
       return !!(data && data.features && data.features.length);
     }
-    function applyPerf(lite) {
+    function applyPerf(lite, reason) {
       perf.lite = lite;
+      perf.reason = reason || "";
       d.setProps({
         useDevicePixels: lite ? 1 : baseDPR,
         effects: lite ? [] : [lighting(D)],
         layers: d.props.layers.map(function (l) {
-          return l.id === "buildings-city" ? l.clone({ extensions: (lite || !windows) ? [] : [windows] }) : l;
+          // Lighter draws buildings as flat footprints: their walls (hundreds of
+          // thousands of vertices, nearly all from low buildings) were most of
+          // each frame's work when zooming.
+          if (l.id === "buildings-city") {
+            return l.clone({ extruded: !lite, extensions: (lite || !windows) ? [] : [windows] });
+          }
+          // Lighter shows the flooding as a plain blue fill: no per-pixel water.
+          if (l.id === "flood-main" && water) {
+            return l.clone({ _subLayerProps: { "polygons-fill": { extensions: lite ? [] : [water] } } });
+          }
+          return l;
         })
       });
-      post({ type: "perfState", mode: perf.mode, lite: lite, fps: perf.fps });
+      post({ type: "perfState", mode: perf.mode, lite: lite, fps: perf.fps, reason: perf.reason });
     }
+    // Ripples only while flooding is on screen, the tab is visible and the view
+    // is still: during a pan or zoom deck.gl redraws anyway.
     setInterval(function () {
-      if (water && !perf.lite && !document.hidden && floodOnScreen()) d.redraw("water");
+      if (water && !perf.lite && !perf.moving && !document.hidden && floodOnScreen()) d.redraw("water");
     }, 66);
+
+    // Frame timing. The start-up probe sees the opening view; the real test is
+    // panning and zooming over flooding, so on auto the frame interval is also
+    // watched during movement and Lighter is chosen if it stays above ~55 ms.
+    var mon = { last: 0, ema: 0, slow: 0, count: null };
+    function onFrame() {
+      var now = performance.now();
+      if (mon.count) mon.count();
+      if (perf.moving && mon.last && now - mon.last < 400) {
+        var dt = now - mon.last;
+        mon.ema = mon.ema ? mon.ema * 0.85 + dt * 0.15 : dt;
+        if (perf.mode === "auto" && !perf.lite && mon.ema > 55) {
+          if (++mon.slow > 25) {
+            perf.fps = Math.round(1000 / mon.ema);
+            applyPerf(true, "moving");
+          }
+        } else if (mon.ema < 45) {
+          mon.slow = 0;
+        }
+      }
+      mon.last = now;
+    }
+    d.setProps({
+      onAfterRender: onFrame,
+      onInteractionStateChange: function (st) {
+        perf.moving = !!(st && (st.isDragging || st.isPanning || st.isZooming || st.isRotating));
+      }
+    });
     function probe() {
       // Frames the full effects can draw in 2.5 s of continuous redraws.
       var frames = 0, until = performance.now() + 2500;
-      d.setProps({ onAfterRender: function () { frames++; } });
+      mon.count = function () { frames++; };
       (function tick() {
         if (performance.now() < until) { d.redraw("probe"); requestAnimationFrame(tick); return; }
-        // deck.gl calls onAfterRender unguarded: null here broke every later frame.
-        d.setProps({ onAfterRender: function () {} });
+        mon.count = null;
         perf.fps = Math.round(frames / 2.5);
-        if (perf.mode === "auto") applyPerf(perf.fps < 28);
+        if (perf.mode === "auto") applyPerf(perf.fps < 28, "start");
       })();
     }
     window.addEventListener("message", function (ev) {
       var msg = ev.data;
       if (!msg || msg.type !== "perf") return;
       perf.mode = msg.mode || "auto";
+      mon.slow = 0;
       if (perf.mode === "on") applyPerf(true);
       else if (perf.mode === "off") applyPerf(false);
       else if (perf.fps === null) setTimeout(probe, 1500);   // after the first tiles arrive
-      else applyPerf(perf.fps < 28);
+      else applyPerf(perf.fps < 28, "start");
     });
     // Read-only view of the performance state, for checks and the test scripts.
     window.__twinPerf = function () {
       return { mode: perf.mode, lite: perf.lite, fps: perf.fps, water: !!water, flood: floodOnScreen(),
-               hidden: !!document.hidden };
+               hidden: !!document.hidden, moving: perf.moving, reason: perf.reason, frameMs: Math.round(mon.ema) };
     };
     post({ type: "perfReady" });
 
