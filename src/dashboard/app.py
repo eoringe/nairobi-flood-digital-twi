@@ -150,6 +150,17 @@ def building_names():
                      mimetype="application/json", max_age=86400)
 
 
+@server.route("/data/buildings-fallback.json")
+def buildings_fallback():
+    """The offline fallback's building extrusions, fetched by the map only if the tile server fails."""
+    from flask import jsonify, request
+    from src.dashboard.components.map_3d import _building_rows
+    theme = "light" if request.args.get("theme") == "light" else "dark"
+    response = jsonify(_building_rows(theme))
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
+
+
 @server.route("/data/satellite-flood.png")
 def satellite_flood():
     """The newest Sentinel-1 flood map on or before ?anchor=YYYY-MM-DD (src.reports.satellite)."""

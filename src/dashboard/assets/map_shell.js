@@ -80,3 +80,45 @@
     window.__twinInsetT = setTimeout(postInsets, 200);
   });
 })();
+
+/*
+ * 3D quality: "auto" (default), "off" (full effects) or "on" (lighter). The
+ * choice is kept in localStorage and sent to each new map document when it
+ * reports ready; the map answers with what it applied and, on auto, the frame
+ * rate it measured, shown under the buttons.
+ */
+(function () {
+  var KEY = "twin-perf";
+  function mode() { try { return localStorage.getItem(KEY) || "auto"; } catch (e) { return "auto"; } }
+  function send() {
+    var f = document.getElementById("3d-map-frame");
+    if (f && f.contentWindow) { try { f.contentWindow.postMessage({ type: "perf", mode: mode() }, "*"); } catch (e) {} }
+  }
+  function mark() {
+    var m = mode();
+    document.querySelectorAll("[data-perf]").forEach(function (b) {
+      b.classList.toggle("is-active", b.getAttribute("data-perf") === m);
+      b.setAttribute("aria-pressed", b.getAttribute("data-perf") === m ? "true" : "false");
+    });
+  }
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest && ev.target.closest("[data-perf]");
+    if (!b) return;
+    try { localStorage.setItem(KEY, b.getAttribute("data-perf")); } catch (e) {}
+    mark();
+    send();
+  });
+  window.addEventListener("message", function (ev) {
+    var msg = ev.data;
+    if (!msg) return;
+    if (msg.type === "perfReady") { mark(); send(); return; }
+    if (msg.type !== "perfState") return;
+    var note = document.getElementById("perf-note");
+    if (!note) return;
+    var fps = msg.fps ? " (this device drew " + msg.fps + " frames a second with full effects)" : "";
+    note.textContent = msg.mode === "auto"
+      ? (msg.lite ? "Auto chose Lighter" + fps + "." : "Auto kept Full 3D" + fps + ".")
+      : (msg.lite ? "Lighter: still water and plain buildings." : "Full 3D: every effect on.");
+  });
+  var tries = 0, t = setInterval(function () { if (document.querySelector("[data-perf]") || ++tries > 300) { clearInterval(t); mark(); } }, 100);
+})();

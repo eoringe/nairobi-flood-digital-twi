@@ -198,9 +198,20 @@ def _outlook_panel() -> html.Div:
                  html.Span([_icon("moon-stars", "me-2"), "Switch to dark theme"], className="twin-theme-moon")],
                 id="btn-theme",
                 type="button",
-                className="twin-theme-toggle mb-3",
+                className="twin-theme-toggle mb-2",
                 title="Switch between light and dark themes",
             ),
+            # 3D quality (assets/map_shell.js): Auto measures the device's frame
+            # rate and drops the costliest effects if the map is slow.
+            html.Div(className="twin-perf-group", role="group", **{"aria-label": "3D quality"}, children=[
+                html.Button(label, type="button", className="twin-perf-btn", title=tip, **{"data-perf": mode})
+                for mode, label, tip in (
+                    ("auto", "Auto", "Lighter effects only if this device draws the map slowly"),
+                    ("off", "Full 3D", "Moving water, lit windows and full lighting"),
+                    ("on", "Lighter", "Still water, plain buildings: much less work for the computer"),
+                )
+            ]),
+            html.Div(id="perf-note", className="twin-satellite-note mb-3"),
 
             html.Label("Map overlay", className="twin-field-label"),
             dbc.RadioItems(

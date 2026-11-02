@@ -627,6 +627,8 @@ CITY_TILES = "https://tiles.openfreemap.org/planet"
 #: Named buildings for the hover labels (src.ingestion.fetch_building_names),
 #: served by the app at this path (src/dashboard/app.py).
 BUILDING_NAMES_URL = "/data/building-names.json"
+#: The offline fallback's building footprints, fetched only when the tiles fail.
+FALLBACK_BUILDINGS_URL = "/data/buildings-fallback.json"
 
 #: How the city is drawn and lit in each theme: one building colour, the
 #: surface material, the lights, and the windows. Day is a warm afternoon sun
@@ -814,12 +816,12 @@ def create_3d_digital_twin_deck(
     ))
 
     # 2. LOD2 Solid 3D Volumetric Building Footprint Extrusions
-    building_data = _building_rows(theme)
-
-    if building_data:
+    # The offline fallback's footprints (~1 MB) are not embedded: the layer starts
+    # empty and CITY_JS fetches FALLBACK_BUILDINGS_URL only if the tiles fail.
+    if BUILDINGS_JSON.exists():
         layers.append(pdk.Layer(
             "PolygonLayer",
-            building_data,
+            [],
             id="buildings",
             get_polygon="polygon",
             get_elevation="height",
@@ -1138,6 +1140,7 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
 
     city_js = CITY_JS.replace("__CITY__", json.dumps({
         "tiles": CITY_TILES, "names": BUILDING_NAMES_URL,
+        "fallback": FALLBACK_BUILDINGS_URL + "?theme=" + getattr(deck, "_theme", "dark"),
         "tooltip": getattr(deck, "_tooltip_style", {}),
         "satellite": {**getattr(deck, "_satellite", {}), "blank": BLANK_PNG,
                       "bounds": [LON_WEST, LAT_SOUTH, LON_EAST, LAT_NORTH]},
@@ -1155,6 +1158,7 @@ CITY_JS = r"""
 <script>
 (function () {
   var CITY = __CITY__;
+  function post(msg) { try { window.parent.postMessage(msg, "*"); } catch (e) {} }
 
   function findDeck() {
     try { if (typeof deckInstance !== "undefined" && deckInstance) return deckInstance; } catch (e) {}
@@ -1457,8 +1461,12 @@ CITY_JS = r"""
   }
 
   function useFallback(d) {
+    fetch(CITY.fallback).then(function (r) { return r.json(); }).then(function (rows) {
+      d.setProps({ layers: d.props.layers.map(function (layer) {
+        return layer.id === "buildings" ? layer.clone({ data: rows, visible: true }) : layer;
+      })});
+    }).catch(function (e) { console.warn("Fallback buildings unavailable:", e); });
     d.setProps({ layers: d.props.layers.map(function (layer) {
-      if (layer.id === "buildings") return layer.clone({ visible: true });
       if (layer.id === "buildings-city") return layer.clone({ visible: false });
       return layer;
     })});
@@ -1521,9 +1529,64 @@ CITY_JS = r"""
     var at = layers.findIndex(function (l) { return l.id.indexOf("route-") === 0; });
     layers.splice(at < 0 ? layers.length : at, 0, city);
     if (satellite) layers.splice(at < 0 ? layers.length : at, 0, satellite);
-    // _animate redraws every frame, which moves the ripples.
-    d.setProps({ layers: layers, effects: [lighting(D)], getTooltip: tooltip, _animate: !!water });
+    // No _animate: it redrew every frame (every building, lit and windowed) even
+    // with no flooding on screen. The ripples are moved by the timer below.
+    var baseDPR = Math.min(window.devicePixelRatio || 1, 1.5);
+    d.setProps({ layers: layers, effects: [lighting(D)], getTooltip: tooltip, _animate: false,
+                 useDevicePixels: baseDPR });
     loadNames();
+
+    // ---- performance ------------------------------------------------------
+    // "Lighter 3D" drops what costs most per frame: moving water, lit windows,
+    // the extra lights, and high-density pixels. The page sends the viewer's
+    // choice (auto / off / on); on auto, a short frame-rate probe decides.
+    var perf = { mode: "auto", lite: false, fps: null };
+    function floodOnScreen() {
+      var l = d.props.layers.find(function (x) { return x.id === "flood-main"; });
+      var data = l && l.props.data;
+      return !!(data && data.features && data.features.length);
+    }
+    function applyPerf(lite) {
+      perf.lite = lite;
+      d.setProps({
+        useDevicePixels: lite ? 1 : baseDPR,
+        effects: lite ? [] : [lighting(D)],
+        layers: d.props.layers.map(function (l) {
+          return l.id === "buildings-city" ? l.clone({ extensions: (lite || !windows) ? [] : [windows] }) : l;
+        })
+      });
+      post({ type: "perfState", mode: perf.mode, lite: lite, fps: perf.fps });
+    }
+    setInterval(function () {
+      if (water && !perf.lite && !document.hidden && floodOnScreen()) d.redraw("water");
+    }, 66);
+    function probe() {
+      // Frames the full effects can draw in 2.5 s of continuous redraws.
+      var frames = 0, until = performance.now() + 2500;
+      d.setProps({ onAfterRender: function () { frames++; } });
+      (function tick() {
+        if (performance.now() < until) { d.redraw("probe"); requestAnimationFrame(tick); return; }
+        // deck.gl calls onAfterRender unguarded: null here broke every later frame.
+        d.setProps({ onAfterRender: function () {} });
+        perf.fps = Math.round(frames / 2.5);
+        if (perf.mode === "auto") applyPerf(perf.fps < 28);
+      })();
+    }
+    window.addEventListener("message", function (ev) {
+      var msg = ev.data;
+      if (!msg || msg.type !== "perf") return;
+      perf.mode = msg.mode || "auto";
+      if (perf.mode === "on") applyPerf(true);
+      else if (perf.mode === "off") applyPerf(false);
+      else if (perf.fps === null) setTimeout(probe, 1500);   // after the first tiles arrive
+      else applyPerf(perf.fps < 28);
+    });
+    // Read-only view of the performance state, for checks and the test scripts.
+    window.__twinPerf = function () {
+      return { mode: perf.mode, lite: perf.lite, fps: perf.fps, water: !!water, flood: floodOnScreen(),
+               hidden: !!document.hidden };
+    };
+    post({ type: "perfReady" });
 
     // The satellite switch on the page shows or hides the satellite layer.
     window.addEventListener("message", function (ev) {

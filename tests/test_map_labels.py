@@ -47,3 +47,25 @@ def test_no_layer_setting_reaches_the_browser_as_an_expression():
         for key, value in layer.items():
             if key.endswith("Units") or key in ("characterSet", "fontFamily"):
                 assert not str(value).startswith("@@="), f"{layer['id']}.{key} = {value}"
+
+
+# ------------------------------------------------------------ performance --
+def test_the_map_document_stays_small():
+    """The fallback buildings (~1 MB) are fetched on demand, not embedded in every rebuild."""
+    from src.dashboard.components.map_3d import create_3d_digital_twin_deck, get_deck_html_with_embedded_legend
+    html = get_deck_html_with_embedded_legend(create_3d_digital_twin_deck())
+    assert len(html) < 300_000, f"map document is {len(html) // 1024} KB"
+    assert "/data/buildings-fallback.json" in html
+
+
+def test_the_map_does_not_redraw_every_frame():
+    from src.dashboard.components.map_3d import CITY_JS
+    assert "_animate: !!water" not in CITY_JS, "continuous redraw even with no flooding on screen"
+    assert "onAfterRender: null" not in CITY_JS, "deck.gl calls onAfterRender unguarded; null breaks rendering"
+    assert 'type: "perf"' in CITY_JS or "msg.type !== \"perf\"" in CITY_JS
+
+
+def test_fallback_buildings_are_served_on_request():
+    from src.dashboard.app import server
+    r = server.test_client().get("/data/buildings-fallback.json?theme=light")
+    assert r.status_code == 200 and isinstance(r.get_json(), list) and r.get_json()
