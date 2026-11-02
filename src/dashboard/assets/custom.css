@@ -1778,3 +1778,16 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card, .twin
     justify-content: flex-end; width: 100%; }
   .twin-map-overlay .twin-readout-strip { flex: 1 1 0; min-width: 0; }
 }
+
+/* Theme switch in the Controls panel (layouts._outlook_panel). */
+.twin-theme-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: center; padding: 9px 12px;
+  border-radius: 12px; border: 1px solid var(--border-subtle); background: var(--bg-surface-2);
+  color: var(--text-primary); font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.twin-theme-toggle:hover { border-color: var(--accent-border); color: var(--accent); }
+.twin-theme-toggle .twin-theme-sun { display: inline-flex; align-items: center; }
+.twin-theme-toggle .twin-theme-moon { display: none; align-items: center; }
+:root[data-theme="light"] .twin-theme-toggle .twin-theme-sun { display: none; }
+:root[data-theme="light"] .twin-theme-toggle .twin-theme-moon { display: inline-flex; }

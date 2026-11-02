@@ -100,21 +100,12 @@ def _topbar() -> html.Header:
 
 
 def _session_controls() -> html.Div:
-    """Live status, theme and account: on the map's top row instead of a top bar."""
+    """Live status and account: on the map's top row instead of a top bar."""
     return html.Div(className="twin-topbar-actions twin-session", children=[
         html.Span(
             id="mode-pill",
             className="twin-mode-pill",
             children=[html.Span(className="twin-live-dot"), "Live"],
-        ),
-        # Shows a sun in dark mode and a moon in light mode (custom.css);
-        # the theme callback keeps the tooltip in step.
-        html.Button(
-            [_icon("sun", "twin-theme-sun"), _icon("moon-stars", "twin-theme-moon")],
-            id="btn-theme",
-            type="button",
-            className="twin-theme-btn",
-            title="Switch between light and dark themes",
         ),
         # Sign-in link, or who is signed in and their links
         # (filled per user by auth_pages.route_page).
@@ -197,6 +188,19 @@ def _outlook_panel() -> html.Div:
                 ),
                 html.Div(id="rain-context-label", className="mb-3"),
             ]),
+
+            # Light or dark theme. The label names the theme a click switches to:
+            # the sun line shows in dark mode, the moon line in light mode (custom.css);
+            # the theme callback keeps the tooltip in step.
+            html.Label("Appearance", className="twin-field-label"),
+            html.Button(
+                [html.Span([_icon("sun", "me-2"), "Switch to light theme"], className="twin-theme-sun"),
+                 html.Span([_icon("moon-stars", "me-2"), "Switch to dark theme"], className="twin-theme-moon")],
+                id="btn-theme",
+                type="button",
+                className="twin-theme-toggle mb-3",
+                title="Switch between light and dark themes",
+            ),
 
             html.Label("Map overlay", className="twin-field-label"),
             dbc.RadioItems(

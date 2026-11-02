@@ -887,21 +887,27 @@ def create_3d_digital_twin_deck(
         ))
 
     # Labels (src.geo.layers *_label_rows), drawn last so text sits on top. Sizes in
-    # metres with a pixel cap: facility names appear only once zoomed in, while
-    # sub-county names stay readable at city scale.
-    label_common = dict(get_position="position", get_text="text", get_color="color",
+    # metres with a pixel cap, so sub-county names stay readable at city scale.
+    # Facility names are switched on only from FACILITY_LABEL_ZOOM (updater script),
+    # where they are large enough to read. Colours follow the theme: pale text with
+    # a dark halo on the dark map, slate text with a white halo on the light one.
+    light = theme == "light"
+    halo = [255, 255, 255, 235] if light else [10, 14, 24, 235]
+    label_common = dict(get_position="position", get_text="text",
                         font_family="'Inter, Segoe UI, sans-serif'", character_set="'auto'",
                         font_settings={"sdf": True, "fontSize": 64, "buffer": 8},
-                        outline_width=3, outline_color=[10, 14, 24, 235], billboard=True,
+                        outline_width=3, outline_color=halo, billboard=True,
                         pickable=False, parameters=no_depth)
     layers.append(pdk.Layer("TextLayer", ops_rows.get("label-subcounties", []), id="label-subcounties",
                             get_size=320, size_units="'meters'", size_min_pixels=11, size_max_pixels=17,
-                            font_weight=700, **label_common))
+                            get_color=[51, 65, 85, 235] if light else "color", font_weight=700, **label_common))
     layers.append(pdk.Layer("TextLayer", ops_rows.get("label-rivers", []), id="label-rivers",
                             get_size=260, size_units="'meters'", size_min_pixels=10, size_max_pixels=14,
-                            get_angle="angle", font_weight=600, **label_common))
+                            get_color=[3, 105, 161, 255] if light else "color", get_angle="angle",
+                            font_weight=600, **label_common))
     layers.append(pdk.Layer("TextLayer", ops_rows.get("label-facilities", []), id="label-facilities",
-                            get_size=30, size_units="'meters'", size_min_pixels=0, size_max_pixels=13,
+                            get_size=30, size_units="'meters'", size_min_pixels=9, size_max_pixels=13,
+                            get_color=[30, 41, 59, 255] if light else "color", visible=False,
                             get_text_anchor="'start'", get_alignment_baseline="'center'",
                             get_pixel_offset=[10, 0], font_weight=500, **label_common))
 
@@ -1097,6 +1103,22 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
       post({ type: "layerUpdateAck", ok: false, error: String(e) });
     }
   });
+
+  // Facility names only from zoom 15, where they are readable; below that they
+  // would be specks. Checked a few times a second, re-cloned only on a change.
+  var FACILITY_LABEL_ZOOM = 15;
+  setInterval(function () {
+    var d = findDeck();
+    if (!d || !d.props || !d.props.layers) return;
+    var vp = d.getViewports && d.getViewports()[0];
+    if (!vp) return;
+    var want = vp.zoom >= FACILITY_LABEL_ZOOM;
+    var l = d.props.layers.find(function (x) { return x.id === "label-facilities"; });
+    if (l && l.props.visible !== want) {
+      d.setProps({ layers: d.props.layers.map(function (x) {
+        return x.id === "label-facilities" ? x.clone({ visible: want }) : x; }) });
+    }
+  }, 300);
 
   // Map clicks go to the parent page, which uses them to drop a start or
   // destination pin when the user has asked to pick a point on the map.
