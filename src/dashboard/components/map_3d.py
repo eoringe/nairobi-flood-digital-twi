@@ -378,33 +378,33 @@ MAP_THEMES = {
         # (water fill, edge). The fill is the water's colour, more opaque the
         # likelier the flooding; the edge carries the risk band's colour.
         "flood": {
-            1: ([26, 44, 52, 190],  [240, 185, 63, 170]),
-            2: ([26, 44, 52, 215],  [240, 138, 60, 180]),
-            3: ([26, 44, 52, 236],  [239, 68, 89, 190]),
+            1: ([22, 92, 168, 175],  [240, 185, 63, 170]),
+            2: ([22, 92, 168, 205],  [240, 138, 60, 180]),
+            3: ([22, 92, 168, 230],  [239, 68, 89, 190]),
         },
-        "halo": {1: [26, 44, 52, 50], 2: [26, 44, 52, 60], 3: [26, 44, 52, 70]},
+        "halo": {1: [22, 92, 168, 45], 2: [22, 92, 168, 55], 3: [22, 92, 168, 65]},
         "buildings": ([91, 155, 255, 205], [74, 98, 140, 180], [88, 98, 118, 150]),
         "tooltip": {"backgroundColor": "#171d29", "color": "#eef1f7", "border": "1px solid rgba(255,255,255,0.08)",
                     "boxShadow": "0 12px 32px rgba(0,0,0,0.42)"},
         "legend": {"bg": "rgba(17, 22, 31, 0.80)", "border": "rgba(255, 255, 255, 0.08)", "text": "#eef1f7",
                    "muted": "#8a93a6", "shadow": "0 12px 32px rgba(0, 0, 0, 0.42)", "bldg": "#58627a",
-                   "water": "#2f5a70"},
+                   "water": "#165ca8"},
         "pin_stroke": [17, 22, 31, 255],
     },
     "light": {
         "basemap": pdk.map_styles.CARTO_ROAD,
         "flood": {
-            1: ([74, 96, 98, 185], [214, 150, 10, 170]),
-            2: ([74, 96, 98, 210], [214, 100, 20, 180]),
-            3: ([74, 96, 98, 232], [200, 30, 55, 190]),
+            1: ([30, 120, 210, 170], [214, 150, 10, 170]),
+            2: ([30, 120, 210, 200], [214, 100, 20, 180]),
+            3: ([30, 120, 210, 228], [200, 30, 55, 190]),
         },
-        "halo": {1: [74, 96, 98, 44], 2: [74, 96, 98, 54], 3: [74, 96, 98, 64]},
+        "halo": {1: [30, 120, 210, 40], 2: [30, 120, 210, 50], 3: [30, 120, 210, 60]},
         "buildings": ([37, 99, 235, 170], [140, 158, 186, 170], [178, 188, 202, 150]),
         "tooltip": {"backgroundColor": "#ffffff", "color": "#0f1626", "border": "1px solid #e5e9f0",
                     "boxShadow": "0 8px 24px rgba(16,24,40,0.12)"},
         "legend": {"bg": "rgba(255, 255, 255, 0.86)", "border": "#e5e9f0", "text": "#0f1626",
                    "muted": "#7b8497", "shadow": "0 8px 24px rgba(16, 24, 40, 0.12)", "bldg": "#b0bac6",
-                   "water": "#5f8798"},
+                   "water": "#1e78d2"},
         "pin_stroke": [255, 255, 255, 255],
     },
 }
@@ -644,9 +644,9 @@ CITY_STYLE = {
         "lights": [{"color": [255, 214, 170], "intensity": 0.85, "direction": [-1, -3, -2.5]},
                    {"color": [90, 130, 255], "intensity": 0.55, "direction": [2, 1.5, -1]}],
         "sun": False,
-        # Night: a dark sky with the city's warm glow along the horizon, and the
+        # Night: a deep blue sky, so the water reads as water, with the warm
         # glints of street and window light.
-        "water": {"horizon": [138, 118, 120], "zenith": [24, 34, 58], "glint": [255, 208, 150],
+        "water": {"horizon": [60, 105, 165], "zenith": [16, 38, 86], "glint": [255, 208, 150],
                   "glint_strength": 1.1, "light_height": 0.22, "ripple": 2.2},
         "windows": {"night": True, "floor": 3.4, "bay": 3.2, "min_height": 7.0, "lit": 0.42,
                     "glass": [16, 21, 32], "warm": [255, 200, 120], "cool": [205, 222, 255]},
@@ -659,8 +659,9 @@ CITY_STYLE = {
         # A mid-afternoon sun over Nairobi (15:30 EAT), so walls facing it are
         # lit and the others fall into shade.
         "sun": {"timestamp": 1761913800000, "color": [255, 246, 228], "intensity": 1.15},
-        # Day: a pale hazy horizon under a blue sky, and sun glints.
-        "water": {"horizon": [226, 234, 240], "zenith": [120, 160, 208], "glint": [255, 250, 236],
+        # Day: a blue sky (the horizon kept well short of white, or the water
+        # turns milky), and sun glints.
+        "water": {"horizon": [140, 190, 235], "zenith": [60, 130, 210], "glint": [255, 250, 236],
                   "glint_strength": 1.3, "light_height": 0.35, "ripple": 2.2},
         "windows": {"night": False, "floor": 3.4, "bay": 3.2, "min_height": 7.0, "lit": 0.0,
                     "glass": [118, 138, 164], "warm": [150, 172, 200], "cool": [96, 114, 140]},
