@@ -9,7 +9,7 @@
  * Phones (900 px and narrower) keep the stacked layout and ignore all of this.
  */
 (function () {
-  var KEY = "twin-rails";
+  var KEY = "twin-rails-v2";
   var DESKTOP = "(min-width: 901px)";
 
   function load() {
@@ -17,8 +17,8 @@
       var s = JSON.parse(localStorage.getItem(KEY) || "null");
       if (s && typeof s.left === "boolean" && typeof s.right === "boolean") return s;
     } catch (e) { /* storage blocked: defaults */ }
-    // First visit: both panels open on wide screens, insights folded on narrow ones.
-    return { left: true, right: window.innerWidth > 1240 };
+    // First visit: the map alone; the panels open from their edge buttons.
+    return { left: false, right: false };
   }
   function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
 

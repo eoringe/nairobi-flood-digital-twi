@@ -96,25 +96,29 @@ def _topbar() -> html.Header:
                 html.Span("Flood outlook and flood-aware routing", className="twin-subtitle"),
             ]),
         ]),
-        html.Div(className="twin-topbar-actions", children=[
-            html.Span(
-                id="mode-pill",
-                className="twin-mode-pill",
-                children=[html.Span(className="twin-live-dot"), "Live"],
-            ),
-            # Shows a sun in dark mode and a moon in light mode (custom.css);
-            # the theme callback keeps the tooltip in step.
-            html.Button(
-                [_icon("sun", "twin-theme-sun"), _icon("moon-stars", "twin-theme-moon")],
-                id="btn-theme",
-                type="button",
-                className="twin-theme-btn",
-                title="Switch between light and dark themes",
-            ),
-            # Sign-in link, or who is signed in and their links
-            # (filled per user by auth_pages.route_page).
-            html.Div(id="account-area", className="twin-account-area"),
-        ]),
+    ])
+
+
+def _session_controls() -> html.Div:
+    """Live status, theme and account: on the map's top row instead of a top bar."""
+    return html.Div(className="twin-topbar-actions twin-session", children=[
+        html.Span(
+            id="mode-pill",
+            className="twin-mode-pill",
+            children=[html.Span(className="twin-live-dot"), "Live"],
+        ),
+        # Shows a sun in dark mode and a moon in light mode (custom.css);
+        # the theme callback keeps the tooltip in step.
+        html.Button(
+            [_icon("sun", "twin-theme-sun"), _icon("moon-stars", "twin-theme-moon")],
+            id="btn-theme",
+            type="button",
+            className="twin-theme-btn",
+            title="Switch between light and dark themes",
+        ),
+        # Sign-in link, or who is signed in and their links
+        # (filled per user by auth_pages.route_page).
+        html.Div(id="account-area", className="twin-account-area"),
     ])
 
 
@@ -350,6 +354,7 @@ def _map_stage() -> html.Div:
                 className="twin-map-btn",
                 title="Show the map full screen",
             ),
+            _session_controls(),
         ]),
         # Report flooding where you are (src.dashboard.reports_ui).
         html.Button(

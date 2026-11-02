@@ -1754,3 +1754,27 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card, .twin
   .twin-shell.is-mapfirst { --rail-l: 300px; --rail-r: 320px; }
   .is-mapfirst .twin-readout-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* No top bar on desktop: the brand is dropped and the live status, theme and
+   account controls sit at the end of the map's top row (layouts._session_controls). */
+@media (min-width: 901px) {
+  .is-mapfirst .twin-topbar { display: none; }
+  .twin-shell.is-mapfirst { --top: 12px; }
+  .is-mapfirst .twin-map-overlay { flex-wrap: wrap; justify-content: flex-end; }
+  .is-mapfirst .twin-readout-strip { flex: 1 1 520px; }
+  .is-mapfirst .twin-session {
+    flex: none; display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 8px; border-radius: 14px;
+    background: var(--bg-glass); border: 1px solid var(--border-subtle); box-shadow: var(--shadow-float);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  /* Who is signed in shows on hover of the account links, not as a long line of text. */
+  .is-mapfirst .twin-session .twin-auth-who { display: none; }
+  .is-mapfirst .twin-rail-open { top: calc(var(--top) + 64px); }
+}
+@media (max-width: 900px) {
+  /* Phones: the live status, theme and account get their own row above the readouts. */
+  .twin-map-overlay { flex-wrap: wrap; }
+  .twin-session { order: -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    justify-content: flex-end; width: 100%; }
+  .twin-map-overlay .twin-readout-strip { flex: 1 1 0; min-width: 0; }
+}
