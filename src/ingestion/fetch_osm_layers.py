@@ -103,7 +103,8 @@ def build_rivers(raw: dict) -> dict:
     for el in raw.get("elements", []):
         t = el.get("tags", {})
         if el["type"] == "way" and t.get("waterway") and el.get("geometry"):
-            rivers.append({"name": t.get("name") or "", "kind": t["waterway"], "path": _line(el["geometry"])})
+            rivers.append({"name": t.get("name:en") or t.get("name") or "", "kind": t["waterway"],
+                           "path": _line(el["geometry"])})
         elif t.get("natural") == "water":
             if el["type"] == "way" and el.get("geometry") and len(el["geometry"]) >= 4:
                 water.append({"name": t.get("name") or "", "kind": t.get("water", "water"),

@@ -96,11 +96,13 @@ def build(selected: list[str], area: str | None, nowcast: dict | None, user: dic
     area_ids = [area] if area else []
     if "boundaries" in selected or area:
         rows["admin-boundaries"] = layers.boundary_rows(highlight=area_ids)
+        rows["label-subcounties"] = layers.subcounty_label_rows(highlight=area_ids)
         if "boundaries" in selected:
-            note.append(html.Div([html.Strong("Boundaries: "), "19 sub-counties (thick) and 71 wards (thin), "
-                                  "geoBoundaries 2020 (IEBC; CC BY). Hover one for its name."], className="mb-1"))
+            note.append(html.Div([html.Strong("Boundaries: "), "19 sub-counties (thick, labelled) and 71 wards "
+                                  "(thin), geoBoundaries 2020 (IEBC; CC BY). Hover a ward for its name."], className="mb-1"))
     if "rivers" in selected:
         rows["rivers"], rows["water-bodies"] = layers.river_rows(), layers.water_rows()
+        rows["label-rivers"] = layers.river_label_rows()
         note.append(html.Div([_swatch([56, 189, 248]), html.Strong("Rivers and water: "),
                               f"{len(rows['rivers'])} river and stream lines, {len(rows['water-bodies'])} water "
                               "bodies (OpenStreetMap)."], className="mb-1"))
@@ -108,6 +110,7 @@ def build(selected: list[str], area: str | None, nowcast: dict | None, user: dic
         items = layers.exposure(_probability_for(nowcast))
         cats = categories or list(layers.CATEGORIES)
         rows["infrastructure"] = layers.infrastructure_rows(items, categories=cats, area_ids=area_ids or None)
+        rows["label-facilities"] = layers.facility_label_rows(items, categories=cats, area_ids=area_ids or None)
         at_risk = Counter(a["category"] for a in items if a.get("level", 0) >= 1 and a["category"] in cats
                           and (not area_ids or {a.get("ward"), a.get("sub_county")} & set(area_ids)))
         key = [html.Span([_swatch(layers.CATEGORIES[k][1], True), layers.CATEGORIES[k][0]], className="me-2",

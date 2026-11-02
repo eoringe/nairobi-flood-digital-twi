@@ -1684,3 +1684,73 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card, .twin
   .ops-filter-area, .ops-filter-risk, .ops-years, .ops-every { min-width: 0; flex: 1 1 100%; }
   .dash-main { overflow-x: hidden; }
 }
+
+/* ======================================================================
+   MAP-FIRST LAYOUT (desktop): the map fills the window, the top bar and the
+   two rails float over it, and each rail collapses to an edge button.
+   State: .left-closed / .right-closed on #twin-shell (assets/map_shell.js).
+   ====================================================================== */
+.twin-rail-head, .twin-rail-open, .twin-focus-btn { display: none; }
+@media (min-width: 901px) {
+  .twin-shell.is-mapfirst {
+    position: relative; display: block; height: 100vh; overflow: hidden;
+    --rail-l: 340px; --rail-r: 380px; --edge: 12px; --top: 84px;
+    --inset-l: calc(var(--rail-l) + var(--edge)); --inset-r: calc(var(--rail-r) + var(--edge));
+  }
+  .twin-shell.is-mapfirst.left-closed { --inset-l: 0px; }
+  .twin-shell.is-mapfirst.right-closed { --inset-r: 0px; }
+  .is-mapfirst .twin-topbar {
+    position: absolute; top: var(--edge); left: var(--edge); right: var(--edge); height: 60px;
+    border-radius: 16px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-float); z-index: 30;
+    background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+  }
+  .is-mapfirst .twin-workspace { position: absolute; inset: 0; display: block; padding: 0; }
+  .is-mapfirst .twin-map-column { position: absolute; inset: 0; }
+  .is-mapfirst .twin-map-bezel { height: 100%; min-height: 0; border-radius: 0; border: 0; box-shadow: none; }
+  .is-mapfirst .twin-rail {
+    position: absolute; top: var(--top); bottom: var(--edge); z-index: 25; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 12px; padding: 0 10px 10px;
+    border-radius: 18px; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-float);
+    background: color-mix(in srgb, var(--bg-surface) 70%, transparent);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    transition: transform 0.28s ease, opacity 0.2s ease;
+  }
+  .is-mapfirst .twin-rail-left { left: var(--edge); width: var(--rail-l); }
+  .is-mapfirst .twin-rail-right { right: var(--edge); width: var(--rail-r); grid-column: auto; }
+  .is-mapfirst.left-closed .twin-rail-left { transform: translateX(calc(-100% - 2 * var(--edge))); opacity: 0; pointer-events: none; }
+  .is-mapfirst.right-closed .twin-rail-right { transform: translateX(calc(100% + 2 * var(--edge))); opacity: 0; pointer-events: none; }
+  .is-mapfirst .twin-rail-head {
+    position: sticky; top: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between;
+    margin: 0 -10px; padding: 10px 12px 8px 16px; border-radius: 18px 18px 0 0;
+    background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .is-mapfirst .twin-rail-title { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-muted); }
+  .twin-rail-close {
+    width: 30px; height: 30px; border-radius: 9px; border: 1px solid var(--border-subtle); background: transparent;
+    color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .twin-rail-close:hover { color: var(--accent); border-color: var(--accent-border); }
+  .is-mapfirst .twin-rail-open {
+    position: absolute; top: calc(var(--top) + 64px); z-index: 26; align-items: center; padding: 9px 14px;
+    border-radius: 12px; border: 1px solid var(--border-subtle); background: var(--bg-glass); color: var(--text-primary);
+    backdrop-filter: blur(12px); box-shadow: var(--shadow-float); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .is-mapfirst .twin-rail-open:hover { color: var(--accent); border-color: var(--accent-border); }
+  .is-mapfirst .twin-rail-open.is-left { left: var(--edge); }
+  .is-mapfirst .twin-rail-open.is-right { right: var(--edge); }
+  .is-mapfirst.left-closed .twin-rail-open.is-left, .is-mapfirst.right-closed .twin-rail-open.is-right { display: inline-flex; }
+  .is-mapfirst .twin-focus-btn { display: inline-flex; }
+  .is-mapfirst.left-closed.right-closed .twin-focus-btn { color: var(--accent); border-color: var(--accent-border); }
+  .is-mapfirst .twin-map-overlay {
+    top: var(--top); left: calc(var(--inset-l) + var(--edge)); right: calc(var(--inset-r) + var(--edge));
+    transition: left 0.28s ease, right 0.28s ease;
+  }
+  .is-mapfirst .twin-report-fab { right: calc(var(--inset-r) + 20px); bottom: 74px; transition: right 0.28s ease; }
+  .is-mapfirst .twin-map-loading { left: var(--inset-l); right: var(--inset-r); }
+}
+@media (min-width: 901px) and (max-width: 1240px) {
+  .twin-shell.is-mapfirst { --rail-l: 300px; --rail-r: 320px; }
+  .is-mapfirst .twin-readout-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

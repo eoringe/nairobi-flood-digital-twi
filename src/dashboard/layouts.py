@@ -334,6 +334,15 @@ def _map_stage() -> html.Div:
                 _readout("rc-area", "water", "Flood area", "metric-flooded-area"),
                 _readout("rc-pop", "people", "People at risk", "metric-affected-pop"),
             ]),
+            # Hide or show both floating panels at once (assets/map_shell.js).
+            html.Button(
+                _icon("layout-three-columns"),
+                id="btn-focus-map",
+                type="button",
+                className="twin-map-btn twin-focus-btn",
+                title="Hide the panels to see the whole map",
+                **{"data-rail-toggle": "all"},
+            ),
             html.Button(
                 _icon("arrows-fullscreen"),
                 id="btn-fullscreen-map",
@@ -362,17 +371,38 @@ def _map_stage() -> html.Div:
     ])
 
 
+def _rail_head(side: str, title: str) -> html.Div:
+    """Title bar of a floating panel, with the button that collapses it."""
+    return html.Div(className="twin-rail-head", children=[
+        html.Span(title, className="twin-rail-title"),
+        html.Button(_icon("chevron-double-left" if side == "left" else "chevron-double-right"), type="button",
+                    className="twin-rail-close", title=f"Hide {title.lower()}", **{"data-rail-close": side}),
+    ])
+
+
+def _rail_open_button(side: str, icon: str, label: str) -> html.Button:
+    """Shown at the map's edge while a panel is collapsed."""
+    return html.Button([_icon(icon, "me-2"), label], type="button", className=f"twin-rail-open is-{side}",
+                       title=f"Show {label.lower()}", **{"data-rail-open": side})
+
+
 def build_dashboard_layout() -> html.Div:
     trip_places = place_options()
 
+    # The map fills the window; the two rails float over it as collapsible
+    # panels on desktop (assets/map_shell.js). Phones keep the stacked layout.
     return html.Div(
-        className="twin-app twin-shell",
+        id="twin-shell",
+        className="twin-app twin-shell is-mapfirst",
         children=[
             _topbar(),
             html.Div(className="twin-workspace", children=[
+                _rail_open_button("left", "sliders", "Controls"),
+                _rail_open_button("right", "layout-sidebar-reverse", "Insights"),
 
                 # LEFT: controls
-                html.Aside(className="twin-rail twin-rail-left", children=[
+                html.Aside(id="rail-left", className="twin-rail twin-rail-left", children=[
+                    _rail_head("left", "Controls"),
                     _outlook_panel(),
                     _trip_panel(trip_places),
                     _help_box(),
@@ -382,7 +412,8 @@ def build_dashboard_layout() -> html.Div:
                 html.Main(id="map-column", className="twin-map-column", children=_map_stage()),
 
                 # RIGHT: insights
-                html.Aside(className="twin-rail twin-rail-right", children=[
+                html.Aside(id="rail-right", className="twin-rail twin-rail-right", children=[
+                    _rail_head("right", "Insights"),
                     _panel(
                         header_label="Flood warnings",
                         dot_class="tone-danger",

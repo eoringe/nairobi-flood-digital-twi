@@ -678,7 +678,8 @@ ROUTE_LAYER_IDS = ("route-fastest", "route-casing", "route-safe", "route-endpoin
 
 
 #: Operational map layers (src.geo.layers), patched by the "Map layers" checklist.
-OPS_LAYER_IDS = ("admin-boundaries", "rivers", "water-bodies", "infrastructure", "stations", "alert-areas")
+OPS_LAYER_IDS = ("admin-boundaries", "rivers", "water-bodies", "infrastructure", "stations", "alert-areas",
+                 "label-subcounties", "label-rivers", "label-facilities")
 
 
 def create_3d_digital_twin_deck(
@@ -776,7 +777,7 @@ def create_3d_digital_twin_deck(
     layers.append(pdk.Layer(
         "PolygonLayer", history_rows or [], id="past-floods",
         get_polygon="polygon", get_fill_color="fill", get_line_color="edge",
-        get_line_width="width", line_width_units="pixels", line_width_min_pixels=1,
+        get_line_width="width", line_width_units="'pixels'", line_width_min_pixels=1,
         stroked=True, filled=True, extruded=False,
         pickable=True, auto_highlight=True, highlight_color=[255, 255, 255, 50],
         parameters=no_depth,
@@ -799,14 +800,15 @@ def create_3d_digital_twin_deck(
     ))
     layers.append(pdk.Layer(
         "PathLayer", ops_rows.get("rivers", []), id="rivers",
-        get_path="path", get_color="color", get_width="width", width_units="pixels",
-        width_min_pixels=1, cap_rounded=True, joint_rounded=True, pickable=True,
+        get_path="path", get_color="color", get_width="width", width_units="'meters'",
+        width_min_pixels=1, width_max_pixels=6, cap_rounded=True, joint_rounded=True, pickable=True,
         auto_highlight=True, highlight_color=[255, 255, 255, 120], parameters=no_depth,
     ))
     layers.append(pdk.Layer(
         "PathLayer", ops_rows.get("admin-boundaries", []), id="admin-boundaries",
-        get_path="path", get_color="color", get_width="width", width_units="pixels",
-        width_min_pixels=1, pickable=True, auto_highlight=True, highlight_color=[129, 140, 248, 200],
+        get_path="path", get_color="color", get_width="width", width_units="'meters'",
+        width_min_pixels=1, width_max_pixels=6, pickable=True, auto_highlight=True,
+        highlight_color=[129, 140, 248, 200],
         parameters=no_depth,
     ))
 
@@ -842,8 +844,10 @@ def create_3d_digital_twin_deck(
     # vanished on zoom-out while the pins beside it stayed. Measured: a pixel
     # path visible at zoom 12.5 is gone at 11.9; the same path in metres with
     # a pixel minimum stays drawn at every zoom.
+    # pydeck turns plain strings into JavaScript expressions ("meters" becomes an
+    # undefined variable), so literal string props are written quoted: "'meters'".
     path_common = dict(get_path="path", get_color="color", get_width="width",
-                       width_units="meters", cap_rounded=True, joint_rounded=True,
+                       width_units="'meters'", cap_rounded=True, joint_rounded=True,
                        pickable=False, parameters=no_depth)
     layers.append(pdk.Layer("PathLayer", route_layers.get("route-fastest", []),
                             id="route-fastest", width_min_pixels=4, width_max_pixels=7, **path_common))
@@ -855,7 +859,7 @@ def create_3d_digital_twin_deck(
         "ScatterplotLayer", route_layers.get("route-endpoints", []),
         id="route-endpoints", get_position="position", get_fill_color="color",
         get_line_color=palette["pin_stroke"], stroked=True, line_width_min_pixels=3,
-        get_radius=9, radius_units="pixels", pickable=False, parameters=no_depth,
+        get_radius=9, radius_units="'pixels'", pickable=False, parameters=no_depth,
     ))
 
     # 4. Community flood reports: a soft ring on the ground and a pin above it,
@@ -864,13 +868,13 @@ def create_3d_digital_twin_deck(
     layers.append(pdk.Layer(
         "ScatterplotLayer", report_rows, id="flood-reports-halo",
         get_position="position", get_fill_color="color", get_line_color="line",
-        get_radius=45, radius_units="meters", radius_min_pixels=10,
+        get_radius=45, radius_units="'meters'", radius_min_pixels=10,
         stroked=True, line_width_min_pixels=2, pickable=False, parameters=no_depth,
     ))
     layers.append(pdk.Layer(
         "ScatterplotLayer", report_rows, id="flood-reports",
         get_position="position", get_fill_color="pin", get_line_color=[255, 255, 255, 255],
-        get_radius=9, radius_units="pixels", stroked=True, line_width_min_pixels=3,
+        get_radius=9, radius_units="'pixels'", stroked=True, line_width_min_pixels=3,
         pickable=True, auto_highlight=True, parameters=no_depth,
     ))
 
@@ -878,9 +882,28 @@ def create_3d_digital_twin_deck(
         layers.append(pdk.Layer(
             "ScatterplotLayer", ops_rows.get(lid, []), id=lid,
             get_position="position", get_fill_color="color", get_line_color="line",
-            get_radius=radius, radius_units="pixels", stroked=True, line_width_min_pixels=2,
+            get_radius=radius, radius_units="'pixels'", stroked=True, line_width_min_pixels=2,
             pickable=True, auto_highlight=True, parameters=no_depth,
         ))
+
+    # Labels (src.geo.layers *_label_rows), drawn last so text sits on top. Sizes in
+    # metres with a pixel cap: facility names appear only once zoomed in, while
+    # sub-county names stay readable at city scale.
+    label_common = dict(get_position="position", get_text="text", get_color="color",
+                        font_family="'Inter, Segoe UI, sans-serif'", character_set="'auto'",
+                        font_settings={"sdf": True, "fontSize": 64, "buffer": 8},
+                        outline_width=3, outline_color=[10, 14, 24, 235], billboard=True,
+                        pickable=False, parameters=no_depth)
+    layers.append(pdk.Layer("TextLayer", ops_rows.get("label-subcounties", []), id="label-subcounties",
+                            get_size=320, size_units="'meters'", size_min_pixels=11, size_max_pixels=17,
+                            font_weight=700, **label_common))
+    layers.append(pdk.Layer("TextLayer", ops_rows.get("label-rivers", []), id="label-rivers",
+                            get_size=260, size_units="'meters'", size_min_pixels=10, size_max_pixels=14,
+                            get_angle="angle", font_weight=600, **label_common))
+    layers.append(pdk.Layer("TextLayer", ops_rows.get("label-facilities", []), id="label-facilities",
+                            get_size=30, size_units="'meters'", size_min_pixels=0, size_max_pixels=13,
+                            get_text_anchor="'start'", get_alignment_baseline="'center'",
+                            get_pixel_offset=[10, 0], font_weight=500, **label_common))
 
     view_state = pdk.ViewState(
         latitude=center_lat,
@@ -958,8 +981,9 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
     <div id="pydeck-embedded-legend" style="
         position: fixed;
         bottom: 20px;
-        left: 50%;
+        left: calc(50% + (var(--inset-left, 0px) - var(--inset-right, 0px)) / 2);
         transform: translateX(-50%);
+        transition: left 0.25s ease;
         background-color: {lg['bg']};
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
@@ -986,7 +1010,7 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
         <span class="it wide mu"><span class="sw" style="background:{lg['bldg']}; border-radius:2px;"></span>3D buildings</span>
     </div>
     <div id="past-floods-legend" style="
-        position: fixed; bottom: 64px; left: 16px;
+        position: fixed; bottom: 64px; left: calc(var(--inset-left, 0px) + 16px); transition: left 0.25s ease;
         background-color: {lg['bg']}; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
         border: 1px solid {lg['border']}; border-radius: 999px; padding: 7px 14px; z-index: 99999;
         font-family: 'Inter', 'Segoe UI', sans-serif; color: {lg['text']}; font-size: 12px; font-weight: 500;
@@ -1039,6 +1063,13 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
 
   window.addEventListener("message", function (ev) {
     var msg = ev.data;
+    // The floating panels cover the map's edges; keep the legends in the clear part.
+    if (msg && msg.type === "insets") {
+      var r = document.documentElement.style;
+      r.setProperty("--inset-left", (msg.left || 0) + "px");
+      r.setProperty("--inset-right", (msg.right || 0) + "px");
+      return;
+    }
     if (!msg || (msg.type !== "floodUpdate" && msg.type !== "layerUpdate")) return;
     var d = findDeck();
     if (!d || !d.props || !d.props.layers) {
