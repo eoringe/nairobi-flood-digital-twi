@@ -76,9 +76,10 @@ def test_zooming_over_flooding_stays_light():
     # Auto also watches real frame times while panning or zooming.
     assert "onInteractionStateChange" in CITY_JS and 'applyPerf(true, "moving")' in CITY_JS
     assert 'refinementStrategy: "no-overlap"' in CITY_JS
-    # 3D buildings only from zoom 14 (15 in Lighter): zoomed out, the tilted view
+    # 3D buildings only from zoom 14 in both modes: zoomed out, the tilted view
     # pulled in dozens of building tiles to the horizon.
-    assert "function gateCity" in CITY_JS and "perf.lite ? 15 : 14" in CITY_JS
+    assert "function gateCity" in CITY_JS and "perf.lite ? 15" not in CITY_JS
+    assert "zoom >= 13.9 : zoom >= 14" in CITY_JS   # hysteresis, no flicker at 14
     assert "minZoom: 14," in CITY_JS
     # getViewports asserts before deck.gl's first frame; that once killed the perf block.
     assert "try { vp = d.viewManager && d.getViewports()[0]; }" in CITY_JS

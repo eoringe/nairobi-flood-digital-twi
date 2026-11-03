@@ -1113,7 +1113,8 @@ def get_deck_html_with_embedded_legend(deck: pdk.Deck) -> str:
   setInterval(function () {
     var d = findDeck();
     if (!d || !d.props || !d.props.layers) return;
-    var vp = d.getViewports && d.getViewports()[0];
+    var vp = null;
+    try { vp = d.viewManager && d.getViewports()[0]; } catch (e) { vp = null; }  // asserts before the first frame
     if (!vp) return;
     var want = vp.zoom >= FACILITY_LABEL_ZOOM;
     var l = d.props.layers.find(function (x) { return x.id === "label-facilities"; });
@@ -1592,8 +1593,12 @@ CITY_JS = r"""
     }
     function gateCity(zoom) {
       if (failures >= 3 || typeof zoom !== "number") return;   // fallback buildings in use
-      var want = zoom >= (perf.lite ? 15 : 14);
+      // One threshold in both modes: the map opens at zoom 14, and a higher one
+      // for Lighter hid the buildings a few seconds after load when Auto chose
+      // it. Shown from 14, hidden only below 13.9, so a zoom wobbling around
+      // 14 cannot make them flicker.
       var l = d.props.layers.find(function (x) { return x.id === "buildings-city"; });
+      var want = l && l.props.visible ? zoom >= 13.9 : zoom >= 14;
       if (l && l.props.visible !== want) {
         d.setProps({ layers: d.props.layers.map(function (x) {
           return x.id === "buildings-city" ? x.clone({ visible: want }) : x; }) });
