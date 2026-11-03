@@ -1,0 +1,57 @@
+{
+ "question": "do past news reports help rank where floods are reported next?",
+ "history": "Groundsource reports up to 2021-12-31",
+ "test": "reports 2022-01-01 to 2025-12-31",
+ "events": 374,
+ "places": 148,
+ "fields": {
+  "drainage susceptibility": {
+   "auc": 0.728,
+   "interval": [
+    0.688,
+    0.765
+   ],
+   "population_matched": 0.634,
+   "population_matched_interval": [
+    0.585,
+    0.683
+   ]
+  },
+  "population": {
+   "auc": 0.689,
+   "interval": [
+    0.658,
+    0.72
+   ],
+   "population_matched": 0.53,
+   "population_matched_interval": [
+    0.506,
+    0.557
+   ]
+  },
+  "reported before (to 2021)": {
+   "auc": 0.721,
+   "interval": [
+    0.675,
+    0.759
+   ],
+   "population_matched": 0.66,
+   "population_matched_interval": [
+    0.611,
+    0.705
+   ]
+  },
+  "combined (deployed)": {
+   "auc": 0.782,
+   "interval": [
+    0.75,
+    0.813
+   ],
+   "population_matched": 0.71,
+   "population_matched_interval": [
+    0.667,
+    0.747
+   ]
+  }
+ }
+}

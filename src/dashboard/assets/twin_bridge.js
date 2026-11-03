@@ -6,7 +6,8 @@
  * messages from the map iframe and turns them into Dash property updates:
  *
  *   mapClick        - when the user armed "Pick on map", drops a start or
- *                     destination pin (map-pick-store).
+ *                     destination pin (map-pick-store), or sets the place of a
+ *                     flood report (report-pick-store).
  *   layerUpdateAck  - if an in-place layer patch failed, requests a full
  *                     document rebuild so stale geometry is not left on screen.
  */
@@ -19,7 +20,10 @@
     var dc = window.dash_clientside;
     if (!dc || typeof dc.set_props !== "function") return;
 
-    if (m.type === "mapClick" && window.twinPick) {
+    if (m.type === "mapClick" && window.twinPick === "report") {
+      dc.set_props("report-pick-store", { data: { lat: m.lat, lon: m.lon, t: Date.now() } });
+      window.twinPick = null;
+    } else if (m.type === "mapClick" && window.twinPick) {
       dc.set_props("map-pick-store", {
         data: { target: window.twinPick, lat: m.lat, lon: m.lon, t: Date.now() }
       });

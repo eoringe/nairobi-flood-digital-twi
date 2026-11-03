@@ -43,7 +43,11 @@ from loguru import logger
 
 from src.auth import totp
 
-ROLES = ("citizen", "planner", "responder", "admin")
+#: The first four are the original roles; the rest come from the Flood
+#: Visualization Dashboard Specification §4 (src.auth.access maps them).
+ROLES = ("citizen", "planner", "responder", "admin",
+         "monitoring_officer", "hydrologist", "data_analyst", "emergency_officer",
+         "county_officer", "infrastructure_officer")
 #: How the account was first created. "local" survives only in older databases,
 #: from when password sign-in existed.
 PROVIDERS = ("google", "email_link")
@@ -60,13 +64,14 @@ CREATE TABLE IF NOT EXISTS users (
     auth_provider   TEXT NOT NULL DEFAULT 'local'
                     CHECK (auth_provider IN ('local','google','email_link')),
     role            TEXT NOT NULL DEFAULT 'citizen'
-                    CHECK (role IN ('citizen','planner','responder','admin')),
+                    CHECK (role IN (__ROLES__)),
     active          INTEGER NOT NULL DEFAULT 1,
     created_at      TEXT NOT NULL,
     last_login_at   TEXT,
     totp_secret     TEXT,
     totp_last_step  INTEGER,
-    recovery_codes  TEXT
+    recovery_codes  TEXT,
+    assigned_areas  TEXT
 );
 CREATE TABLE IF NOT EXISTS audit_log (
     audit_id         INTEGER PRIMARY KEY,
@@ -88,7 +93,9 @@ CREATE TABLE IF NOT EXISTS alert_subscriptions (
 """
 
 #: Columns added after the first release, for databases created before them.
-_ADDED_COLUMNS = {"totp_secret": "TEXT", "totp_last_step": "INTEGER", "recovery_codes": "TEXT"}
+_SCHEMA = _SCHEMA.replace("__ROLES__", ",".join(f"'{r}'" for r in ROLES))
+_ADDED_COLUMNS = {"totp_secret": "TEXT", "totp_last_step": "INTEGER", "recovery_codes": "TEXT",
+                  "assigned_areas": "TEXT"}
 _PRIVATE = ("password_hash", "totp_secret", "totp_last_step", "recovery_codes")
 
 
@@ -109,6 +116,7 @@ def _public(row: sqlite3.Row | None) -> dict | None:
     for key in _PRIVATE:
         user.pop(key, None)
     user["active"] = bool(user["active"])
+    user["assigned_areas"] = json.loads(user.get("assigned_areas") or "[]")
     return user
 
 
@@ -143,13 +151,14 @@ class AuthStore:
     def _widen_provider_check(self) -> None:
         """
         Databases created before email-link sign-in only allow 'local' and
-        'google'. SQLite cannot alter a CHECK, so the table is rebuilt once with
-        every row copied unchanged.
+        'google', and those created before the specification roles only the
+        first four roles. SQLite cannot alter a CHECK, so the table is rebuilt
+        once with every row copied unchanged.
         """
         conn = sqlite3.connect(self.path, timeout=5.0)
         try:
             ddl = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
-            if "email_link" in ddl:
+            if "email_link" in ddl and "'hydrologist'" in ddl:
                 return
             cols = [r[1] for r in conn.execute("PRAGMA table_info(users)")]
             new_ddl = _SCHEMA.split("CREATE TABLE IF NOT EXISTS audit_log")[0].replace(
@@ -161,7 +170,7 @@ class AuthStore:
                 conn.execute(f"INSERT INTO users_new ({names}) SELECT {names} FROM users")
                 conn.execute("DROP TABLE users")
                 conn.execute("ALTER TABLE users_new RENAME TO users")
-            logger.info("Account store upgraded to allow email-link sign-in.")
+            logger.info("Account store upgraded (sign-in methods and roles).")
         finally:
             conn.close()
 
@@ -241,6 +250,15 @@ class AuthStore:
     def count_active_admins(self) -> int:
         with self._conn() as conn:
             return conn.execute("SELECT COUNT(*) FROM users WHERE role='admin' AND active=1").fetchone()[0]
+
+    def set_assigned_areas(self, user_id: int, areas: list[str]) -> dict:
+        """The sub-counties or wards a county/regional officer is assigned to (spec §4)."""
+        clean = sorted({a.strip() for a in areas if a and a.strip()})
+        with self._lock, self._conn() as conn:
+            if self._row(conn, user_id) is None:
+                raise AuthError("No such user.")
+            conn.execute("UPDATE users SET assigned_areas=? WHERE user_id=?", (json.dumps(clean), user_id))
+            return _public(self._row(conn, user_id))
 
     def update_user(self, user_id: int, *, role: str | None = None, active: bool | None = None) -> dict:
         """Change a role or active flag, refusing to leave no active admin."""

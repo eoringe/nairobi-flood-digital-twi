@@ -283,6 +283,54 @@ The web dashboard is built using **Plotly Dash** and **Pydeck WebGL** with a mod
 * **Firebase set-up:** set `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID` and `FIREBASE_APP_ID` (see `.env.example`); in the console enable Google and Email/Password with *Email link (passwordless sign-in)*, and add your domain under Authorized domains. Without these, nobody can sign in, though the public map still works.
 * First administrator: put your email in `TWIN_ADMIN_EMAILS` and sign in, or run `python -m src.auth.cli create-user --email you@example.com --role admin`. `python -m src.auth.cli reset-2fa --email ...` removes a lost authenticator.
 
+### 6.3 Community Flood Reports and the Satellite Layer
+
+The model forecasts where flooding is likely. Two layers show flooding that is happening:
+
+* **Community reports** (`src/reports/store.py`, `src/dashboard/reports_ui.py`). Any signed-in user taps *Report flooding* and gives a place (their location, a point on the map, or a searched place) and what they see: water on the road, road impassable, or homes flooded. Everyone sees the reports on the map and in *Reported flooding*, refreshed every 30 seconds; reporters are never shown.
+  * A report lasts 6 hours; each *Still flooded* from someone else keeps it for at least 3 more. A report within 150 m of an active one counts as confirming it.
+  * *Cleared* from the reporter, or from two people (more than have confirmed it), closes it. Responders and administrators can verify or remove reports. Five reports per person per hour at most. Every action is audited.
+  * The flood-aware route treats reports like predicted flooding: water on the road as high risk, an impassable road or flooded homes as critical. A route on screen re-plans when reports change.
+  * Reports in a user's alert areas appear under *My flood alerts*.
+* **Satellite flood map** (`src/reports/satellite.py`). The switch under *Map overlay* shows the newest Copernicus GFM flood map from Sentinel-1 radar (free WMS-T, no key) on or before the time on the map. It is not live: Sentinel-1 passes Nairobi about every six days, and radar cannot see water between buildings, so GFM masks out 74-87% of the city. On 1 May 2024, at the height of the floods, it detected no flooding in the part of the map area it could see. The layer shades what the radar cannot see and says so beside the switch.
+
+### 6.4 Past Floods in the News (Groundsource)
+
+Google's [Groundsource](https://research.google/blog/introducing-groundsource-turning-news-reports-into-data-with-gemini/) dataset (CC BY 4.0) is 2.6 million flood events that Gemini extracted from news articles, each a polygon and dates. It is what Google's Flood Hub flash-flood model trains on. `src/ingestion/fetch_groundsource.py` keeps the 630 events inside the model grid (`data/processed/nairobi_groundsource.json`, 138 KB).
+
+* **On the map** (`src/reports/history.py`). The *Past floods in the news* switch draws the 170 neighbourhood-sized places (≤ 5 km²) reported flooded in violet, darker for more often. Each is named after the places inside it (e.g. *CBD, Grogon, Koja*, or *Near Mariakani* for a small one); hovering gives the name, how many days and when. A legend line on the map and a colour key beside the switch say what violet and yellow mean. During a storm replay, places reported flooded that week turn yellow, beside the model's forecast for the same moment. The note beside the switch says that about 60% of events are right in place and date, and that no reports does not mean no flooding.
+* **As validation** (`src/validation/validate_groundsource.py`, `RESULTS.md` §4.13.4). With rainfall as it fell, the warning chain warned on 56% of reported flood days and 80% of reports, and a warning was followed by a reported flood 4.3× as often as chance. Among places of similar population, the model ranks reported areas above others at AUC 0.60.
+* **Used for training only with years held out.** The flood chance (§6.5) and the place ordering learn from reports up to 2021 and are judged on 2022–2025, so those years stay independent evidence. The U-Net is not trained on it.
+
+### 6.5 Flood Chance with a 95% Call
+
+The outlook card shows the chance that flooding is reported in Nairobi over the next 3 days (`src/forecast/flood_chance.py`). It is learned from the 158 Groundsource flood days, not from the rainfall rule behind the U-Net's labels. Its inputs are the 3-day forecast total and the rain over the previous 14 and 30 days, all bias-corrected to the CHIRPS scale.
+
+* **Better than the rule.** On 2022–2025, with the live forecast feed, it warned on 46 flood days instead of 41 at the same number of warnings, with 55% precision instead of 44% (`RESULTS.md` §4.14).
+* **Calibrated.** On years the calibration did not see, a stated 28% came true 30% of the time.
+* **The 95% call.** The card says *Flooding expected*, *Flooding possible* or *No flooding expected*. The confident calls were wrong on only about 5% of the days they could be wrong on: 94.7% of flood days were not called "no flooding", and 94.9% of dry days were not called "flooding expected". This is a coverage guarantee, not 95% accuracy (`LIMITATIONS.md` §16).
+* **Places.** Warnings list places most flood-prone first: drainage susceptibility combined with where floods were reported before (AUC 0.78 on 2022–2025 reports, against 0.73 for susceptibility alone).
+
+Refit with `python -m src.forecast.flood_chance` and `python -m src.validation.validate_flood_prone`.
+
+### 6.6 Operations Console and API (Flood Visualization Dashboard)
+
+For the industry partner's *Flood Visualization Dashboard Specification v1.0*, staff roles get an operations console at `/ops`:
+- **Screens:** overview, sensors, rainfall, water levels, predictions, predicted vs observed, alerts, infrastructure, incidents, history, reports and system status.
+- **Every value** shows its source, observation time and freshness.
+- **Filters:** every page filters by sub-county or ward and by risk level.
+
+The plan and progress are in [docs/capstone/TASKLIST.md](docs/capstone/TASKLIST.md). Evidence for the 22 acceptance criteria is in [docs/capstone/ACCEPTANCE.md](docs/capstone/ACCEPTANCE.md).
+
+* **Roles.** The specification's monitoring officer, hydrologist, data analyst, emergency management officer, county/regional officer (limited to assigned areas) and infrastructure officer sit beside the original four roles. Permissions are checked on the server in every callback and endpoint.
+* **Partner systems.** The IoT Sensor Data Platform, Automated Alert System, Infrastructure Risk Mapping, Supply Chain and Beneficiary systems connect through adapters configured by `*_API_URL` / `*_API_KEY` ([integration guide](docs/capstone/INTEGRATION_GUIDE.md)).
+  * Until a system connects, its screens say it is not connected, and nothing is invented.
+  * `INTEGRATION_DEMO=1` shows labelled DEMO data for demonstrations.
+* **Map.** Sub-county and ward boundaries (geoBoundaries), rivers and 3,290 facilities (OpenStreetMap, interim) carry the predicted risk at each location. Alert areas, monitoring stations and an area filter are also available.
+* **Reports.** Five reports with preview, PDF and CSV export.
+* **REST API.** `/api/v1` covers all specification endpoints. Documentation is at `/api/v1/openapi.json`, with Swagger UI at `/api/docs`. Access is by session or bearer token (`TWIN_API_TOKENS`).
+* **Resilience.** `tests/test_resilience.py` takes each source down in turn, and all at once. Every page and API endpoint keeps working.
+
 ---
 
 ## 📂 Implementation Blueprint: File-by-File Code Mapping

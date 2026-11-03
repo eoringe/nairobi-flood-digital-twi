@@ -15,9 +15,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from src.geo.layers import CATEGORIES as INFRA_CATEGORIES
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 
+from src.dashboard.reports_ui import REFRESH_SEC, report_modal
 from src.forecast.nowcast import SOURCES
 
 PLACES_FILE = Path("data/processed/nairobi_places.json")
@@ -94,25 +96,20 @@ def _topbar() -> html.Header:
                 html.Span("Flood outlook and flood-aware routing", className="twin-subtitle"),
             ]),
         ]),
-        html.Div(className="twin-topbar-actions", children=[
-            html.Span(
-                id="mode-pill",
-                className="twin-mode-pill",
-                children=[html.Span(className="twin-live-dot"), "Live"],
-            ),
-            # Shows a sun in dark mode and a moon in light mode (custom.css);
-            # the theme callback keeps the tooltip in step.
-            html.Button(
-                [_icon("sun", "twin-theme-sun"), _icon("moon-stars", "twin-theme-moon")],
-                id="btn-theme",
-                type="button",
-                className="twin-theme-btn",
-                title="Switch between light and dark themes",
-            ),
-            # Sign-in link, or who is signed in and their links
-            # (filled per user by auth_pages.route_page).
-            html.Div(id="account-area", className="twin-account-area"),
-        ]),
+    ])
+
+
+def _session_controls() -> html.Div:
+    """Live status and account: on the map's top row instead of a top bar."""
+    return html.Div(className="twin-topbar-actions twin-session", children=[
+        html.Span(
+            id="mode-pill",
+            className="twin-mode-pill",
+            children=[html.Span(className="twin-live-dot"), "Live"],
+        ),
+        # Sign-in link, or who is signed in and their links
+        # (filled per user by auth_pages.route_page).
+        html.Div(id="account-area", className="twin-account-area"),
     ])
 
 
@@ -192,6 +189,30 @@ def _outlook_panel() -> html.Div:
                 html.Div(id="rain-context-label", className="mb-3"),
             ]),
 
+            # Light or dark theme. The label names the theme a click switches to:
+            # the sun line shows in dark mode, the moon line in light mode (custom.css);
+            # the theme callback keeps the tooltip in step.
+            html.Label("Appearance", className="twin-field-label"),
+            html.Button(
+                [html.Span([_icon("sun", "me-2"), "Switch to light theme"], className="twin-theme-sun"),
+                 html.Span([_icon("moon-stars", "me-2"), "Switch to dark theme"], className="twin-theme-moon")],
+                id="btn-theme",
+                type="button",
+                className="twin-theme-toggle mb-2",
+                title="Switch between light and dark themes",
+            ),
+            # 3D quality (assets/map_shell.js): Auto measures the device's frame
+            # rate and drops the costliest effects if the map is slow.
+            html.Div(className="twin-perf-group", role="group", **{"aria-label": "3D quality"}, children=[
+                html.Button(label, type="button", className="twin-perf-btn", title=tip, **{"data-perf": mode})
+                for mode, label, tip in (
+                    ("auto", "Auto", "Lighter effects only if this device draws the map slowly"),
+                    ("off", "Full 3D", "Moving water, lit windows and full lighting"),
+                    ("on", "Lighter", "Still water, plain 3D buildings: less work for the computer"),
+                )
+            ]),
+            html.Div(id="perf-note", className="twin-satellite-note mb-3"),
+
             html.Label("Map overlay", className="twin-field-label"),
             dbc.RadioItems(
                 id="display-mode-radio",
@@ -206,6 +227,37 @@ def _outlook_panel() -> html.Div:
                 value="PROBABILITY",
                 inline=True,
             ),
+
+            # Flooding seen from space (src.reports.satellite): days apart, and
+            # blind between buildings, so it says so beside the switch.
+            dbc.Switch(id="satellite-toggle", value=False, className="twin-switch mb-1",
+                       label="Satellite flood map (Sentinel-1)"),
+            dcc.Loading(type="dot", color="var(--accent)",
+                        children=html.Div(id="satellite-note", className="twin-satellite-note mb-3")),
+
+            # Past floods reported in the news (src.reports.history), with the
+            # same plain caveats beside the switch.
+            dbc.Switch(id="history-toggle", value=False, className="twin-switch mb-1",
+                       label="Past floods in the news (Groundsource)"),
+            html.Div(id="history-note", className="twin-satellite-note mb-3"),
+
+            # Operational layers and the area filter (src.dashboard.map_layers_ui).
+            html.Label("Map layers", className="twin-field-label"),
+            dbc.Checklist(id="ops-layers", value=[], className="twin-checklist mb-2", switch=True,
+                          options=[{"label": "Sub-county and ward boundaries", "value": "boundaries"},
+                                   {"label": "Rivers and water bodies", "value": "rivers"},
+                                   {"label": "Schools, hospitals, bridges and public buildings",
+                                    "value": "infrastructure"},
+                                   {"label": "Alert areas", "value": "alerts"}]),
+            # Which facilities the infrastructure layer draws; schools are many (2,000+), so off by default.
+            dcc.Dropdown(id="infra-categories", multi=True, className="twin-select mb-2",
+                         value=["hospital", "health_centre", "emergency_service", "bridge"],
+                         options=[{"label": label, "value": key} for key, (label, _c) in INFRA_CATEGORIES.items()],
+                         placeholder="Facility types", style={"display": "none"}),
+            dcc.Dropdown(id="map-area-filter", placeholder="Show a sub-county or ward…", clearable=True,
+                         className="twin-select mb-2"),
+            dcc.Loading(type="dot", color="var(--accent)",
+                        children=html.Div(id="ops-layers-note", className="twin-satellite-note mb-3")),
 
             dcc.Dropdown(
                 id="basin-dropdown",
@@ -301,6 +353,15 @@ def _map_stage() -> html.Div:
                 _readout("rc-area", "water", "Flood area", "metric-flooded-area"),
                 _readout("rc-pop", "people", "People at risk", "metric-affected-pop"),
             ]),
+            # Hide or show both floating panels at once (assets/map_shell.js).
+            html.Button(
+                _icon("layout-three-columns"),
+                id="btn-focus-map",
+                type="button",
+                className="twin-map-btn twin-focus-btn",
+                title="Hide the panels to see the whole map",
+                **{"data-rail-toggle": "all"},
+            ),
             html.Button(
                 _icon("arrows-fullscreen"),
                 id="btn-fullscreen-map",
@@ -308,7 +369,16 @@ def _map_stage() -> html.Div:
                 className="twin-map-btn",
                 title="Show the map full screen",
             ),
+            _session_controls(),
         ]),
+        # Report flooding where you are (src.dashboard.reports_ui).
+        html.Button(
+            [_icon("megaphone-fill", "me-2"), "Report flooding"],
+            id="btn-report-open",
+            type="button",
+            className="twin-report-fab",
+            title="Tell others about flooding you can see",
+        ),
         html.Div(
             id="map-loading-overlay",
             className="twin-map-loading",
@@ -321,17 +391,38 @@ def _map_stage() -> html.Div:
     ])
 
 
+def _rail_head(side: str, title: str) -> html.Div:
+    """Title bar of a floating panel, with the button that collapses it."""
+    return html.Div(className="twin-rail-head", children=[
+        html.Span(title, className="twin-rail-title"),
+        html.Button(_icon("chevron-double-left" if side == "left" else "chevron-double-right"), type="button",
+                    className="twin-rail-close", title=f"Hide {title.lower()}", **{"data-rail-close": side}),
+    ])
+
+
+def _rail_open_button(side: str, icon: str, label: str) -> html.Button:
+    """Shown at the map's edge while a panel is collapsed."""
+    return html.Button([_icon(icon, "me-2"), label], type="button", className=f"twin-rail-open is-{side}",
+                       title=f"Show {label.lower()}", **{"data-rail-open": side})
+
+
 def build_dashboard_layout() -> html.Div:
     trip_places = place_options()
 
+    # The map fills the window; the two rails float over it as collapsible
+    # panels on desktop (assets/map_shell.js). Phones keep the stacked layout.
     return html.Div(
-        className="twin-app twin-shell",
+        id="twin-shell",
+        className="twin-app twin-shell is-mapfirst",
         children=[
             _topbar(),
             html.Div(className="twin-workspace", children=[
+                _rail_open_button("left", "sliders", "Controls"),
+                _rail_open_button("right", "layout-sidebar-reverse", "Insights"),
 
                 # LEFT: controls
-                html.Aside(className="twin-rail twin-rail-left", children=[
+                html.Aside(id="rail-left", className="twin-rail twin-rail-left", children=[
+                    _rail_head("left", "Controls"),
                     _outlook_panel(),
                     _trip_panel(trip_places),
                     _help_box(),
@@ -341,7 +432,8 @@ def build_dashboard_layout() -> html.Div:
                 html.Main(id="map-column", className="twin-map-column", children=_map_stage()),
 
                 # RIGHT: insights
-                html.Aside(className="twin-rail twin-rail-right", children=[
+                html.Aside(id="rail-right", className="twin-rail twin-rail-right", children=[
+                    _rail_head("right", "Insights"),
                     _panel(
                         header_label="Flood warnings",
                         dot_class="tone-danger",
@@ -349,6 +441,16 @@ def build_dashboard_layout() -> html.Div:
                         body_id="alert-log-body",
                         body_style={"maxHeight": "260px", "overflowY": "auto"},
                         body_children=[html.P("Loading warnings…", className="twin-empty-state")],
+                    ),
+
+                    # What people on the ground are reporting now, for everyone.
+                    _panel(
+                        header_label="Reported flooding",
+                        dot_class="tone-info",
+                        icon="megaphone",
+                        body_id="reports-list",
+                        body_style={"maxHeight": "320px", "overflowY": "auto"},
+                        body_children=[html.P("Loading reports…", className="twin-empty-state")],
                     ),
 
                     # Alerts for the signed-in user's areas, and the
@@ -426,6 +528,25 @@ def build_dashboard_layout() -> html.Div:
             # The planner's held scenario, kept for this browser tab.
             dcc.Store(id="held-scenario-store", storage_type="session", data=None),
             dcc.Download(id="download-file"),
+            # Community flood reports: the active set (refreshed every REFRESH_SEC
+            # for every viewer), the point chosen in the report dialog, a map
+            # click made for a report, and the dialog's reopening after one.
+            dcc.Store(id="reports-store", data=None),
+            dcc.Interval(id="reports-poll", interval=REFRESH_SEC * 1000, n_intervals=0),
+            dcc.Store(id="report-point", data=None),
+            dcc.Store(id="report-pick-store", data=None),
+            dcc.Store(id="report-reopen", data=None),
+            # The satellite layer's state (visible, image, pass date).
+            dcc.Store(id="satellite-store", data=None),
+            # The past-floods layer's state (visible, the replayed day, its rows).
+            dcc.Store(id="history-store", data=None),
+            # The operational layers' rows by layer id, and a map fit request.
+            dcc.Store(id="ops-layers-store", data=None),
+            report_modal(),
+            html.Div(id="bridge-sink-reports", hidden=True),
+            html.Div(id="bridge-sink-satellite", hidden=True),
+            html.Div(id="bridge-sink-history", hidden=True),
+            html.Div(id="bridge-sink-ops", hidden=True),
             html.Div(id="bridge-sink-flood", hidden=True),
             html.Div(id="bridge-sink-route", hidden=True),
         ],

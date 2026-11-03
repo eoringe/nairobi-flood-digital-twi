@@ -370,6 +370,32 @@ def _build_timed_warnings(nowcast: dict) -> list:
     return rows
 
 
+#: What each 95% call means, in the words shown under it.
+CHANCE_HOW = {
+    "likely": "95% confidence: on unseen years only 5% of dry days got this call.",
+    "unlikely": "95% confidence: on unseen years only 5% of flood days got this call.",
+    "possible": "Too close to call at 95% confidence either way.",
+}
+
+
+def _chance_box(chance: dict) -> html.Div:
+    """The 3-day flood chance learned from news-reported floods (src/forecast/flood_chance.py)."""
+    return html.Div(
+        className=f"twin-chance is-{chance['call']}",
+        title=("Learned from 158 days of news-reported flooding in Nairobi (Groundsource, 2015-2025) "
+               "using the 3-day rainfall forecast and how wet the past 30 days were. "
+               "A reported flood is the event predicted, so this is a lower bound."),
+        children=[
+            html.Span(f"{round(100 * chance['p'])}%", className="pct"),
+            html.Div([
+                html.Span("Chance of flooding in Nairobi, next 3 days", className="lbl"),
+                html.Span(chance["call_text"], className="call"),
+                html.Span(CHANCE_HOW[chance["call"]], className="how"),
+            ]),
+        ],
+    )
+
+
 def _outlook_card(nowcast: dict) -> tuple[list, str]:
     if nowcast.get("error") and not nowcast.get("acc72_mm"):
         return ([html.Span("Outlook", className="eyebrow"),
@@ -391,6 +417,8 @@ def _outlook_card(nowcast: dict) -> tuple[list, str]:
     ]
     if nowcast.get("notice"):
         children.append(html.Div(nowcast["notice"], className="detail"))
+    if nowcast.get("chance"):
+        children.append(_chance_box(nowcast["chance"]))
     children.append(html.Span(
         f"{source}. Timing follows the rainfall forecast crossing the model's flooding level; "
         f"it is not a simulation of water flow.", className="source"))
@@ -622,6 +650,12 @@ def _route_summary(res: dict, origin_value, destination_value, reroute_msg, time
         children.append(html.Div(res["note"], className="twin-route-banner is-bad"))
     if time_msg:
         children.append(html.Div(time_msg[0], className=f"twin-route-banner {time_msg[1]}"))
+    if res.get("fastest_reported") and not res.get("safe_reported") and not same:
+        children.append(html.Div("Avoids flooding reported by people on the ground.",
+                                 className="twin-route-banner is-good"))
+    elif res.get("safe_reported"):
+        children.append(html.Div("People have reported flooding on this route; no way around it was found.",
+                                 className="twin-route-banner is-warn"))
     if res.get("outside_grid"):
         children.append(html.Div("Part of this route leaves the model area, where no flooding is predicted.",
                                  className="twin-route-banner"))
@@ -799,7 +833,7 @@ def register_callbacks(app) -> None:
         prevent_initial_call=True,
     )
     def on_map_pick(pick, options):
-        if not pick:
+        if not pick or pick.get("target") not in ("origin", "destination"):
             raise PreventUpdate
         lat, lon = round(float(pick["lat"]), 5), round(float(pick["lon"]), 5)
         value = f"pin:{lat},{lon}"
@@ -925,10 +959,13 @@ def register_callbacks(app) -> None:
             Input("resolved-theme-store", "data"),
             Input("map-rebuild-request", "data"),
         ],
-        [State("map-built-store", "data"), State("route-store", "data")],
+        [State("map-built-store", "data"), State("route-store", "data"),
+         State("reports-store", "data"), State("satellite-store", "data"),
+         State("history-store", "data"), State("ops-layers-store", "data")],
     )
     def update_simulation(n_clicks, rainfall_val, hour, mode, nowcast, display_mode, filter_mode,
-                          selected_region, theme, _rebuild, map_built, route_data):
+                          selected_region, theme, _rebuild, map_built, route_data,
+                          reports_data=None, satellite_data=None, history_data=None, ops_layers=None):
         # Wait for the theme to resolve (instant, client side) and, in live
         # mode, for the outlook, rather than rendering a throwaway map first.
         user = current_user()
@@ -941,7 +978,9 @@ def register_callbacks(app) -> None:
 
         # Camera target: a curated monitoring point, or any named place.
         highlight_coords = None
-        lat_c, lon_c, zoom_c = -1.2787, 36.8213, 13.0
+        # Default view: the CBD and Upper Hill skyline, close enough for the
+        # 3D buildings (drawn from zoom 13) with the city around it.
+        lat_c, lon_c, zoom_c = -1.2885, 36.8175, 14.0
         if selected_region and selected_region in NAIROBI_LOCATIONS:
             lat_c, lon_c, zoom_c = NAIROBI_LOCATIONS[selected_region]
             highlight_coords = (lat_c, lon_c)
@@ -971,13 +1010,17 @@ def register_callbacks(app) -> None:
             center_lat=lat_c,
             center_lon=lon_c,
             zoom=zoom_c,
-            pitch=50.0,
-            bearing=-15.0,
+            pitch=58.0,
+            bearing=-20.0,
             display_mode=display_mode,
             highlight_region=selected_region,
             highlight_coords=highlight_coords,
             theme=theme,
             route_layers=route_layers,
+            report_rows=(reports_data or {}).get("rows"),
+            satellite=satellite_data,
+            history_rows=(history_data or {}).get("rows"),
+            ops_rows=(ops_layers or {}).get("rows"),
         )
         # The document carries the basemap and building extrusions, which change
         # only with the camera target or theme. Other updates ship geometry alone.
@@ -1073,6 +1116,7 @@ def register_callbacks(app) -> None:
         Input("route-destination", "value"),
         Input("btn-route-clear", "n_clicks"),
         Input("scenario-key-store", "data"),
+        Input("reports-store", "data"),
         State("route-store", "data"),
         State("mode-radio", "value"),
         State("nowcast-store", "data"),
@@ -1080,7 +1124,7 @@ def register_callbacks(app) -> None:
         State("rain-slider", "value"),
         prevent_initial_call=True,
     )
-    def plan_route(origin_value, destination_value, _clear, scenario_key, prev,
+    def plan_route(origin_value, destination_value, _clear, scenario_key, reports, prev,
                    mode, nowcast, hour, rain_slider):
         trig = ctx.triggered_id
         cleared = {"layers": _empty_route_layers(), "active": False}
@@ -1093,8 +1137,12 @@ def register_callbacks(app) -> None:
             if prev and prev.get("active"):
                 return cleared, hint, no_update, no_update
             return no_update, hint, no_update, no_update
-        # A forecast change only matters to a route that is on screen.
-        if trig == "scenario-key-store" and not (prev and prev.get("active")):
+        # A forecast change, or a change in what people report, only matters to
+        # a route that is on screen; an unchanged set of reports changes nothing.
+        if trig in ("scenario-key-store", "reports-store") and not (prev and prev.get("active")):
+            raise PreventUpdate
+        reports_version = (reports or {}).get("version", "")
+        if trig == "reports-store" and prev and prev.get("reports_version") == reports_version:
             raise PreventUpdate
 
         router = get_router()
@@ -1110,7 +1158,7 @@ def register_callbacks(app) -> None:
 
         mode = _allowed_mode(mode)
         key, _rain, prob, _d = _scenario(mode, nowcast, hour, rain_slider)
-        res = router.route(origin, destination, prob)
+        res = router.route(origin, destination, prob, reports=(reports or {}).get("points"))
         # A point far from any mapped road would otherwise snap silently to a
         # road that may be kilometres away.
         far = [(lbl, m) for lbl, m in zip((_point_label(origin_value), _point_label(destination_value)),
@@ -1127,7 +1175,11 @@ def register_callbacks(app) -> None:
         # recommended path. Explain what changed on the old path.
         reroute_msg = None
         same_trip = prev and prev.get("od") == [origin_value, destination_value]
-        if trig == "scenario-key-store" and same_trip and prev.get("safe_nodes") != res["safe"].node_path:
+        if trig == "reports-store" and same_trip and prev.get("safe_nodes") != res["safe"].node_path:
+            reroute_msg = ("Rerouted: people have reported flooding on the previous route."
+                           if res.get("fastest_reported")
+                           else "Route updated: reported flooding has cleared and a quicker route is open.")
+        elif trig == "scenario-key-store" and same_trip and prev.get("safe_nodes") != res["safe"].node_path:
             old_edges = router._edges_of(prev["safe_nodes"])
             p_old = router.edge_probability(smooth_for_routing(prob) if prob is not None
                                             else np.zeros((predictor.h, predictor.w), np.float32), old_edges)
@@ -1152,6 +1204,7 @@ def register_callbacks(app) -> None:
             # Frame the camera on a new trip, not on every re-plan of the same one.
             "fit_now": not same_trip,
             "safe_nodes": res["safe"].node_path,
+            "reports_version": reports_version,
         }
         logger.info(f"Route {_point_label(origin_value)} -> {_point_label(destination_value)} [{key}]: "
                     f"fastest {res['fastest'].duration_min:.0f} min ({LEVEL_NAMES[res['fastest'].worst_level]}), "

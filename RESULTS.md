@@ -589,6 +589,160 @@ storm days is the realistic skill of warning from a forecast: most of the loss
 is the forecast's day-to-day error (r = 0.62 with CHIRPS), which no downstream
 correction can recover.
 
+### 4.13.4 Validation against news-reported floods (Groundsource)
+
+Every check above has the same gap: the truth is rainfall or a handful of
+named events, never *where* flooding was observed. Google's Groundsource
+dataset (Google Research, 2026; doi:10.5281/zenodo.18647053, CC BY 4.0) fills
+it. Gemini read news articles worldwide and extracted 2.6 million flood events,
+each a polygon for the place reported flooded and its dates; it is the dataset
+Google's Flood Hub flash-flood model is trained on. 630 neighbourhood-sized
+events (≤ 200 km², median 1.1 km²) fall inside the model grid. None of it was
+used to build the labels or train the model.
+
+`src/validation/validate_groundsource.py` runs the deployed chain (3-day
+rainfall → U-Net → place warning levels) on every day from February 2015 to
+November 2025 and asks two questions. Rainfall is CHIRPS as it fell, a perfect
+forecast, so timing is an upper bound; §4.13.3 measures the forecast's cost.
+
+**Timing: was there a warning when flooding was reported?** A report on day
+*e* counts as warned if the outlook issued on *e*−2, *e*−1 or *e* flagged it.
+
+| | flood days warned | reports warned | warning days | precision |
+|---|---|---|---|---|
+| model | 88/158 (56%) | 80% | 320 (8% of days) | 40% |
+| warn every storm-season day | 135/158 (85%) | 93% | 1,965 | 15% |
+| model, test seasons only | 7/13 (54%) | 67% | 40 | 35% |
+| model, days with 3+ reports | 55/69 (80%) | 88% | 320 | 28% |
+
+A warning is followed by a news-reported flood 4.3× as often as a random day
+(precision 40% against 9%). The model catches the big days (80% of days with
+three or more reports) and 80% of all reports. **All 70 missed days had under
+30 mm of city-average rain in every covering outlook**: they are local
+downpours, drain failures, or reporting errors that a single city-wide rainfall
+figure cannot see (`LIMITATIONS.md` §2).
+
+**Place: did the map point at the neighbourhoods reported flooded?** Each event
+polygon (≤ 25 km²) is scored by AUC: the chance that a cell inside the reported
+area ranks above a cell outside it (0.5 = no skill). Intervals resample places,
+because many events repeat the same neighbourhood.
+
+| field | events | places | mean AUC (95% interval) |
+|---|---|---|---|
+| the day's map, on warned days | 432 | 171 | 0.55 (0.52–0.58) |
+| model's ranking (heavy storm, raw output) | 579 | 189 | 0.68 (0.64–0.71) |
+| drainage susceptibility (label source) | 579 | 189 | 0.70 (0.66–0.75) |
+| population density (baseline) | 579 | 189 | 0.68 (0.65–0.71) |
+| **model's ranking, population-matched** | 579 | 189 | **0.60 (0.56–0.64)** |
+
+The day's map scores lowest because it floods only 2–18% of the grid and ties
+everything else at zero; on warned days a reported area was still predicted
+flooded 3.1× as often as the city as a whole. The model's full ranking is well
+above chance, but so is population: news reports come from where people (and
+reporters) are. The population-matched row compares each reported area only with
+places of similar population; the model still separates them (0.60, interval
+clear of 0.5), so its spatial skill is not just a map of where people live.
+
+**Cautions.** Google's review found 60% of Groundsource events right in both
+place and timing. Coverage is uneven, so an unreported day or place is not a dry
+one and the precision above is a lower bound. Test seasons hold only 13 flood
+days. This is the first check of predicted *location* against observed
+flooding; it supports the drainage formulation (§4.8.3) at modest strength
+rather than establishing it.
+
+---
+
+## 4.14 Learning from real floods
+
+The U-Net reproduces its constructed labels almost exactly (§4.5), so training
+it harder against them cannot make it more accurate about real floods. This
+section tests what can, scoring every candidate on **reports from years it never
+saw**: fitted on 2015–2021, judged on 2022–2025 Groundsource reports (§4.13.4).
+That spends Groundsource as training data only for years before the test, so
+those years stay independent evidence.
+
+### 4.14.1 What did not help
+
+| tried | result on held-out data | conclusion |
+|---|---|---|
+| Re-fitting the 30 mm onset threshold to reported flood days (10–50 mm) | F1 flat from 20 to 40 mm in both 2015–21 and 2022–25 | 30 mm is already in the optimum; supports §8 of `LIMITATIONS.md` |
+| CHIRPS v3 at 0.05° (12 pixels over the grid), city mean | at equal false alarms, 60% of flood days warned vs 55% | within noise; not worth a dataset rebuild |
+| CHIRPS v3 at 0.05°, wettest pixel | 54% vs 55% at equal false alarms | no gain |
+| Is the reported place in the wetter part of the city? | wetter half on 50% of events (mean rank 0.49) | CHIRPS daily values are pentad totals disaggregated by coarse models; they cannot see local storms |
+| ERA5 soil moisture and hourly intensity, 14 features, gradient boosting | AUC no better than three rainfall totals | not kept |
+| Cell model learned from terrain, built-up land and population | place AUC 0.70, below susceptibility (0.73) | learns places already reported; not kept |
+
+### 4.14.2 A warning trigger learned from reported floods
+
+Logistic regression on three rainfall totals for an outlook issued on day *d*:
+rain over *d*…*d*+2, and rain over the 14 and 30 days before *d*. The last two
+say how wet the ground already is. Target: a flood reported in the news inside
+the grid on any of the three days (`src/forecast/flood_chance.py`).
+
+| 2022–2025, never seen in fitting | AUC, 3-day rule | AUC, model | flood days warned, rule / model | precision, rule / model |
+|---|---|---|---|---|
+| CHIRPS rainfall (a perfect forecast) | 0.711 | **0.792** | 52 / 50 of 97 | 57% / **64%** |
+| **Live forecast feed, bias-corrected** | 0.697 | **0.726** | 41 / **46** of 96 | 44% / **55%** |
+
+Warning counts are held equal to the rule's so the comparison is fair. With the
+feed the system actually runs on, the learned trigger warns on five more flood
+days with 11 points higher precision. The model also beats the rule in 8 of 11
+years when each year is predicted by a model that never saw it. The main new
+information is the 30-day antecedent total.
+
+### 4.14.3 Calibrated chance and a 95% call
+
+The feed's scores are re-calibrated (Platt scaling) on the feed's own archive,
+and the 95% call is set by class-conditional split conformal prediction:
+*flooding expected* if the chance is too high for a dry day, *no flooding
+expected* if it is too low for a flood day, otherwise *flooding possible*.
+Checked out of sample, with 2022–23 calibrating 2024–25 and vice versa:
+
+| predicted chance | days | predicted | observed |
+|---|---|---|---|
+| 0.0–0.1 | 905 | 0.07 | 0.08 |
+| 0.1–0.2 | 290 | 0.14 | 0.17 |
+| 0.2–0.4 | 156 | 0.28 | 0.30 |
+| 0.4–1.0 | 77 | 0.58 | 0.51 |
+
+| call | share of days | flood reported after |
+|---|---|---|
+| Flooding expected | 9% | 52% |
+| Flooding possible | 76% | 12% |
+| No flooding expected | 15% | 5% |
+
+**Coverage: 94.7% of flood days were not called "no flooding", and 94.9% of dry
+days were not called "flooding expected"**, against a 95% target. That is what
+"95% confidence" can honestly mean here. It does not mean 95% accuracy, which no
+system reaches against real floods: US National Weather Service flash-flood
+warnings score 22% recall and 44% precision when judged the same way (Google
+Research, 2026). The call is confident on only a quarter of days. On the rest,
+rainfall forecasts do not carry enough information to decide either way.
+
+All three replayed floods (November 2023, April 2024, March 2026) get *flooding
+expected*, at 45%, 82% and 88%. March 2026 is later than any data used in the
+fit.
+
+### 4.14.4 Where: places reported before
+
+On 2022–2025 reports, with reports up to 2021 as history
+(`src/validation/validate_flood_prone.py`):
+
+| field | AUC (95% interval) | population-matched |
+|---|---|---|
+| drainage susceptibility | 0.728 (0.69–0.77) | 0.634 |
+| population | 0.689 (0.66–0.72) | 0.530 |
+| reported before, to 2021 | 0.721 (0.67–0.76) | 0.660 |
+| **combined (mean of the two ranks)** | **0.782 (0.75–0.81)** | **0.710** |
+
+The outlook now lists the places in each warning in this combined order, so a
+warning leads with the places most likely to flood. Replays use only reports
+from before the replayed day. News coverage is uneven, so the history term
+carries some of that bias. That is why it is combined with susceptibility rather
+than used alone.
+
+*Scripts: `src/forecast/flood_chance.py`, `src/validation/validate_flood_prone.py`*
+
 ---
 
 ## Outstanding work
@@ -598,6 +752,12 @@ correction can recover.
   37 storm-positive test samples. It is ready to run in section 7 of the Colab
   notebook and needs a GPU, since each fold is a full training run. §4.11 gives
   a per-season interim result.
-- **Spatial validation.** All external validation above is temporal. Documented
-  reports name affected settlements but provide no inundation polygons, so
-  predicted flood *location* remains unverified (`LIMITATIONS.md` §9).
+- **Spatial validation.** §4.13.4 gives the first check of predicted location
+  against observed flooding (news-reported polygons, AUC 0.60 after matching
+  for population). Surveyed inundation extents would be stronger evidence.
+- **Groundsource as training labels.** Used for the warning trigger and the
+  place ordering only with years held out (§4.14), so 2022–2025 stay
+  independent. The U-Net itself is still trained on constructed labels.
+- **Rain gauges.** TAHMO station data (5-minute rainfall inside the city) has
+  been requested. It is the one input that could see the local storms behind
+  most missed floods (§4.14.1).

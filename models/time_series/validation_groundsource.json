@@ -1,0 +1,102 @@
+{
+  "source": "Groundsource (Google Research, 2026), doi:10.5281/zenodo.18647053, CC BY 4.0",
+  "period": [
+    "2015-01-31",
+    "2025-11-02"
+  ],
+  "events": 611,
+  "rainfall": "CHIRPS as fallen (perfect forecast; upper bound)",
+  "timing": {
+    "model": {
+      "flood_days": 158,
+      "flood_days_warned": 88,
+      "hit_rate_days": 0.5569620253164557,
+      "hit_rate_events": 0.7970540098199672,
+      "warning_days": 320,
+      "warning_share_of_days": 0.0814456604734029,
+      "precision": 0.4
+    },
+    "every storm-season day": {
+      "flood_days": 158,
+      "flood_days_warned": 135,
+      "hit_rate_days": 0.8544303797468354,
+      "hit_rate_events": 0.9296235679214403,
+      "warning_days": 1965,
+      "warning_share_of_days": 0.5001272588444897,
+      "precision": 0.15063613231552161
+    },
+    "model, test seasons only": {
+      "flood_days": 13,
+      "flood_days_warned": 7,
+      "hit_rate_days": 0.5384615384615384,
+      "hit_rate_events": 0.6666666666666666,
+      "warning_days": 40,
+      "warning_share_of_days": 0.10869565217391304,
+      "precision": 0.35
+    },
+    "model, days with 3+ reports": {
+      "flood_days": 69,
+      "flood_days_warned": 55,
+      "hit_rate_days": 0.7971014492753623,
+      "hit_rate_events": 0.8849206349206349,
+      "warning_days": 320,
+      "warning_share_of_days": 0.0814456604734029,
+      "precision": 0.275
+    }
+  },
+  "random_precision": 0.09289895647747519,
+  "precision_lift": 4.305753424657534,
+  "missed_days_under_30mm": [
+    70,
+    70
+  ],
+  "place": {
+    "model on warned days": {
+      "events": 432,
+      "places": 171,
+      "auc": 0.5488111413077937,
+      "ci95": [
+        0.5182625959038284,
+        0.5829763581722238
+      ],
+      "lift": 3.06939023964379
+    },
+    "model's ranking (heavy storm, raw output)": {
+      "events": 579,
+      "places": 189,
+      "auc": 0.6759401925957359,
+      "ci95": [
+        0.6430128977850398,
+        0.7076630451729257
+      ]
+    },
+    "drainage susceptibility (label source)": {
+      "events": 579,
+      "places": 189,
+      "auc": 0.703426835606339,
+      "ci95": [
+        0.6577562268591396,
+        0.7450733148353827
+      ]
+    },
+    "population density (baseline)": {
+      "events": 579,
+      "places": 189,
+      "auc": 0.6759195132449153,
+      "ci95": [
+        0.6464022398187795,
+        0.7078811084449357
+      ]
+    },
+    "model's ranking, population-matched": {
+      "events": 579,
+      "places": 189,
+      "auc": 0.5999076660995913,
+      "ci95": [
+        0.5629169739819274,
+        0.6387446011350167
+      ]
+    }
+  },
+  "spatial_max_km2": 25.0
+}

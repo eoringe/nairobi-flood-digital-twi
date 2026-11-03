@@ -75,8 +75,12 @@ Consequences:
   mechanism in Nairobi — cannot be represented. A cell over Kibera and one over
   Karen are identical to the model.
 - All spatial structure in the prediction necessarily originates from terrain.
-- The project roadmap called for regridding CHIRPS to 0.05°. That was never
-  done, and remains the single highest-value data improvement available.
+- The project roadmap called for regridding CHIRPS to 0.05°. **Tested and
+  rejected** (RESULTS.md §4.14.1): on news-reported flood days, the reported
+  place was in the wetter half of the city 50% of the time, and the wettest
+  pixel warned no better than the city mean. CHIRPS daily values are 5-day
+  totals split across days by coarse models, so finer pixels do not resolve
+  local storms. In-city rain gauges (TAHMO, requested) are the remaining route.
 
 ---
 
@@ -183,9 +187,24 @@ sensitivity sweep over these parameters is required before any reported metric
 can be treated as stable, and is inexpensive — a full dataset rebuild takes
 seconds.
 
+**Update: the threshold checked against observations.** Swept from 10 to
+50 mm against news-reported flood days (RESULTS.md §4.14.1), F1 is flat from
+20 to 40 mm in both 2015–2021 and 2022–2025. The chosen 30 mm sits in that
+plateau. The outlook now also shows a flood chance fitted to reported floods
+(§4.14.2), which adds how wet the previous 30 days were; the U-Net's place
+warnings still follow the 30 mm labels. The other four parameters remain
+unfitted.
+
 ---
 
-## 9. Independent validation: partial, temporal only
+## 9. Independent validation: partial, mostly temporal
+
+**Update.** Location is now checked against 630 news-reported flood polygons
+from Google's Groundsource dataset (`src/validation/validate_groundsource.py`,
+`RESULTS.md` §4.13.4). The model's ranking separates reported areas from places
+of similar population at AUC 0.60 (0.56–0.64): better than chance, modest, and
+dependent on a news source that is right in place and time only ~60% of the
+time. The checks below remain the main temporal evidence.
 
 The labels have been checked against independently documented Nairobi flood
 events (`src/validation/validate_documented_events.py`). Sources are Copernicus
@@ -470,6 +489,33 @@ exposure about 4×. What the figure is not:
 - **Scale check.** At the April 2024 rainfall it gives about 370,000 people,
   against about 147,000 reported affected. That is consistent with an
   upper-bound exposure measure.
+
+---
+
+## 16. "95% confidence" is a coverage guarantee, not 95% accuracy
+
+The flood chance's 95% call (`src/forecast/flood_chance.py`, RESULTS.md §4.14.3)
+promises that over many days, at most 5% of flood days are called *no flooding
+expected* and at most 5% of dry days *flooding expected*. Checked on years the
+calibration did not see, the coverage was 94.7% and 94.9%.
+
+Three qualifications:
+
+- **It assumes the future resembles the calibration years.** News coverage of
+  Nairobi floods grew sharply after 2021. Calibrated on 2015–2021 only, the call
+  covered just 75% of 2022–2025 flood days, which is why it is calibrated on
+  the 2022–2025 feed archive. A further jump in coverage, or a new forecast
+  model behind Open-Meteo, would need re-calibration.
+- **The event is a news report**, about 60% right in place and time, so the
+  chance is that of flooding being *reported*: a lower bound.
+- **It is confident on only about a quarter of days.** Most days are *flooding
+  possible*. That is the honest output of a forecast whose day-to-day
+  correlation with observed rainfall is 0.62 (§4.13.3), not a defect of the
+  method.
+
+No system reaches 95% accuracy against observed floods. US National Weather
+Service flash-flood warnings score 22% recall and 44% precision at Google's
+20 km, 24-hour resolution.
 
 ---
 

@@ -83,6 +83,8 @@ def account_area(user: dict | None) -> list:
              dcc.Link("Account", href="/account", className="twin-auth-link")]
     if user.get("mfa_pending"):
         links.append(dcc.Link("Verify 2FA to use admin tools", href="/2fa", className="twin-auth-btn"))
+    if can(user, "view_ops"):
+        links.append(dcc.Link("Operations", href="/ops", className="twin-auth-link"))
     if can(user, "manage_users"):
         links.append(dcc.Link("Admin", href="/admin", className="twin-auth-link"))
     links.append(html.A("Sign out", href="/auth/logout", className="twin-auth-link"))
@@ -304,10 +306,21 @@ def _alerts_for(user: dict, nowcast: dict | None) -> list:
         return [html.P(["No alert areas chosen. ",
                         dcc.Link("Choose your areas", href="/account", className="twin-auth-link"), "."],
                        className="twin-empty-state")]
+    # Flooding reported by people in these areas, whatever the forecast says.
+    from src.dashboard.reports_ui import _ago
+    from src.reports.store import KINDS, get_reports
+    reported = []
+    for r in get_reports().active():
+        if r["place"] in subs:
+            area = r["place"] if labels[r["place"]] == r["place"] else f"{r['place']} ({labels[r['place']]})"
+            reported.append(html.Div(className="twin-warning lvl-2", children=[
+                html.Div("REPORTED", className="twin-when"),
+                html.Div([html.Div(f"{KINDS[r['kind']]}, reported by people on the ground", className="what"),
+                          html.Div(f"{area} · {_ago(r['updated_at'])}", className="where")])]))
     if not nowcast or nowcast.get("error") or nowcast.get("is_replay"):
-        return [html.P("The live outlook is not loaded; alerts appear here when it is.",
-                       className="twin-empty-state")]
-    rows = []
+        return reported + [html.P("The live outlook is not loaded; forecast alerts appear here when it is.",
+                                  className="twin-empty-state")]
+    rows = reported
     for w in nowcast.get("warnings") or []:
         hit = sorted(subs.intersection(w.get("places") or []))
         if not hit:
@@ -360,7 +373,7 @@ def role_tools(user: dict | None) -> list:
                        color="primary", className="w-100 mb-2"),
             html.Div(id="tools-status"),
         ]
-        title = {"planner": "Planning tools", "responder": "Response tools", "admin": "Staff tools"}[user["role"]]
+        title = {"planner": "Planning tools", "responder": "Response tools"}.get(user["role"], "Staff tools")
         panels.insert(0, _card(title, *tools, icon="tools", tone="info"))
     return panels
 
@@ -487,6 +500,9 @@ def register_auth_callbacks(app) -> None:
             return (True, False, render_recovery_codes()) + twin_parts
         if path == "/account":
             return (True, False, render_account(user, theme or "dark")) + twin_parts
+        if path == "/ops" or path.startswith("/ops/"):
+            from src.dashboard.ops_console import render_ops
+            return (True, False, render_ops(user, path, theme or "dark")) + twin_parts
         if path == "/admin" or path.startswith("/admin/"):
             return (True, False, render_admin(user, path, theme or "dark")) + twin_parts
         return (False, True, None) + twin_parts

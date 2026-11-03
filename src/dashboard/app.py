@@ -30,6 +30,14 @@ except ImportError:
 
 from src.auth.routes import init_auth
 from src.dashboard.admin_dashboard import register_admin_callbacks
+from src.dashboard.reports_ui import register_report_callbacks
+from src.dashboard.ops_console import register_ops_callbacks
+from src.dashboard.map_layers_ui import register_map_layer_callbacks
+from src.dashboard.ops_monitoring import register_monitoring_callbacks
+from src.dashboard.ops_predictions import register_prediction_callbacks
+from src.dashboard.ops_assets import register_asset_callbacks
+from src.dashboard.ops_reports import register_report_page_callbacks
+from src.api.v1 import init_api
 from src.dashboard.auth_pages import register_auth_callbacks
 from src.dashboard.layouts import build_dashboard_layout
 from src.dashboard.callbacks import register_callbacks, start_background_warmup, warmup_status
@@ -111,8 +119,16 @@ app.index_string = """<!DOCTYPE html>
 register_callbacks(app)
 register_auth_callbacks(app)
 register_admin_callbacks(app)
+register_report_callbacks(app)
+register_ops_callbacks(app)
+register_map_layer_callbacks(app)
+register_monitoring_callbacks(app)
+register_prediction_callbacks(app)
+register_asset_callbacks(app)
+register_report_page_callbacks(app)
 server = app.server  # Flask WSGI server instance
 init_auth(server)
+init_api(server)
 
 
 @server.route("/healthz")
@@ -125,6 +141,41 @@ def healthz():
     they are ready, without holding the deploy back while they finish.
     """
     return {"status": "ok", **warmup_status()}, 200
+
+@server.route("/data/building-names.json")
+def building_names():
+    """Named buildings for the map's hover labels (src.ingestion.fetch_building_names)."""
+    from flask import send_file
+    return send_file(Path("data/processed/nairobi_building_names.json").resolve(),
+                     mimetype="application/json", max_age=86400)
+
+
+@server.route("/data/buildings-fallback.json")
+def buildings_fallback():
+    """The offline fallback's building extrusions, fetched by the map only if the tile server fails."""
+    from flask import jsonify, request
+    from src.dashboard.components.map_3d import _building_rows
+    theme = "light" if request.args.get("theme") == "light" else "dark"
+    response = jsonify(_building_rows(theme))
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
+
+
+@server.route("/data/satellite-flood.png")
+def satellite_flood():
+    """The newest Sentinel-1 flood map on or before ?anchor=YYYY-MM-DD (src.reports.satellite)."""
+    from datetime import date
+    from flask import Response, abort, request
+    from src.reports import satellite
+    try:
+        anchor = date.fromisoformat(request.args.get("anchor", ""))
+    except ValueError:
+        anchor = date.today()
+    obs = satellite.observed(anchor)
+    if obs is None:
+        abort(404)
+    return Response(obs["png"], mimetype="image/png", headers={"Cache-Control": "public, max-age=3600"})
+
 
 # A WSGI server such as gunicorn (the Docker image) imports `server` and never
 # calls main(), so warm-up is started here when the environment asks for it.
