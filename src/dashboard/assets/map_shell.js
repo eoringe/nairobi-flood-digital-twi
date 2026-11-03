@@ -122,7 +122,7 @@
               ? "Auto switched to Lighter: zooming over flooding ran at about " + msg.fps + " frames a second."
               : "Auto chose Lighter" + fps + ".")
           : "Auto kept Full 3D" + fps + ".")
-      : (msg.lite ? "Lighter: still water and flat building footprints." : "Full 3D: every effect on.");
+      : (msg.lite ? "Lighter: still water and plain 3D buildings." : "Full 3D: every effect on.");
   });
   var tries = 0, t = setInterval(function () { if (document.querySelector("[data-perf]") || ++tries > 300) { clearInterval(t); mark(); } }, 100);
 })();

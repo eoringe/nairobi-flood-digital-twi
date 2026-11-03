@@ -70,8 +70,8 @@ def test_zooming_over_flooding_stays_light():
     # The water shader runs once per pixel on the main flood fill only, at 3 octaves.
     assert 'layer.id === "flood-main" || layer.id === "flood-halo"' not in CITY_JS
     assert "i < 5; i++" not in CITY_JS and "dFdx(h0)" in CITY_JS
-    # Lighter flattens buildings (their walls were most of each frame) and drops water.
-    assert "extruded: !lite" in CITY_JS
+    # Lighter keeps 3D buildings but drops the water shader.
+    assert "extruded: !lite" not in CITY_JS   # flat footprints read as missing buildings
     assert "extensions: lite ? [] : [water]" in CITY_JS
     # Auto also watches real frame times while panning or zooming.
     assert "onInteractionStateChange" in CITY_JS and 'applyPerf(true, "moving")' in CITY_JS

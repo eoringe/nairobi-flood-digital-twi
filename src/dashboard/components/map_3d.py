@@ -1561,11 +1561,12 @@ CITY_JS = r"""
         useDevicePixels: lite ? 1 : baseDPR,
         effects: lite ? [] : [lighting(D)],
         layers: d.props.layers.map(function (l) {
-          // Lighter draws buildings as flat footprints: their walls (hundreds of
-          // thousands of vertices, nearly all from low buildings) were most of
-          // each frame's work when zooming.
+          // Buildings stay 3D in Lighter (flat footprints looked like the
+          // buildings had vanished); only the lit windows go. Most of the
+          // zooming cost is handled for both modes by gateCity and by skipping
+          // hover picking while moving.
           if (l.id === "buildings-city") {
-            return l.clone({ extruded: !lite, extensions: (lite || !windows) ? [] : [windows] });
+            return l.clone({ extensions: (lite || !windows) ? [] : [windows] });
           }
           // Lighter shows the flooding as a plain blue fill: no per-pixel water.
           if (l.id === "flood-main" && water) {
