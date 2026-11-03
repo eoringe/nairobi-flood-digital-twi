@@ -1487,9 +1487,11 @@ CITY_JS = r"""
     var city = new D.MVTLayer({
       id: "buildings-city",
       data: CITY.tiles,
-      // Buildings are in the tiles from zoom 13; zoom 14 tiles are reused beyond.
-      minZoom: 13,
+      // Only the zoom-14 tiles are used (reused beyond 14): the layer is shown
+      // from zoom 14 (see gateCity), so there is no switch between tile levels.
+      minZoom: 14,
       maxZoom: 14,
+      visible: false,
       // While zooming, draw either the old tiles or the new ones, never both on
       // top of each other.
       refinementStrategy: "no-overlap",
@@ -1571,8 +1573,40 @@ CITY_JS = r"""
           return l;
         })
       });
+      gateCity(currentZoom());
       post({ type: "perfState", mode: perf.mode, lite: lite, fps: perf.fps, reason: perf.reason });
     }
+
+    // 3D buildings only when close enough to make them out. Zoomed out, the
+    // tilted view reaches the horizon and pulled in 16-28 tiles of buildings
+    // (thousands each) that were specks on screen; loading and drawing them made
+    // zoom 12.5-14 the slowest stretch of zooming in to the water. A hidden
+    // layer loads and draws nothing.
+    function currentZoom() {
+      // getViewports asserts until deck.gl has set up its views (first frame).
+      var vp = null;
+      try { vp = d.viewManager && d.getViewports()[0]; } catch (e) { vp = null; }
+      if (vp) return vp.zoom;
+      var iv = d.props.initialViewState;
+      return iv && typeof iv.zoom === "number" ? iv.zoom : null;
+    }
+    function gateCity(zoom) {
+      if (failures >= 3 || typeof zoom !== "number") return;   // fallback buildings in use
+      var want = zoom >= (perf.lite ? 15 : 14);
+      var l = d.props.layers.find(function (x) { return x.id === "buildings-city"; });
+      if (l && l.props.visible !== want) {
+        d.setProps({ layers: d.props.layers.map(function (x) {
+          return x.id === "buildings-city" ? x.clone({ visible: want }) : x; }) });
+      }
+    }
+    var prevViewChange = d.props.onViewStateChange;
+    d.setProps({ onViewStateChange: function (params) {
+      gateCity(params && params.viewState && params.viewState.zoom);
+      return prevViewChange ? prevViewChange(params) : params.viewState;
+    }});
+    // Zoom changes made in code (fitting to an area) do not pass through the above.
+    setInterval(function () { gateCity(currentZoom()); }, 250);
+    gateCity(currentZoom());
     // Ripples only while flooding is on screen, the tab is visible and the view
     // is still: during a pan or zoom deck.gl redraws anyway.
     setInterval(function () {
@@ -1602,6 +1636,11 @@ CITY_JS = r"""
     }
     d.setProps({
       onAfterRender: onFrame,
+      // No hover picking while the map moves: each pick draws every building
+      // again into an offscreen buffer (about 30 ms on a laptop GPU).
+      layerFilter: function (ctx) {
+        return !(perf.moving && ctx.isPicking && ctx.renderPass === "picking:hover");
+      },
       onInteractionStateChange: function (st) {
         perf.moving = !!(st && (st.isDragging || st.isPanning || st.isZooming || st.isRotating));
       }
