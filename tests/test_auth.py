@@ -72,7 +72,8 @@ def _fake_firebase(monkeypatch, provider=EMAIL_LINK, **claims):
     base.update(claims)
     monkeypatch.setenv("FIREBASE_PROJECT_ID", "test-project")
     import google.oauth2.id_token as g
-    monkeypatch.setattr(g, "verify_firebase_token", lambda token, req, audience=None: base)
+    monkeypatch.setattr(g, "verify_firebase_token",
+                        lambda token, req, audience=None, clock_skew_in_seconds=0: base)
 
 
 def _sign_in(client, monkeypatch, email="jane@example.com", provider=EMAIL_LINK):
@@ -219,6 +220,23 @@ def test_other_firebase_methods_and_forged_tokens_are_refused(store, client, mon
     monkeypatch.setattr(g, "verify_firebase_token", reject)
     assert client.post("/auth/firebase", json={"idToken": "forged"}).status_code == 401
     assert client.get("/whoami").get_json()["email"] is None
+
+
+def test_a_slightly_slow_clock_does_not_refuse_sign_in(store, client, monkeypatch):
+    """A server clock 1 s behind Google's rejected every sign-in as 'used too early'."""
+    monkeypatch.setenv("FIREBASE_PROJECT_ID", "test-project")
+    import google.oauth2.id_token as g
+    seen = {}
+
+    def verify(token, req, audience=None, clock_skew_in_seconds=0):
+        seen["skew"] = clock_skew_in_seconds
+        if clock_skew_in_seconds < 1:
+            raise ValueError("Token used too early, 1793709413 < 1793709414.")
+        return {"email": "jane@example.com", "email_verified": True, "name": "Jane",
+                "firebase": {"sign_in_provider": EMAIL_LINK}}
+    monkeypatch.setattr(g, "verify_firebase_token", verify)
+    assert client.post("/auth/firebase", json={"idToken": "fresh"}).get_json()["ok"] is True
+    assert 1 <= seen["skew"] <= 60     # leeway, but expired tokens are still refused
 
 
 def test_disabled_account_cannot_sign_in_and_loses_its_session(store, client, monkeypatch):

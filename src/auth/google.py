@@ -40,6 +40,10 @@ from src.auth.store import AuthError, AuthStore
 #: Email-link sign-ins are issued by Firebase's email provider ("password").
 FIREBASE_METHODS = {"google.com": "google", "password": "email_link", "emailLink": "email_link"}
 METHOD_LABELS = {"google": "Google", "email_link": "email link"}
+#: Allowed difference between this server's clock and Google's when checking
+#: a sign-in token's issue and expiry times. Small enough that an expired token
+#: is still refused.
+CLOCK_SKEW_SECONDS = 10
 
 
 def firebase_config() -> dict | None:
@@ -70,7 +74,10 @@ def verify_token(id_token: str) -> tuple[dict, str]:
     try:
         from google.auth.transport import requests as g_requests
         from google.oauth2 import id_token as g_id_token
-        claims = g_id_token.verify_firebase_token(id_token, g_requests.Request(), audience=project)
+        # A few seconds of leeway: a computer clock even 1 s behind Google's
+        # otherwise rejects every fresh sign-in as "Token used too early".
+        claims = g_id_token.verify_firebase_token(id_token, g_requests.Request(), audience=project,
+                                                  clock_skew_in_seconds=CLOCK_SKEW_SECONDS)
     except Exception as exc:                                # noqa: BLE001
         logger.warning(f"Firebase token rejected: {exc}")
         raise AuthError("Sign-in could not be verified. Please try again.") from None
