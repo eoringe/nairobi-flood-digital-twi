@@ -43,7 +43,7 @@ def test_page_contains_every_control_the_callbacks_drive():
     missing = REQUIRED_IDS - _collect_ids(build_dashboard_layout())
     assert not missing, f"layout is missing: {sorted(missing)}"
 
-```````````````````````````````````                                                 `
+
 def test_health_endpoint_reports_status():
     """TC-10: the platform health check must answer while warm-up continues."""
     from src.dashboard.app import server

@@ -25,6 +25,12 @@ rasterio==1.5.0
 
 loguru==0.7.3
 
+# Satellite flood layer: reads the Sentinel-1 flood mask and writes it as a PNG
+# overlay for the map (src/reports/satellite.py).
+pillow==12.2.0
+# PDF downloads of the monitoring reports (src/reporting/builder.py).
+reportlab==5.1.0
+
 # Google and email-link sign-in: verifies Firebase ID tokens against Google's
 # public keys (src/auth/google.py). Password hashing, sessions and the
 # authenticator codes (src/auth/totp.py) use Flask/Werkzeug and the standard library.
