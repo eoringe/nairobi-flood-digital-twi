@@ -39,4 +39,6 @@ requests>=2.32.0
 google-auth>=2.30.0
 segno>=1.6.0
 reportlab>=4.2      # PDF monitoring reports (src/reporting)
+psycopg[binary]>=3.3    # PostgreSQL when DATABASE_URL is set (src/persistence/backend.py)
+psycopg-pool>=3.3
 tqdm>=4.67.0

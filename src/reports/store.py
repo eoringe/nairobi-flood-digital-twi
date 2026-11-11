@@ -31,10 +31,11 @@ from __future__ import annotations
 
 import math
 import os
-import sqlite3
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from src.persistence import backend
 
 KINDS = {
     "water": "Water on the road",
@@ -101,9 +102,9 @@ class ReportStore:
         with self._conn() as conn:
             conn.executescript(_SCHEMA)
 
-    def _conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.path, timeout=5.0)
-        conn.row_factory = sqlite3.Row
+    def _conn(self):
+        """PostgreSQL (schema "reports") when DATABASE_URL is set, else the SQLite file."""
+        conn = backend.connect(self.path, "reports")
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
 

@@ -14,6 +14,7 @@ import pytest
 
 from src.auth.access import PERMISSIONS, ROLE_DUTIES, ROLE_LABELS, can
 from src.auth.store import ROLES, AuthStore
+from tests.conftest import sqlite_only
 from src.integrations import base, registry
 from src.integrations.store import OpsStore, set_ops_store
 
@@ -53,6 +54,7 @@ def test_a_disabled_account_has_no_permissions():
     assert not can({**_user("admin"), "active": False}, "view_ops")
 
 
+@sqlite_only
 def test_an_existing_account_database_is_upgraded_to_the_new_roles(tmp_path):
     path = tmp_path / "old.db"
     conn = sqlite3.connect(path)

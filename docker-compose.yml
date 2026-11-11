@@ -43,16 +43,21 @@ services:
       - SUPPLY_API_KEY
       - BENEFICIARY_API_URL
       - BENEFICIARY_API_KEY
+      # PostgreSQL for accounts, reports and history (src/persistence/backend.py).
+      # Unset: SQLite files in the twin-state volume. To use the postgres service
+      # below: DATABASE_URL=postgresql://twin:change-me@postgres:5432/nairobi_flood_twin
+      - DATABASE_URL
       # Machine access to /api/v1: "token:role,token:role".
       - TWIN_API_TOKENS
       # 1 = labelled demo data for partner systems that are not connected.
       - INTEGRATION_DEMO
     restart: unless-stopped
 
-  # Upgrade path for the database: swap SQLite for PostGIS once the ERD's
-  # spatial entities are needed (src/persistence/database.py reads
-  # DATABASE_URL). Commented out so `docker compose up` needs no credentials.
-  # postgis:
+  # Optional PostgreSQL for the records above: uncomment, set DATABASE_URL as
+  # shown in the dashboard's environment, and `docker compose up --build`.
+  # Commented out so `docker compose up` needs no credentials. (PostGIS rather
+  # than plain PostgreSQL so the ERD's spatial entities can move here later.)
+  # postgres:
   #   image: postgis/postgis:16-3.4
   #   environment:
   #     - POSTGRES_DB=nairobi_flood_twin
