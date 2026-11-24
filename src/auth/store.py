@@ -42,6 +42,7 @@ from pathlib import Path
 from loguru import logger
 
 from src.auth import totp
+from src.persistence import backend
 
 #: The first four are the original roles; the rest come from the Flood
 #: Visualization Dashboard Specification §4 (src.auth.access maps them).
@@ -155,6 +156,9 @@ class AuthStore:
         first four roles. SQLite cannot alter a CHECK, so the table is rebuilt
         once with every row copied unchanged.
         """
+        if backend.using_postgres():
+            self._refresh_pg_checks()
+            return
         conn = sqlite3.connect(self.path, timeout=5.0)
         try:
             ddl = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
@@ -174,9 +178,23 @@ class AuthStore:
         finally:
             conn.close()
 
-    def _conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.path, timeout=5.0)
-        conn.row_factory = sqlite3.Row
+    def _refresh_pg_checks(self) -> None:
+        """
+        PostgreSQL can replace a CHECK in place: the allowed sign-in methods and
+        roles are re-stated on every start, so a role added to ROLES is accepted
+        by a database created before it.
+        """
+        roles = ",".join(f"'{r}'" for r in ROLES)
+        with self._conn() as conn:
+            conn.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check")
+            conn.execute(f"ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ({roles}))")
+            conn.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_auth_provider_check")
+            conn.execute("ALTER TABLE users ADD CONSTRAINT users_auth_provider_check "
+                         "CHECK (auth_provider IN ('local','google','email_link'))")
+
+    def _conn(self):
+        """PostgreSQL (schema "accounts") when DATABASE_URL is set, else the SQLite file."""
+        conn = backend.connect(self.path, "accounts")
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
@@ -327,7 +345,7 @@ class AuthStore:
                     "INSERT INTO audit_log (occurred_at, user_id, action, detail) VALUES (?,?,?,?)",
                     (_utc_now(), user_id, action, (detail or "")[:500]),
                 )
-        except (sqlite3.Error, OSError) as exc:
+        except backend.DB_ERRORS as exc:
             logger.warning(f"audit write failed ({action}): {exc}")
 
     def recent_audit(self, limit: int = 100) -> list[dict]:

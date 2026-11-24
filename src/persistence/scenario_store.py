@@ -32,10 +32,11 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from loguru import logger
+
+from src.persistence import backend
 
 #: TWIN_STATE_DIR moves writable state out of the image (the Docker volume).
 DB_PATH = Path(os.environ.get("TWIN_STATE_DIR", "data")) / "scenarios.db"
@@ -57,16 +58,16 @@ CREATE TABLE IF NOT EXISTS scenario_runs (
 """
 
 
-def _get_conn() -> sqlite3.Connection:
-    # mkdir raises OSError on a read-only or root-owned volume; callers below
-    # treat that like any other storage failure and carry on without history.
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=5.0)
-    conn.row_factory = sqlite3.Row
-    return conn
+def _get_conn():
+    """PostgreSQL (schema "scenarios") when DATABASE_URL is set, else the SQLite file."""
+    if not backend.using_postgres():
+        # mkdir raises OSError on a read-only or root-owned volume; callers below
+        # treat that like any other storage failure and carry on without history.
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    return backend.connect(DB_PATH, "scenarios")
 
 
-def _migrate(conn: sqlite3.Connection) -> None:
+def _migrate(conn) -> None:
     """Add run_by to a scenario_runs table created before accounts existed."""
     cols = {r[1] for r in conn.execute("PRAGMA table_info(scenario_runs)")}
     if "run_by" not in cols:
@@ -78,7 +79,7 @@ def init_db() -> None:
         with _get_conn() as conn:
             conn.execute(_SCHEMA)
             _migrate(conn)
-    except (sqlite3.Error, OSError) as e:
+    except backend.DB_ERRORS as e:
         logger.warning(f"scenario_store: could not initialize {DB_PATH}: {e}")
 
 
@@ -111,7 +112,7 @@ def save_scenario_run(
                 ),
             )
             return cur.lastrowid
-    except (sqlite3.Error, OSError) as e:
+    except backend.DB_ERRORS as e:
         logger.warning(f"scenario_store: failed to save scenario run: {e}")
         return None
 
@@ -125,6 +126,6 @@ def list_recent_scenarios(limit: int = 5) -> list[dict]:
                 "SELECT * FROM scenario_runs ORDER BY id DESC LIMIT ?", (limit,)
             ).fetchall()
             return [dict(r) for r in rows]
-    except (sqlite3.Error, OSError) as e:
+    except backend.DB_ERRORS as e:
         logger.warning(f"scenario_store: failed to read recent scenarios: {e}")
         return []

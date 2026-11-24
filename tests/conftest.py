@@ -25,6 +25,12 @@ needs_model = pytest.mark.skipif(
     not MODEL_FILE.exists(),
     reason=f"{MODEL_FILE} not present; copy the trained weights before running model tests",
 )
+#: Tests that open or fake a SQLite file directly (older databases, a read-only
+#: disk); they do not apply when the stores run on PostgreSQL.
+sqlite_only = pytest.mark.skipif(
+    __import__("os").environ.get("TWIN_TEST_POSTGRES") == "1",
+    reason="checks the SQLite file itself; PostgreSQL is covered by tests/test_postgres_backend.py",
+)
 needs_roads = pytest.mark.skipif(
     not (DATA / "nairobi_roads.json.gz").exists(),
     reason="road network not present; run `python -m src.ingestion.fetch_road_network`",
@@ -62,3 +68,29 @@ def places() -> dict[str, tuple[float, float]]:
     for p in raw:
         out.setdefault(p["name"], (p["lat"], p["lon"]))
     return out
+
+
+# ------------------------------------------------------------- PostgreSQL --
+# With TWIN_TEST_POSTGRES=1 and DATABASE_URL pointing at a disposable test
+# database, every store runs on PostgreSQL instead of SQLite, and each test
+# starts from empty schemas, as it would from a fresh temporary SQLite file:
+#
+#   TWIN_TEST_POSTGRES=1 DATABASE_URL=postgresql://user@localhost:5432/twin_test \
+#       python -m pytest tests/test_auth.py tests/test_reports.py ...
+#
+# Never point it at a database whose contents matter: the schemas are dropped.
+import os as _os
+
+if _os.environ.get("TWIN_TEST_POSTGRES") == "1":
+    @pytest.fixture(autouse=True)
+    def _fresh_postgres_schemas():
+        import psycopg
+        from src.persistence import backend
+        assert backend.using_postgres(), "TWIN_TEST_POSTGRES=1 needs a postgresql:// DATABASE_URL"
+        backend.close_pools()
+        backend._IDENTITY.clear()
+        with psycopg.connect(backend.database_url(), autocommit=True) as c:
+            for schema in ("accounts", "operations", "reports", "scenarios"):
+                c.execute(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+        yield
+        backend.close_pools()

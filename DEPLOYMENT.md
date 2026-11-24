@@ -66,10 +66,38 @@ needs are whitelisted there.
 
 ---
 
-## Keeping scenario history across deploys (optional)
+## Keeping accounts and records across deploys: PostgreSQL (recommended)
 
-Without a volume the app works fully. Scenario history and the cached live
-forecast then reset on each deploy.
+The container's disk is replaced on every deploy. Without a database, accounts
+and the roles given to them, the audit log, flood reports, prediction history
+and saved scenarios are lost each time, and everyone signs in again as a new
+citizen account.
+
+1. In the project, choose **New → Database → Add PostgreSQL**.
+2. In the dashboard service, under **Variables**, add
+   `DATABASE_URL` = `${{Postgres.DATABASE_URL}}` (a reference to the database's
+   private address; type `${{` and pick it from the list).
+3. Also set `TWIN_SECRET_KEY` to a long random value, so sign-ins survive
+   redeploys too.
+4. Redeploy. The log shows `Records for 'accounts' are kept in PostgreSQL at ...`.
+
+The tables are created on start. Each store has its own schema (`accounts`,
+`operations`, `reports`, `scenarios`) in the one database. To bring across
+records from SQLite files (for example from a machine that ran without a
+database), run once with `DATABASE_URL` set:
+
+```
+python -m src.persistence.copy_to_postgres path/to/state-folder
+```
+
+It copies every row with its original id and can be re-run safely.
+
+---
+
+## Keeping the forecast cache across deploys (optional)
+
+Without a volume the app works fully; the cached live forecast (and, without
+`DATABASE_URL`, the SQLite records) then reset on each deploy.
 
 To keep them:
 
@@ -92,6 +120,8 @@ All are optional; the image sets sensible defaults.
 | `WEB_THREADS` | `8` | Request threads in the single worker |
 | `OMP_NUM_THREADS` | `4` | PyTorch CPU threads; match your plan's vCPUs |
 | `TWIN_STATE_DIR` | `/app/state` | Where scenario history and the forecast cache are written |
+| `DATABASE_URL` | unset | PostgreSQL for accounts, reports and history (see above). Unset: SQLite files in `TWIN_STATE_DIR` |
+| `DB_POOL_SIZE` | `5` | Most connections each store keeps open to PostgreSQL |
 | `LOG_LEVEL` | `info` | gunicorn log level |
 | `RAILWAY_RUN_UID` | unset | Set to `0` only when a volume is attached (see above) |
 | `TWIN_SECRET_KEY` | generated | Signs session cookies. Set a long random value so sign-ins survive redeploys |
@@ -100,9 +130,9 @@ All are optional; the image sets sensible defaults.
 | `TWIN_COOKIE_SECURE` | `0` | Set to `1` on Railway (HTTPS) so the session cookie is never sent over plain HTTP |
 | `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID` | unset | Sign-in with Google or an email link, the only ways to sign in. Also add the Railway domain under Firebase → Authentication → Settings → Authorized domains |
 
-Accounts and the audit log are stored in `/app/state/accounts.db`, so attach the
-volume above to keep them across deploys. Without it, every redeploy starts with
-no users except the bootstrap administrator.
+Accounts and the audit log are kept in PostgreSQL when `DATABASE_URL` is set.
+Without it they are stored in `/app/state/accounts.db`, and every redeploy
+without a volume starts with no users except the bootstrap administrator.
 
 ---
 

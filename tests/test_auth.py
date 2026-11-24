@@ -24,7 +24,7 @@ from flask import Flask
 
 from src.auth import access, google, routes, totp
 from src.auth.store import AuthError, AuthStore, set_store
-from tests.conftest import needs_model
+from tests.conftest import needs_model, sqlite_only
 
 EMAIL_LINK, GOOGLE = "password", "google.com"     # Firebase sign_in_provider values
 
@@ -102,12 +102,14 @@ def test_password_routes_do_not_exist(store, client):
         assert client.post(path, data={"email": "a@example.com", "password": "anything"}).status_code == 404
 
 
+@sqlite_only
 def test_no_credentials_are_stored(store):
     """NFR-05: accounts hold no password; nothing recoverable is kept."""
     store.create_user("alice@example.com", "planner")
     assert sqlite3.connect(store.path).execute("SELECT password_hash FROM users").fetchone()[0] is None
 
 
+@sqlite_only
 def test_password_hashes_from_older_databases_are_erased(tmp_path):
     path = tmp_path / "old.db"
     AuthStore(path).create_user("old@example.com", "planner")
@@ -316,6 +318,7 @@ def test_admin_enrols_authenticator_then_needs_codes(store, client, monkeypatch)
     assert client.get("/whoami").get_json()["role"] == "admin"
 
 
+@sqlite_only
 def test_recovery_codes_work_once(store, client, monkeypatch):
     admin = store.create_user("jane@example.com", "admin")
     codes = totp.new_recovery_codes()
@@ -380,6 +383,7 @@ def test_bootstrap_admin_from_environment(store, monkeypatch):
     assert [(u["email"], u["role"]) for u in store.list_users()] == [("root@example.com", "admin")]
 
 
+@sqlite_only
 def test_old_databases_are_upgraded_in_place(tmp_path):
     """A database from before email links and 2FA keeps its users and gains the new fields."""
     path = tmp_path / "old.db"
@@ -518,6 +522,7 @@ def test_alert_areas_keep_the_place_people_picked(store):
         {"area": "Siwaka Estate", "label": "Strathmore University"}]
 
 
+@sqlite_only
 def test_alert_subscriptions_table_gains_a_label_column(tmp_path):
     path = tmp_path / "old.db"
     conn = sqlite3.connect(path)

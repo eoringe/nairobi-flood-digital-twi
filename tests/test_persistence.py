@@ -15,6 +15,8 @@ import numpy as np
 from src.persistence import scenario_store
 from src.persistence.database import DatabaseManager
 
+from tests.conftest import sqlite_only
+
 SAMPLE_RISKS = {
     "Mathare": {"risk_level": "CRITICAL", "peak_probability_pct": 91.0, "flooded_pct": 62.0},
     "Kibera": {"risk_level": "MODERATE", "peak_probability_pct": 38.0, "flooded_pct": 9.0},
@@ -40,6 +42,7 @@ def test_scenario_run_is_saved_and_listed(monkeypatch, tmp_path):
     assert rows[0]["run_at_utc"]
 
 
+@sqlite_only
 def test_saving_never_raises_when_storage_is_unavailable(monkeypatch, tmp_path):
     """A container without a writable volume must keep serving (Railway)."""
     monkeypatch.setattr(scenario_store, "DB_PATH", tmp_path / "no-such-dir" / "x.db")
