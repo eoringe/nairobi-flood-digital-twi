@@ -8,7 +8,7 @@ AUTHENTICATION
 --------------
 A signed-in browser session, or an API token for machine clients (partner
 systems, scripts): `Authorization: Bearer <token>`, with tokens configured as
-TWIN_API_TOKENS="token1:monitoring_officer,token2:data_analyst". A token acts
+TWIN_API_TOKENS="token1:responder,token2:planner". A token acts
 with its role's permissions; tokens are compared in constant time. Every
 endpoint checks a permission, so a role sees through the API exactly what it
 sees on screen.

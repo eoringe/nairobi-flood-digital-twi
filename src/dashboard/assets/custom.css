@@ -756,10 +756,65 @@ a:hover { color: var(--accent-strong); }
 :root[data-theme="light"] .twin-theme-moon { display: inline-block; }
 
 /* ---------- dropdowns (dcc.Dropdown, Dash 4) ---------- */
-.dash-dropdown { font-size: 13.5px; color: var(--text-primary); border-radius: var(--radius-chip); }
-.dash-dropdown-content { font-size: 13.5px; color: var(--text-primary); border-radius: 12px; box-shadow: var(--shadow-float); }
-.dash-dropdown-option:hover { background: var(--bg-surface-hover); }
+/* The stock Dash 4 popup is roomy: a 48px search box with 16px margins and
+   tall, ruled options. These rules make it compact, like a command menu. */
+.dash-dropdown {
+  font-size: 13.5px;
+  color: var(--text-primary);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dash-dropdown:hover { border-color: var(--border-strong); }
+.dash-dropdown:focus,
+.dash-dropdown[aria-expanded="true"] {
+  border-color: var(--accent-solid);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.dash-dropdown-trigger { min-height: 36px; padding: 0 10px 0 12px; }
+.dash-dropdown-trigger-icon { color: var(--text-muted); fill: var(--text-muted); width: 14px; height: 14px; }
 .dash-dropdown-placeholder { color: var(--text-muted); }
+
+.dash-dropdown-content {
+  font-size: 13.5px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--shadow-float);
+  padding: 4px;
+  margin-top: 4px;
+  max-height: 320px;
+}
+.dash-dropdown-search-container {
+  top: 0;
+  margin: 0 0 4px;
+  padding: 0 10px;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 8px 8px 0 0;
+  background: var(--bg-surface);
+  z-index: 1;
+}
+.dash-dropdown-search-container:focus-within { outline: none; border-bottom-color: var(--accent-solid); }
+.dash-dropdown-search-icon { color: var(--text-muted); width: 14px; height: 14px; }
+.dash-dropdown-search { line-height: 34px; font-size: 13.5px; }
+.dash-dropdown-search::placeholder { color: var(--text-muted); }
+.dash-dropdown-actions { padding: 6px 10px; gap: 16px; border-color: var(--border-subtle); }
+.dash-dropdown-option {
+  padding: 7px 10px;
+  margin: 1px 0;
+  border-radius: 8px;
+  box-shadow: none;
+  cursor: pointer;
+}
+.dash-dropdown-option:hover,
+.dash-dropdown-option:focus-visible { background: var(--bg-surface-hover); outline: none; }
+.dash-dropdown-option[aria-selected="true"],
+.dash-dropdown-option:has(input:checked) { background: var(--accent-soft); color: var(--text-primary); font-weight: 600; }
+.dash-dropdown-value-count { padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--text-primary); }
 
 /* ---------- outlook card (live forecast headline) ---------- */
 .twin-outlook {
@@ -1247,6 +1302,9 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card, .twin
   font-weight: 500; font-size: 13px; padding: 7px 12px; border-radius: 10px;
 }
 .btn.dash-btn-ghost:hover { background: var(--bg-surface-hover); border-color: var(--border-strong); }
+.dash-row-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+.btn.dash-btn-ghost.dash-btn-danger { color: var(--risk-critical); }
+.btn.dash-btn-ghost.dash-btn-danger:hover { background: color-mix(in srgb, var(--risk-critical) 12%, transparent); border-color: color-mix(in srgb, var(--risk-critical) 40%, transparent); }
 .dash-input, .dash-input:focus {
   background: var(--bg-surface-2); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 10px;
 }
@@ -1769,7 +1827,12 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card, .twin
   }
   /* Who is signed in shows on hover of the account links, not as a long line of text. */
   .is-mapfirst .twin-session .twin-auth-who { display: none; }
-  .is-mapfirst .twin-rail-open { top: calc(var(--top) + 64px); }
+  /* A closed panel's "open" button sits in the top corner, and the map's top
+     row (readouts, live status, account) moves in to leave room for it, so
+     wrapped controls never slide under the button. */
+  .is-mapfirst .twin-rail-open { top: var(--top); height: 44px; }
+  .is-mapfirst.left-closed .twin-map-overlay { left: calc(var(--edge) + 132px); }
+  .is-mapfirst.right-closed .twin-map-overlay { right: calc(var(--edge) + 128px); }
 }
 @media (max-width: 900px) {
   /* Phones: the live status, theme and account get their own row above the readouts. */
@@ -1793,7 +1856,7 @@ html, body, .twin-app, .twin-panel, .twin-readout-cell, .twin-region-card, .twin
 :root[data-theme="light"] .twin-theme-toggle .twin-theme-moon { display: inline-flex; }
 
 /* 3D quality choice (layouts._outlook_panel, assets/map_shell.js) */
-.twin-perf-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; margin-bottom: 6px;
+.twin-perf-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; padding: 4px; margin-bottom: 6px;
   border-radius: 12px; border: 1px solid var(--border-subtle); background: var(--bg-surface-2); }
 .twin-perf-btn { border: 0; border-radius: 9px; padding: 7px 6px; background: transparent; color: var(--text-secondary);
   font-size: 12.5px; font-weight: 600; cursor: pointer; }

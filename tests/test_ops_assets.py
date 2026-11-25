@@ -47,7 +47,7 @@ def fakes(tmp_path, monkeypatch):
 
 def test_exposed_facilities_include_predicted_and_reported_flooding(fakes):
     from src.dashboard import ops_assets
-    page = _text(ops_assets.infrastructure_page(_user("infrastructure_officer"), "dark"))
+    page = _text(ops_assets.infrastructure_page(_user("planner"), "dark"))
     assert "Mathare North Health Centre" in page, "in a predicted flood area"
     assert "Kibera Bridge" in page and "Report impassable at Kibera" in page, "within 300 m of a report"
     assert "Karen School" not in page.split("Exposed facilities")[1]
@@ -56,9 +56,9 @@ def test_exposed_facilities_include_predicted_and_reported_flooding(fakes):
 
 def test_supplies_and_beneficiaries_are_restricted(fakes):
     from src.dashboard import ops_assets
-    officer = _text(ops_assets.infrastructure_page(_user("infrastructure_officer"), "dark"))
+    officer = _text(ops_assets.infrastructure_page(_user("planner"), "dark"))
     assert "Vulnerable communities" not in officer and "Emergency supplies" not in officer
-    emergency = _text(ops_assets.infrastructure_page(_user("emergency_officer"), "dark"))
+    emergency = _text(ops_assets.infrastructure_page(_user("responder"), "dark"))
     assert "Vulnerable communities" in emergency and "Aggregated counts only" in emergency
     assert "supply system not connected" in emergency, "a missing partner is named, not hidden"
 

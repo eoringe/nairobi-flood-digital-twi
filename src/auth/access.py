@@ -32,12 +32,10 @@ from src.auth.store import get_store
 
 PENDING_SEC = 5 * 60
 
-#: Staff roles: everyone except the public. The specification's roles (§4) sit
-#: beside the original four; "planner" and "responder" keep their meaning.
-STAFF = frozenset({"planner", "responder", "admin", "monitoring_officer", "hydrologist", "data_analyst",
-                   "emergency_officer", "county_officer", "infrastructure_officer"})
-_ANALYSIS = frozenset({"planner", "admin", "hydrologist", "data_analyst"})
-_OPERATIONS = frozenset({"responder", "admin", "monitoring_officer", "emergency_officer", "county_officer"})
+#: Staff roles: everyone except the public (citizen).
+STAFF = frozenset({"planner", "responder", "admin"})
+_ANALYSIS = frozenset({"planner", "admin"})
+_OPERATIONS = frozenset({"responder", "admin"})
 
 #: Permission -> roles allowed.
 PERMISSIONS: dict[str, frozenset[str]] = {
@@ -50,51 +48,39 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     "compare":          _ANALYSIS,
     "export_map":       STAFF,
     # Community flood reports: any signed-in user reports and confirms;
-    # responders and operations staff verify or remove.
+    # responders and administrators verify or remove.
     "report_flood":     frozenset({"citizen"}) | STAFF,
     "moderate_reports": _OPERATIONS,
-    "emergency_report": frozenset({"responder", "admin", "emergency_officer"}),
+    "emergency_report": _OPERATIONS,
     "manage_users":     frozenset({"admin"}),
     "view_audit":       frozenset({"admin"}),
-    "refresh_data":     frozenset({"admin", "monitoring_officer"}),
-    # Operations console (Flood Visualization Dashboard Specification).
+    "refresh_data":     frozenset({"admin"}),
+    # Operations console.
     "view_ops":         STAFF,
     "view_sensors":     STAFF,
     "view_alert_record": _OPERATIONS,
     "view_infrastructure": STAFF,
-    # Sensitive: aggregated beneficiary figures and emergency stock (spec §2.9, §9.5, §9.6).
-    "view_beneficiaries": frozenset({"admin", "emergency_officer"}),
-    "view_supplies":    frozenset({"admin", "emergency_officer", "responder"}),
-    "generate_reports": STAFF - {"responder"},
-    "export_readings":  frozenset({"admin", "monitoring_officer", "hydrologist", "data_analyst"}),
-    "view_system_status": frozenset({"admin", "monitoring_officer"}),
+    # Sensitive: aggregated beneficiary figures and emergency stock.
+    "view_beneficiaries": _OPERATIONS,
+    "view_supplies":    _OPERATIONS,
+    "generate_reports": STAFF,
+    "export_readings":  _ANALYSIS,
+    "view_system_status": frozenset({"admin"}),
 }
 
 ROLE_LABELS = {
-    "citizen": "Public user",
+    "citizen": "Citizen",
     "planner": "Urban planner",
-    "responder": "Disaster response team",
-    "admin": "System administrator",
-    "monitoring_officer": "Monitoring officer",
-    "hydrologist": "Hydrologist",
-    "data_analyst": "Data analyst",
-    "emergency_officer": "Emergency management officer",
-    "county_officer": "County/regional officer",
-    "infrastructure_officer": "Infrastructure officer",
+    "responder": "Emergency responder",
+    "admin": "Admin",
 }
 
-#: What each role is for (spec §4), shown when an administrator assigns roles.
+#: What each role is for, shown when an administrator assigns roles.
 ROLE_DUTIES = {
-    "citizen": "Views public flood information and published warnings.",
-    "planner": "Runs what-if scenarios and compares flood maps for planning.",
-    "responder": "Uses operational flood information to support field response.",
-    "admin": "Manages configuration, user access and integrations.",
-    "monitoring_officer": "Monitors sensor readings, flood conditions and station status.",
-    "hydrologist": "Reviews rainfall, river levels and flood predictions.",
-    "data_analyst": "Reviews historical trends and monitoring reports.",
-    "emergency_officer": "Uses flood risk and alerts to support response decisions.",
-    "county_officer": "Views flood conditions and risks within assigned areas.",
-    "infrastructure_officer": "Reviews infrastructure exposure and potential flood impacts.",
+    "citizen": "Views public flood information, published warnings and reports flooding.",
+    "planner": "Runs what-if scenarios, compares flood maps and reviews trends for planning.",
+    "responder": "Monitors live conditions, alerts and reports, and supports field response.",
+    "admin": "Manages users, configuration and data feeds.",
 }
 
 #: Roles that must pass an authenticator code after the first sign-in step.

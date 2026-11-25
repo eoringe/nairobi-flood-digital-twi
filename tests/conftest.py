@@ -13,7 +13,17 @@ import json
 from datetime import date
 from pathlib import Path
 
+import os
+
 import pytest
+
+# The app loads .env when imported (src.dashboard.app), and .env may hold the
+# deployed DATABASE_URL. Tests must never write there: unless a disposable
+# PostgreSQL test database is chosen explicitly (TWIN_TEST_POSTGRES=1, below),
+# DATABASE_URL is blanked before anything is imported. load_dotenv() does not
+# override a variable that is already set, even to "".
+if os.environ.get("TWIN_TEST_POSTGRES") != "1":
+    os.environ["DATABASE_URL"] = ""
 
 #: Fixed date so day-of-year inputs, and therefore model output, are repeatable.
 SCENARIO_DATE = date(2024, 4, 26)

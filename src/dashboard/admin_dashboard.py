@@ -6,7 +6,7 @@ administrator's console.
 
     /account          any signed-in user: profile, alert areas, sign-in settings
     /admin            administrators: overview (KPIs, sign-in trend, activity, health)
-    /admin/users      users and roles: search, filter, create, change role, disable
+    /admin/users      users and roles: search, filter, create, change role, disable, remove
     /admin/activity   the audit log, filtered by kind or text
     /admin/system     model, forecast feed and service status
     /ops/...          the operations console (src.dashboard.ops_console)
@@ -21,22 +21,20 @@ from datetime import datetime, timedelta, timezone
 
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
-from dash import ALL, MATCH, Input, Output, State, ctx, dcc, html, no_update
+from dash import ALL, Input, Output, State, ctx, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 
 from src.auth.access import ROLE_DUTIES, ROLE_LABELS, can, current_user
 from src.auth.store import ROLES, AuthError, get_store
 
-ROLE_TONES = {"citizen": "neutral", "planner": "accent", "responder": "warn", "admin": "danger",
-              "monitoring_officer": "info", "hydrologist": "info", "data_analyst": "info",
-              "emergency_officer": "warn", "county_officer": "accent", "infrastructure_officer": "accent"}
+ROLE_TONES = {"citizen": "neutral", "planner": "accent", "responder": "warn", "admin": "danger"}
 
 SIGN_IN = ("login",)
 FAILURES = ("login_failed", "2fa_failed", "login_locked", "2fa_locked", "password_change_failed")
 ACTION_KINDS = {
     "signin": ("Sign-ins", {"login", "login_first_step", "logout", "register"}),
     "failure": ("Failures", set(FAILURES)),
-    "account": ("Account changes", {"user_created", "user_updated", "admin_bootstrapped", "2fa_enrolled",
+    "account": ("Account changes", {"user_created", "user_updated", "user_deleted", "admin_bootstrapped", "2fa_enrolled",
                                     "2fa_reset", "password_changed", "password_reset", "subscriptions_updated"}),
     "data": ("Data and reports", {"scenario_saved", "export_geojson", "emergency_report", "forecast_refreshed",
                                   "report_created", "report_confirmed", "report_voted", "report_verified",
@@ -47,7 +45,7 @@ ACTION_LABELS = {
     "register": "Registered", "login_failed": "Sign-in failed", "2fa_failed": "Wrong authenticator code",
     "login_locked": "Sign-in locked", "2fa_locked": "Authenticator locked",
     "password_change_failed": "Password change failed", "user_created": "User created",
-    "user_updated": "User updated", "admin_bootstrapped": "First admin created", "2fa_enrolled": "2FA enrolled",
+    "user_updated": "User updated", "user_deleted": "User removed", "admin_bootstrapped": "First admin created", "2fa_enrolled": "2FA enrolled",
     "2fa_reset": "2FA reset", "password_changed": "Password changed", "password_reset": "Password reset",
     "subscriptions_updated": "Alert areas updated", "scenario_saved": "Scenario saved",
     "export_geojson": "Flood map exported", "emergency_report": "Emergency report", "forecast_refreshed":
@@ -170,8 +168,6 @@ def users_table(query: str | None = None, role: str | None = None) -> html.Div:
              and (not q or q in (u["email"] or "").lower() or q in (u.get("display_name") or "").lower())]
     if not users:
         return html.P("No users match.", className="dash-empty")
-    from src.geo import boundaries
-    area_opts = boundaries.options(("sub_county", "ward"))
     rows = []
     for u in users:
         rows.append(html.Tr(className="" if u["active"] else "is-disabled", children=[
@@ -183,22 +179,21 @@ def users_table(query: str | None = None, role: str | None = None) -> html.Div:
             html.Td(html.Div(_methods(u), className="dash-chips")),
             html.Td(dcc.Dropdown(id={"type": "role-dd", "uid": u["user_id"]},
                                  options=[{"label": ROLE_LABELS[r], "value": r, "title": ROLE_DUTIES[r]} for r in ROLES],
-                                 value=u["role"], clearable=False, className="dash-select"),
+                                 value=u["role"], clearable=False, searchable=False, className="dash-select"),
                     title=ROLE_DUTIES[u["role"]]),
-            # Assigned areas: what a county/regional officer may see (spec §4); ignored for other roles.
-            html.Td(dcc.Dropdown(id={"type": "areas-dd", "uid": u["user_id"]}, options=area_opts, multi=True,
-                                 value=boundaries.ids_by_name(u.get("assigned_areas") or []),
-                                 placeholder="County officers only" if u["role"] != "county_officer"
-                                 else "Assign sub-counties or wards", className="dash-select ops-areas-dd",
-                                 disabled=u["role"] != "county_officer")),
             html.Td(dbc.Switch(id={"type": "active-sw", "uid": u["user_id"]}, value=u["active"],
                                label="Active" if u["active"] else "Disabled", className="dash-switch")),
             html.Td(html.Span((u.get("last_login_at") or "Never").replace("T", " ")[:16], className="dash-cell-muted")),
-            html.Td(dbc.Button("Save", id={"type": "save-user", "uid": u["user_id"]}, size="sm",
-                               color="dash", className="dash-btn-ghost")),
+            html.Td(html.Div(className="dash-row-actions", children=[
+                dbc.Button("Save", id={"type": "save-user", "uid": u["user_id"]}, size="sm",
+                           color="dash", className="dash-btn-ghost"),
+                dbc.Button(_icon("trash3"), id={"type": "del-user", "uid": u["user_id"]}, size="sm",
+                           color="dash", className="dash-btn-ghost dash-btn-danger",
+                           title=f"Remove {u['email']}"),
+            ])),
         ]))
     return html.Div(className="dash-table-wrap", children=html.Table(className="dash-table", children=[
-        html.Thead(html.Tr([html.Th(h) for h in ("User", "Sign-in", "Role", "Assigned areas", "Status",
+        html.Thead(html.Tr([html.Th(h) for h in ("User", "Sign-in", "Role", "Status",
                                                  "Last sign-in (UTC)", "")])),
         html.Tbody(rows),
     ]))
@@ -212,7 +207,7 @@ def _new_user_modal() -> dbc.Modal:
             dbc.Input(id="new-email", type="email", placeholder="name@example.com", className="dash-input mb-3"),
             html.Label("Role", className="dash-label"),
             dcc.Dropdown(id="new-role", options=[{"label": ROLE_LABELS[r], "value": r} for r in ROLES],
-                         value="planner", clearable=False, className="dash-select mb-3"),
+                         value="planner", clearable=False, searchable=False, className="dash-select mb-3"),
             html.P("They sign in with Google or an emailed link for this address; no password is set. "
                    "Administrators also set up an authenticator app at their first sign-in.",
                    className="dash-hint"),
@@ -407,7 +402,7 @@ def _users_page() -> list:
             dcc.Input(id="users-search", type="search", placeholder="Search by name or email", debounce=True,
                       className="dash-search-input"),
         ]),
-        dcc.Dropdown(id="users-role-filter", value="all", clearable=False, className="dash-select dash-filter",
+        dcc.Dropdown(id="users-role-filter", value="all", clearable=False, searchable=False, className="dash-select dash-filter",
                      options=[{"label": "All roles", "value": "all"}] +
                              [{"label": ROLE_LABELS[r], "value": r} for r in ROLES]),
     ])
@@ -415,7 +410,26 @@ def _users_page() -> list:
         _panel("Users and roles", toolbar, html.Div(id="users-status", className="mb-2"),
                html.Div(id="users-table", children=users_table()), icon="people"),
         _new_user_modal(),
+        _delete_user_modal(),
     ]
+
+
+def _delete_user_modal() -> dbc.Modal:
+    return dbc.Modal(id="del-user-modal", is_open=False, centered=True, className="dash-modal", children=[
+        dcc.Store(id="del-user-target"),
+        dbc.ModalHeader(dbc.ModalTitle("Remove user")),
+        dbc.ModalBody([
+            html.P(id="del-user-text", className="mb-2"),
+            html.P("Their account and alert areas are deleted and they are signed out. The activity log keeps "
+                   "what they did. This cannot be undone; to block someone for now, switch them to Disabled "
+                   "instead.", className="dash-hint"),
+            html.Div(id="del-user-status"),
+        ]),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-cancel-del-user", color="dash", className="dash-btn-ghost"),
+            dbc.Button([_icon("trash3", "me-1"), "Remove"], id="btn-confirm-del-user", color="danger"),
+        ]),
+    ])
 
 
 def _activity_page() -> list:
@@ -425,7 +439,7 @@ def _activity_page() -> list:
             dcc.Input(id="audit-search", type="search", placeholder="Search user, event or detail", debounce=True,
                       className="dash-search-input"),
         ]),
-        dcc.Dropdown(id="audit-kind", value="all", clearable=False, className="dash-select dash-filter",
+        dcc.Dropdown(id="audit-kind", value="all", clearable=False, searchable=False, className="dash-select dash-filter",
                      options=[{"label": "All events", "value": "all"}] +
                              [{"label": label, "value": k} for k, (label, _a) in ACTION_KINDS.items()]),
         dbc.Button([_icon("arrow-clockwise", "me-1"), "Refresh"], id="btn-audit-refresh", color="dash", className="dash-btn-ghost"),
@@ -545,14 +559,6 @@ def render_account(user: dict | None, theme: str = "dark") -> html.Div:
 
 # -------------------------------------------------------------- callbacks --
 def register_admin_callbacks(app) -> None:
-    @app.callback(Output({"type": "areas-dd", "uid": MATCH}, "disabled"),
-                  Output({"type": "areas-dd", "uid": MATCH}, "placeholder"),
-                  Input({"type": "role-dd", "uid": MATCH}, "value"), prevent_initial_call=True)
-    def areas_for_role(role):
-        """Areas apply to county/regional officers; the box opens as soon as that role is chosen."""
-        on = role == "county_officer"
-        return not on, "Assign sub-counties or wards" if on else "County officers only"
-
     @app.callback(Output("new-user-modal", "is_open", allow_duplicate=True),
                   Input("btn-new-user", "n_clicks"), Input("btn-cancel-new-user", "n_clicks"),
                   prevent_initial_call=True)
@@ -600,10 +606,9 @@ def register_admin_callbacks(app) -> None:
                   Input({"type": "save-user", "uid": ALL}, "n_clicks"),
                   State({"type": "role-dd", "uid": ALL}, "value"), State({"type": "role-dd", "uid": ALL}, "id"),
                   State({"type": "active-sw", "uid": ALL}, "value"),
-                  State({"type": "areas-dd", "uid": ALL}, "value"),
                   State("users-search", "value"), State("users-role-filter", "value"),
                   prevent_initial_call=True)
-    def save_user(clicks, roles, ids, actives, areas, query, role_filter):
+    def save_user(clicks, roles, ids, actives, query, role_filter):
         me = current_user()
         if not can(me, "manage_users"):
             return html.Div("Not permitted.", className="dash-alert tone-danger"), no_update
@@ -618,12 +623,57 @@ def register_admin_callbacks(app) -> None:
         except AuthError as exc:
             return (html.Div([_icon("exclamation-triangle", "me-2"), str(exc)], className="dash-alert tone-danger"),
                     users_table(query, role_filter))
-        if after["role"] == "county_officer" or before.get("assigned_areas"):
-            after = store.set_assigned_areas(uid, areas[i] or [] if after["role"] == "county_officer" else [])
         store.audit("user_updated", me["user_id"],
                     f"{after['email']}: role {before['role']}->{after['role']}, "
-                    f"active {before['active']}->{after['active']}, areas {after['assigned_areas']}")
+                    f"active {before['active']}->{after['active']}")
         return (html.Div([_icon("check-circle", "me-2"), f"Saved {after['email']}."], className="dash-alert tone-ok"),
+                users_table(query, role_filter))
+
+    @app.callback(Output("del-user-modal", "is_open", allow_duplicate=True),
+                  Output("del-user-target", "data"), Output("del-user-text", "children"),
+                  Output("del-user-status", "children", allow_duplicate=True),
+                  Input({"type": "del-user", "uid": ALL}, "n_clicks"), Input("btn-cancel-del-user", "n_clicks"),
+                  prevent_initial_call=True)
+    def ask_delete_user(clicks, _cancel):
+        if ctx.triggered_id == "btn-cancel-del-user":
+            return False, None, no_update, None
+        if not isinstance(ctx.triggered_id, dict) or not any(clicks or []):
+            raise PreventUpdate
+        if not can(current_user(), "manage_users"):
+            raise PreventUpdate
+        user = get_store().get_user(ctx.triggered_id["uid"])
+        if not user:
+            raise PreventUpdate
+        who = user.get("display_name") or user["email"]
+        return (True, user["user_id"],
+                [f"Remove {who} ", html.Span(f"({ROLE_LABELS[user['role']]}, {user['email']})",
+                                             className="dash-cell-muted"), "?"], None)
+
+    @app.callback(Output("del-user-modal", "is_open", allow_duplicate=True),
+                  Output("del-user-status", "children", allow_duplicate=True),
+                  Output("users-status", "children", allow_duplicate=True),
+                  Output("users-table", "children", allow_duplicate=True),
+                  Input("btn-confirm-del-user", "n_clicks"), State("del-user-target", "data"),
+                  State("users-search", "value"), State("users-role-filter", "value"),
+                  prevent_initial_call=True)
+    def delete_user(n, uid, query, role_filter):
+        if not n or uid is None:
+            raise PreventUpdate
+        me = current_user()
+        if not can(me, "manage_users"):
+            return no_update, html.Div("Not permitted.", className="dash-alert tone-danger"), no_update, no_update
+        if int(uid) == me["user_id"]:
+            return (no_update, html.Div("You cannot remove your own account.", className="dash-alert tone-danger"),
+                    no_update, no_update)
+        store = get_store()
+        try:
+            gone = store.delete_user(int(uid))
+        except AuthError as exc:
+            return (no_update, html.Div([_icon("exclamation-triangle", "me-2"), str(exc)],
+                                        className="dash-alert tone-danger"), no_update, no_update)
+        store.audit("user_deleted", me["user_id"], f"{gone['email']} ({gone['role']})")
+        return (False, None,
+                html.Div([_icon("check-circle", "me-2"), f"Removed {gone['email']}."], className="dash-alert tone-ok"),
                 users_table(query, role_filter))
 
     @app.callback(Output("audit-table", "children"),

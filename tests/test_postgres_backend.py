@@ -64,14 +64,14 @@ def test_accounts_and_roles_survive_a_redeploy(tmp_path):
     from src.auth.store import AuthStore
     store = AuthStore(tmp_path / "ignored.db")
     user = store.create_user("officer@example.com", "planner", provider="google")
-    store.update_user(user["user_id"], role="emergency_officer")
+    store.update_user(user["user_id"], role="responder")
     store.audit("login", user["user_id"], "google")
     store.set_subscriptions(user["user_id"], ["Mathare", {"area": "Kibera", "label": "Olympic estate"}])
 
     _redeploy()
     again = AuthStore(tmp_path / "another-container.db")       # the SQLite path no longer matters
     found = again.get_by_email("officer@example.com")
-    assert found["role"] == "emergency_officer" and found["active"] is True
+    assert found["role"] == "responder" and found["active"] is True
     assert again.subscription_items(found["user_id"]) == [
         {"area": "Kibera", "label": "Olympic estate"}, {"area": "Mathare", "label": "Mathare"}]
     assert again.recent_audit()[0]["email"] == "officer@example.com"
@@ -103,7 +103,7 @@ def test_a_role_added_later_is_accepted_by_an_existing_database(tmp_path, monkey
         c.execute("ALTER TABLE accounts.users ADD CONSTRAINT users_role_check CHECK (role IN ('citizen','admin'))")
     _redeploy()
     store = auth_store.AuthStore(tmp_path / "x.db")
-    assert store.create_user("hydro@example.com", "hydrologist")["role"] == "hydrologist"
+    assert store.create_user("resp@example.com", "responder")["role"] == "responder"
 
 
 @on_postgres
@@ -163,7 +163,7 @@ def test_existing_sqlite_records_can_be_copied_once(tmp_path, monkeypatch):
     monkeypatch.delenv("DATABASE_URL")                       # build the old SQLite files first
     old = AuthStore(tmp_path / "accounts.db")
     admin = old.create_user("admin@example.com", "admin")
-    old.create_user("officer@example.com", "county_officer")
+    old.create_user("officer@example.com", "responder")
     old.audit("login", admin["user_id"], "google")
     ReportStore(tmp_path / "reports.db").add(admin["user_id"], -1.26, 36.85, "homes", "Mathare")
 
@@ -175,6 +175,6 @@ def test_existing_sqlite_records_can_be_copied_once(tmp_path, monkeypatch):
     _redeploy()
     store = AuthStore(tmp_path / "unused.db")
     assert [u["email"] for u in store.list_users()] == ["admin@example.com", "officer@example.com"]
-    assert store.get_by_email("officer@example.com")["role"] == "county_officer"
+    assert store.get_by_email("officer@example.com")["role"] == "responder"
     assert store.create_user("new@example.com")["user_id"] == 3        # ids continue after the copied ones
     assert len(ReportStore(tmp_path / "unused.db").active()) == 1

@@ -19,7 +19,7 @@ from src.integrations.store import OpsStore, set_ops_store
 from tests.test_ops_console import _Fake
 
 NOW = datetime.now(timezone.utc)
-TOKENS = "mon-token:monitoring_officer,analyst-token:data_analyst,pub-token:citizen,kibra-token:county_officer"
+TOKENS = "mon-token:admin,analyst-token:planner,pub-token:citizen"
 
 
 @pytest.fixture
@@ -82,14 +82,11 @@ def test_permissions_follow_the_role(client):
     assert _get(client, "/api/v1/visualization/alerts/outlook-1", token="analyst-token").status_code == 403
 
 
-def test_area_filter_and_county_officer_restriction(client):
+def test_area_filter(client):
     from src.geo import boundaries
     mathare = boundaries.ids_by_name(["Mathare"])[0]
     alerts = _get(client, "/api/v1/visualization/alerts", area=mathare).get_json()
     assert alerts["data"][0]["areas"] == ["Mabatini"] and alerts["meta"]["published"] is False
-    # A county officer token with no assigned areas sees no area data at all.
-    r = _get(client, "/api/v1/visualization/alerts", token="kibra-token").get_json()
-    assert r["data"] == []
 
 
 def test_pagination_and_bad_requests(client):

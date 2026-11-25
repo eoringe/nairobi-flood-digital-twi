@@ -65,12 +65,12 @@ def test_model_warnings_are_never_presented_as_published_alerts(store, monkeypat
              "status": "model_warning", "areas": ["Mabatini"], "created_at": now.isoformat(), "published_at": None,
              "recommended_actions": ["Move valuables above floor level"], "acknowledged": None}]),
     })
-    page = _text(op.alerts_page(_user("emergency_officer"), "dark"))
+    page = _text(op.alerts_page(_user("responder"), "dark"))
     assert "Automated Alert System not connected" in page and "not published alerts" in page
     assert "not published" in page and "available when the alert system is connected" in page
     assert "Move valuables above floor level" in page and "Full record" in page
     assert "Full record" not in _text(op.alert_cards(
-        registry.SOURCES["outlook_alerts"].fetch("active").records, _user("data_analyst"), "all", "all")), \
+        registry.SOURCES["outlook_alerts"].fetch("active").records, _user("planner"), "all", "all")), \
         "the full alert record is for operations roles"
 
 

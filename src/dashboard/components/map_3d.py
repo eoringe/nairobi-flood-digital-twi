@@ -1547,8 +1547,10 @@ CITY_JS = r"""
     // ---- performance ------------------------------------------------------
     // "Lighter 3D" drops what costs most per frame: moving water, lit windows,
     // the extra lights, and high-density pixels. The page sends the viewer's
-    // choice (auto / off / on); on auto, a short frame-rate probe decides.
-    var perf = { mode: "auto", lite: false, fps: null, moving: false, reason: "" };
+    // choice (auto / off / on / flat); on auto, a short frame-rate probe
+    // decides. "flat" is Lighter with no buildings at all: the 3D view of the
+    // ground and the flooding only, for the slowest computers.
+    var perf = { mode: "auto", lite: false, flat: false, fps: null, moving: false, reason: "" };
     function floodOnScreen() {
       var l = d.props.layers.find(function (x) { return x.id === "flood-main"; });
       var data = l && l.props.data;
@@ -1558,15 +1560,21 @@ CITY_JS = r"""
       perf.lite = lite;
       perf.reason = reason || "";
       d.setProps({
-        useDevicePixels: lite ? 1 : baseDPR,
+        // Lighter draws the map layers at 3/4 resolution: about half the pixels.
+        useDevicePixels: lite ? 0.75 : baseDPR,
         effects: lite ? [] : [lighting(D)],
         layers: d.props.layers.map(function (l) {
           // Buildings stay 3D in Lighter (flat footprints looked like the
-          // buildings had vanished); only the lit windows go. Most of the
-          // zooming cost is handled for both modes by gateCity and by skipping
-          // hover picking while moving.
+          // buildings had vanished); the lit windows and hover naming go, since
+          // each hover check draws every building again off screen. Most of the
+          // zooming cost is handled for both modes by gateCity.
           if (l.id === "buildings-city") {
-            return l.clone({ extensions: (lite || !windows) ? [] : [windows] });
+            return l.clone({ extensions: (lite || !windows) ? [] : [windows],
+                             pickable: !lite, autoHighlight: !lite });
+          }
+          // The fallback buildings (used when the tile service fails).
+          if (l.id === "buildings" && failures >= 3) {
+            return l.clone({ visible: !perf.flat, pickable: !lite });
           }
           // Lighter shows the flooding as a plain blue fill: no per-pixel water.
           if (l.id === "flood-main" && water) {
@@ -1594,6 +1602,7 @@ CITY_JS = r"""
     }
     function gateCity(zoom) {
       if (failures >= 3 || typeof zoom !== "number") return;   // fallback buildings in use
+      if (perf.flat) zoom = -1;                                  // "No buildings": always hidden
       // One threshold in both modes: the map opens at zoom 14, and a higher one
       // for Lighter hid the buildings a few seconds after load when Auto chose
       // it. Shown from 14, hidden only below 13.9, so a zoom wobbling around
@@ -1666,15 +1675,16 @@ CITY_JS = r"""
       var msg = ev.data;
       if (!msg || msg.type !== "perf") return;
       perf.mode = msg.mode || "auto";
+      perf.flat = perf.mode === "flat";
       mon.slow = 0;
-      if (perf.mode === "on") applyPerf(true);
+      if (perf.mode === "on" || perf.flat) applyPerf(true);
       else if (perf.mode === "off") applyPerf(false);
       else if (perf.fps === null) setTimeout(probe, 1500);   // after the first tiles arrive
       else applyPerf(perf.fps < 28, "start");
     });
     // Read-only view of the performance state, for checks and the test scripts.
     window.__twinPerf = function () {
-      return { mode: perf.mode, lite: perf.lite, fps: perf.fps, water: !!water, flood: floodOnScreen(),
+      return { mode: perf.mode, lite: perf.lite, flat: perf.flat, fps: perf.fps, water: !!water, flood: floodOnScreen(),
                hidden: !!document.hidden, moving: perf.moving, reason: perf.reason, frameMs: Math.round(mon.ema) };
     };
     post({ type: "perfReady" });

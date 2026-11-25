@@ -322,7 +322,7 @@ For the industry partner's *Flood Visualization Dashboard Specification v1.0*, s
 
 The plan and progress are in [docs/capstone/TASKLIST.md](docs/capstone/TASKLIST.md). Evidence for the 22 acceptance criteria is in [docs/capstone/ACCEPTANCE.md](docs/capstone/ACCEPTANCE.md).
 
-* **Roles.** The specification's monitoring officer, hydrologist, data analyst, emergency management officer, county/regional officer (limited to assigned areas) and infrastructure officer sit beside the original four roles. Permissions are checked on the server in every callback and endpoint.
+* **Roles.** Four roles: citizen, urban planner, emergency responder and admin. Accounts on the roles an earlier release offered are moved to the nearest of these when the server starts. Administrators can change a role, disable an account or remove it. Permissions are checked on the server in every callback and endpoint.
 * **Partner systems.** The IoT Sensor Data Platform, Automated Alert System, Infrastructure Risk Mapping, Supply Chain and Beneficiary systems connect through adapters configured by `*_API_URL` / `*_API_KEY` ([integration guide](docs/capstone/INTEGRATION_GUIDE.md)).
   * Until a system connects, its screens say it is not connected, and nothing is invented.
   * `INTEGRATION_DEMO=1` shows labelled DEMO data for demonstrations.

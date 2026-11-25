@@ -209,6 +209,7 @@ def _outlook_panel() -> html.Div:
                     ("auto", "Auto", "Lighter effects only if this device draws the map slowly"),
                     ("off", "Full 3D", "Moving water, lit windows and full lighting"),
                     ("on", "Lighter", "Still water, plain 3D buildings: less work for the computer"),
+                    ("flat", "No buildings", "3D ground and flooding without buildings: the lightest view"),
                 )
             ]),
             html.Div(id="perf-note", className="twin-satellite-note mb-3"),

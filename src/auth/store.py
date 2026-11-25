@@ -44,11 +44,14 @@ from loguru import logger
 from src.auth import totp
 from src.persistence import backend
 
-#: The first four are the original roles; the rest come from the Flood
-#: Visualization Dashboard Specification §4 (src.auth.access maps them).
-ROLES = ("citizen", "planner", "responder", "admin",
-         "monitoring_officer", "hydrologist", "data_analyst", "emergency_officer",
-         "county_officer", "infrastructure_officer")
+#: The four roles (src.auth.access maps them to permissions).
+ROLES = ("citizen", "planner", "responder", "admin")
+#: Roles an earlier release offered, and the role an account holding one is
+#: moved to when the store opens: analysis roles become urban planners,
+#: operations roles emergency responders.
+RETIRED_ROLES = {"monitoring_officer": "responder", "hydrologist": "planner", "data_analyst": "planner",
+                 "emergency_officer": "responder", "county_officer": "responder",
+                 "infrastructure_officer": "planner"}
 #: How the account was first created. "local" survives only in older databases,
 #: from when password sign-in existed.
 PROVIDERS = ("google", "email_link")
@@ -153,16 +156,19 @@ class AuthStore:
         """
         Databases created before email-link sign-in only allow 'local' and
         'google', and those created before the specification roles only the
-        first four roles. SQLite cannot alter a CHECK, so the table is rebuilt
+        first four roles, and those from the release with ten roles still list
+        the retired ones. SQLite cannot alter a CHECK, so the table is rebuilt
         once with every row copied unchanged.
         """
         if backend.using_postgres():
+            self._retire_roles()
             self._refresh_pg_checks()
             return
+        self._retire_roles()
         conn = sqlite3.connect(self.path, timeout=5.0)
         try:
             ddl = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").fetchone()[0]
-            if "email_link" in ddl and "'hydrologist'" in ddl:
+            if "email_link" in ddl and not any(f"'{r}'" in ddl for r in RETIRED_ROLES):
                 return
             cols = [r[1] for r in conn.execute("PRAGMA table_info(users)")]
             new_ddl = _SCHEMA.split("CREATE TABLE IF NOT EXISTS audit_log")[0].replace(
@@ -177,6 +183,14 @@ class AuthStore:
             logger.info("Account store upgraded (sign-in methods and roles).")
         finally:
             conn.close()
+
+    def _retire_roles(self) -> None:
+        """Move accounts on a retired role to its replacement (before the CHECK is narrowed)."""
+        with self._conn() as conn:
+            for old, new in RETIRED_ROLES.items():
+                moved = conn.execute("UPDATE users SET role=?, assigned_areas=NULL WHERE role=?", (new, old)).rowcount
+                if moved:
+                    logger.info(f"{moved} account(s) moved from retired role {old} to {new}.")
 
     def _refresh_pg_checks(self) -> None:
         """
@@ -296,6 +310,26 @@ class AuthStore:
                     raise AuthError("This is the last active administrator; promote another first.")
             conn.execute("UPDATE users SET role=?, active=? WHERE user_id=?", (new_role, new_active, user_id))
             return _public(self._row(conn, user_id))
+
+    def delete_user(self, user_id: int) -> dict:
+        """
+        Remove an account for good, refusing to remove the last active admin.
+        Its alert areas go with it; its audit entries are kept with no user, so
+        the record of what was done is not lost.
+        """
+        with self._lock, self._conn() as conn:
+            row = self._row(conn, user_id)
+            if row is None:
+                raise AuthError("No such user.")
+            if row["role"] == "admin" and row["active"]:
+                admins = conn.execute("SELECT COUNT(*) FROM users WHERE role='admin' AND active=1").fetchone()[0]
+                if admins <= 1:
+                    raise AuthError("This is the last active administrator; promote another first.")
+            gone = _public(row)
+            conn.execute("UPDATE audit_log SET user_id=NULL WHERE user_id=?", (user_id,))
+            conn.execute("DELETE FROM alert_subscriptions WHERE user_id=?", (user_id,))
+            conn.execute("DELETE FROM users WHERE user_id=?", (user_id,))
+            return gone
 
     # ------------------------------------------------------- second factor --
     def enable_totp(self, user_id: int, secret: str, recovery_codes: list[str], first_step: int) -> None:

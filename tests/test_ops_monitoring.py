@@ -50,7 +50,7 @@ def test_an_old_reading_is_shown_as_stale_not_as_a_current_level(tmp_path, monke
     try:
         from src.dashboard import ops_monitoring
         from tests.test_ops_console import _text
-        page = _text(ops_monitoring.water_levels_page({"role": "hydrologist", "active": True, "user_id": 1}, "dark"))
+        page = _text(ops_monitoring.water_levels_page({"role": "planner", "active": True, "user_id": 1}, "dark"))
         assert "DEMO Nairobi River, Kariobangi" in page and "Stale reading" in page and "Not current" in page
     finally:
         set_ops_store(None)
@@ -64,7 +64,7 @@ def test_sensor_screens_say_which_system_is_missing(tmp_path, monkeypatch):
         from src.dashboard import ops_monitoring
         from tests.test_ops_console import _text
         for page in (ops_monitoring.sensors_page, ops_monitoring.water_levels_page):
-            text = _text(page({"role": "monitoring_officer", "active": True, "user_id": 1}, "dark"))
+            text = _text(page({"role": "responder", "active": True, "user_id": 1}, "dark"))
             assert "IoT Sensor Data Platform not connected" in text and "IOT_API_URL" in text
     finally:
         set_ops_store(None)
