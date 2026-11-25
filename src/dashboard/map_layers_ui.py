@@ -167,17 +167,11 @@ def register_map_layer_callbacks(app) -> None:
                   Output("ops-layers", "value"),
                   Input("account-area", "children"))
     def layer_options(_account):
-        """Options for this viewer, and the layers a signed-in user had on last time (FR-014)."""
+        """Options for this viewer. The layer switches are hidden from the map page,
+        so no layer is turned back on from a viewer's saved choice."""
         user = current_user()
         opts = BASE_OPTIONS + ([STATION_OPTION] if can(user, "view_sensors") else [])
-        value = no_update
-        if user:
-            from src.integrations.store import get_ops_store
-            saved = get_ops_store().preferences(user["user_id"]).get("map_layers")
-            if saved is not None:
-                allowed = {o["value"] for o in opts}
-                value = [v for v in saved if v in allowed]
-        return opts, boundaries.options(("sub_county", "ward")), value
+        return opts, boundaries.options(("sub_county", "ward")), []
 
     @app.callback(Output("bridge-sink-ops", "role"), Input("ops-layers", "value"), prevent_initial_call=True)
     def save_layers(value):

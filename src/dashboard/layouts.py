@@ -229,8 +229,11 @@ def _outlook_panel() -> html.Div:
                 inline=True,
             ),
 
-            # Flooding seen from space (src.reports.satellite): days apart, and
-            # blind between buildings, so it says so beside the switch.
+            # Extra map layers: satellite, past floods, boundaries, rivers,
+            # facilities, alert areas, stations and the area filter. Hidden from
+            # the page (the map shows the flood forecast alone); the components
+            # stay so the callbacks that read them keep working, all off.
+            html.Div(hidden=True, children=[
             dbc.Switch(id="satellite-toggle", value=False, className="twin-switch mb-1",
                        label="Satellite flood map (Sentinel-1)"),
             dcc.Loading(type="dot", color="var(--accent)",
@@ -259,6 +262,7 @@ def _outlook_panel() -> html.Div:
                          className="twin-select mb-2"),
             dcc.Loading(type="dot", color="var(--accent)",
                         children=html.Div(id="ops-layers-note", className="twin-satellite-note mb-3")),
+            ]),
 
             dcc.Dropdown(
                 id="basin-dropdown",
