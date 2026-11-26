@@ -311,14 +311,6 @@ def history_view(a0, a1, b0, b1, flt: dict, theme: str) -> list:
 # ------------------------------------------------------------- registration --
 _status = PAGES.pop("/ops/status")
 PAGES.update({
-    "/ops/infrastructure": ("Infrastructure", "building-exclamation", "Infrastructure at risk",
-                            "Facilities in or near predicted and observed flooding.", "view_infrastructure",
-                            infrastructure_page, True),
-    "/ops/incidents": ("Incidents", "megaphone", "Flood incidents",
-                       "Community and news-reported flooding by type, status, date and area.", "view_ops",
-                       incidents_page, True),
-    "/ops/history": ("History", "calendar-range", "Historical analysis",
-                     "Rainfall, incidents and model warnings, period against period.", "view_ops", history_page, True),
 })
 PAGES["/ops/status"] = _status
 

@@ -78,4 +78,5 @@ def test_new_pages_are_registered_in_order():
     from src.dashboard import ops_predictions  # noqa: F401
     from src.dashboard.ops_console import PAGES
     keys = list(PAGES)
-    assert {"/ops/predictions", "/ops/compare", "/ops/alerts"} <= set(keys) and keys[-1] == "/ops/status"
+    assert {"/ops/predictions", "/ops/alerts"} <= set(keys) and keys[-1] == "/ops/status"
+    assert not {"/ops/compare", "/ops/history", "/ops/incidents", "/ops/infrastructure"} & set(keys), "removed from the console"

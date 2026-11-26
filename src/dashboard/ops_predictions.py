@@ -127,7 +127,7 @@ def predictions_page(user: dict, theme: str, flt: dict | None = None) -> list:
                 panel("How reliable is the flood chance?", reliability, icon="patch-check"),
                 panel("Model", details, icon="cpu")]),
             panel("Prediction runs", _runs_table(), icon="clock-history",
-                  actions=dcc.Link("Compare with observations", href="/ops/compare", className="dash-link"))]
+                  )]
 
 
 def _hour_chart(nc: dict, theme: str) -> dcc.Graph:
@@ -387,8 +387,6 @@ PAGES.update({
     "/ops/predictions": ("Predictions", "graph-up-arrow", "Flood predictions",
                          "Predicted risk by area, horizons, uncertainty, model details and past runs.", "view_ops",
                          predictions_page, True),
-    "/ops/compare": ("Predicted vs observed", "intersect", "Prediction against observation",
-                     "A prediction run beside the flooding observed in its window.", "view_ops", compare_page, True),
     "/ops/alerts": ("Alerts", "bell", "Active alerts",
                     "Alerts with severity, status, affected areas and recommended actions.", "view_ops",
                     alerts_page, True),
