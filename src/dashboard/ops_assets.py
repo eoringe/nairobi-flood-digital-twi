@@ -108,10 +108,6 @@ def infrastructure_page(user: dict, theme: str, flt: dict | None = None) -> list
                      icon="building"),
                panel("Exposed facilities", table, icon="exclamation-diamond",
                      actions=html.Span("Predicted risk is model output", className="ops-model-label"))])]
-    if can(user, "view_supplies"):
-        out.append(_supplies_panel())
-    if can(user, "view_beneficiaries"):
-        out.append(_beneficiaries_panel(areas))
     return out
 
 
@@ -303,8 +299,7 @@ def history_view(a0, a1, b0, b1, flt: dict, theme: str) -> list:
     fig_i = _style(fig_i, theme, 280)
     fig_i.update_layout(barmode="group")
     return [panel("Summary", table, html.P("Model warnings exist only for outlooks stored since the operations "
-                                           "console was added; the published-alert history arrives with the "
-                                           "Automated Alert System.", className="dash-cell-muted mt-2"),
+                                           "console was added.", className="dash-cell-muted mt-2"),
                   icon="table"),
             html.Div(className="dash-grid cols-7-5", children=[
                 panel("Cumulative rainfall", dcc.Graph(figure=fig, config=GRAPH_CONFIG, style={"height": "280px"}),

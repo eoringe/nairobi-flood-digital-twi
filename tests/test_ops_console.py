@@ -138,14 +138,14 @@ def _text(component) -> str:
     return _text(getattr(component, "children", None))
 
 
-def test_overview_shows_missing_partners_and_model_output_honestly(fake_sources):
+def test_overview_hides_unconnected_partners_and_labels_model_output(fake_sources):
     from src.dashboard import ops_console
     page = _text(ops_console.overview(_user("responder"), "dark"))
-    assert "Not connected" in page and "iot system" in page, "a missing partner is named, not hidden"
+    assert "Monitoring stations" not in page and "Not connected" not in page, "unconnected partners are left out"
     assert "41%" in page and "Flooding possible" in page
     assert "Mathare" in page and "High" in page, "high-risk areas are listed with the specification's class"
     assert "Model output, not observed flooding" in page
-    assert "alert system not connected" in page, "model warnings are not passed off as published alerts"
+    assert "model warnings, 12-hour outlook" in page, "model warnings are not passed off as published alerts"
 
 
 def test_the_console_is_closed_to_the_public(fake_sources):

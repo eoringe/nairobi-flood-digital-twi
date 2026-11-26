@@ -316,11 +316,7 @@ def _alerts(flt: dict) -> tuple[list[dict], base.SourceResult, bool]:
 def alerts_page(user: dict, theme: str, flt: dict | None = None) -> list:
     flt = flt or {}
     rows, res, published = _alerts(flt)
-    banner = None if published else html.Div(
-        [_icon("plug", "me-2"), html.Strong("Automated Alert System not connected. "),
-         "These are the outlook's model warnings, not published alerts: they have no publication time or "
-         "acknowledgements. Alert creation, approval and publication stay with the alert system (spec §2.8)."],
-        className="dash-alert tone-info mb-2")
+    banner = None
     sev_counts = {s: sum(1 for a in rows if (a.get("severity") or "").lower() == s) for s in SEVERITY_ORDER}
     kpis = html.Div(className="dash-kpis cols-4", children=[
         tile("Active " + ("alerts" if published else "model warnings"), len(rows), "bell", "warn" if rows else "ok",
@@ -365,7 +361,7 @@ def alert_cards(rows: list[dict], user: dict, severity: str, status: str) -> lis
         sev = (a.get("severity") or "moderate").lower()
         rank = {"critical": 3, "very high": 3, "high": 2, "moderate": 1}.get(sev, 0)
         ack = (f"{a['acknowledged']} of {a.get('recipients', '?')} acknowledged" if a.get("acknowledged") is not None
-               else "Acknowledgements: available when the alert system is connected")
+               else None)
         out.append(html.Div(className=f"ops-alert lvl-{rank}", children=[
             html.Div(className="ops-alert-head", children=[
                 html.Span(RISK_CLASS.get(sev.upper(), sev.title()), className=f"ops-risk lvl-{rank}"),
@@ -375,9 +371,9 @@ def alert_cards(rows: list[dict], user: dict, severity: str, status: str) -> lis
             html.Div(", ".join(a.get("areas") or [])[:300], className="ops-alert-areas"),
             html.Div(className="ops-alert-meta", children=[
                 html.Span(["Created ", local_time(a.get("created_at"))]),
-                html.Span(["Published ", local_time(a.get("published_at")) if a.get("published_at") else "not published"]),
+                html.Span(["Published ", local_time(a.get("published_at"))]) if a.get("published_at") else None,
                 html.Span(["Starts ", local_time(a["starts_at"])]) if a.get("starts_at") else None,
-                html.Span(ack)]),
+                html.Span(ack) if ack else None]),
             html.Ul([html.Li(x) for x in a.get("recommended_actions") or []], className="ops-alert-actions"),
             html.Button("Full record", id={"type": "ops-alert-open", "aid": a.get("id", "")}, n_clicks=0,
                         className="dash-btn-ghost btn btn-sm") if can(user, "view_alert_record") else None,

@@ -59,7 +59,7 @@ LAYER_DEFINITIONS = [
      "description": "Rain and river gauges by health; staff only.", "source": "IoT Sensor Data Platform",
      "min_role": "staff"},
     {"layer_key": "alert-areas", "name": "Alert areas", "category": "Alerts", "default_on": 0,
-     "description": "Wards with a published alert, or a model warning while the alert system is not connected.",
+     "description": "Wards with a flood warning from the 12-hour outlook.",
      "source": "Automated Alert System / model warnings"},
 ]
 

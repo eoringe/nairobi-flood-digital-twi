@@ -272,9 +272,6 @@ def rainfall_page(user: dict, theme: str, flt: dict | None = None) -> list:
                  "bias-corrected to the CHIRPS scale", feed, source="Open-Meteo"),
             tile("Next 12 hours", f"{sum(r['rain_mm'] for r in nxt):.1f} mm", "cloud-drizzle", "warn"
                  if sum(r['rain_mm'] for r in nxt) >= 10 else "ok", "forecast", feed, source="Open-Meteo"),
-            tile("Rain gauges", len(rain_stations) if stations.ok else "Not connected", "broadcast-pin",
-                 "info" if stations.ok else "neutral",
-                 "reporting stations" if stations.ok else "IoT Sensor Data Platform", stations),
         ]
     controls = html.Div(className="dash-toolbar", children=[
         dcc.Dropdown(id="ops-rain-days", value=7, clearable=False, searchable=False, className="dash-select dash-filter",
@@ -296,14 +293,13 @@ def rainfall_page(user: dict, theme: str, flt: dict | None = None) -> list:
                                               if not stations.ok else html.P("No rain gauges in this area.",
                                                                              className="dash-empty"),
                                               icon="broadcast-pin"))
-    return [html.Div(tiles, className="dash-kpis cols-4"),
+    return [html.Div(tiles, className="dash-kpis cols-3"),
             panel("Hourly rainfall and 72-hour accumulation, Nairobi", controls,
                   dcc.Graph(id="ops-rain-hourly", config=GRAPH_CONFIG, style={"height": "320px"}), html.Div(id="ops-rain-classes"),
                   icon="cloud-rain", actions=html.Span("Observed hours and forecast hours", className="ops-model-label")),
             panel("Seasonal comparison (CHIRPS daily, 2015-2026)", hist,
                   dcc.Graph(id="ops-rain-seasonal", config=GRAPH_CONFIG, style={"height": "320px"}), html.Div(id="ops-rain-unusual"),
-                  icon="calendar3"),
-            gauge_view]
+                  icon="calendar3")] + ([gauge_view] if rain_stations else [])
 
 
 def hourly_rain_figure(days: int, theme: str) -> tuple[go.Figure, list]:
@@ -480,14 +476,9 @@ def compare_figure(ids: list[str], kind: str, start: str | None, end: str | None
 # ------------------------------------------------------------- registration --
 _status = PAGES.pop("/ops/status")
 PAGES.update({
-    "/ops/sensors": ("Sensors", "broadcast-pin", "Sensor monitoring",
-                     "Stations, sensor health, last communication and readings.", "view_sensors", sensors_page, True),
     "/ops/rainfall": ("Rainfall", "cloud-rain", "Rainfall analytics",
                       "Accumulated rainfall, intensity, seasonal comparison and unusually wet days.", "view_sensors",
                       rainfall_page, True),
-    "/ops/water-levels": ("Water levels", "water", "Water-level analytics",
-                          "River levels against warning and critical thresholds, with trends.", "view_sensors",
-                          water_levels_page, True),
 })
 PAGES["/ops/status"] = _status
 

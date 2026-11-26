@@ -175,7 +175,7 @@ def overview(user: dict, theme: str, flt: dict | None = None) -> list:
         alert_places.update(a.get("areas") or [])
     using = partner_alerts if partner_alerts.ok else model_alerts
     alert_sub = (f"{len(partner_alerts.records)} published alerts" if partner_alerts.ok else
-                 f"{len(model_alerts.records)} model warnings · alert system not connected")
+                 f"{len(model_alerts.records)} model warnings, 12-hour outlook")
     alert_tile = tile("Areas under alert", len(alert_places), "exclamation-triangle",
                       "danger" if alert_places else "ok", alert_sub, using, href="/ops/alerts")
 
@@ -198,7 +198,8 @@ def overview(user: dict, theme: str, flt: dict | None = None) -> list:
         infra_tile = tile("Exposed infrastructure", not_connected(infra), "building-exclamation", "neutral",
                           registry.get("infrastructure_system").system, infra)
 
-    tiles = html.Div(className="dash-kpis cols-4 ops-tiles", children=[
+    tiles = html.Div(className="dash-kpis ops-tiles " + ("cols-4" if stations.ok else "cols-3"), children=[
+        rain_tile, pred_tile, alert_tile, risk_tile, inc_tile, infra_tile] if not stations.ok else [
         st_tile, rain_tile, wl_tile, pred_tile, alert_tile, risk_tile, inc_tile, infra_tile])
     return [
         tiles,
@@ -281,29 +282,31 @@ STATE_LABELS = {"ok": "Connected", "down": "Down", "not_connected": "Not connect
 STATE_DOT = {"ok": "ok", "down": "down", "not_connected": "warn", "unknown": "warn"}
 
 
+def _connected_rows() -> list[dict]:
+    """Sources in use: partner systems that were never connected are left out of the screens."""
+    return [r for r in registry.status_rows() if r["state"] != "not_connected"]
+
+
 def _source_strip() -> html.Div:
     return html.Div(className="ops-sources", children=[
         html.Div(className="ops-source", title=r["description"], children=[
             html.Span(className=f"dash-dot state-{STATE_DOT[r['state']]}"),
             html.Span(r["name"], className="dash-cell-strong"),
             html.Span(STATE_LABELS[r["state"]] + (" · demo" if r["demo"] else ""), className="dash-cell-muted"),
-        ]) for r in registry.status_rows()])
+        ]) for r in _connected_rows()])
 
 
 # ---------------------------------------------------------- system status --
 def status_page(user: dict, theme: str, flt: dict | None = None) -> list:
     """Data source availability (§2.15, §6.12, UC-FVD-012)."""
     registry.check_unknown()
-    rows = registry.status_rows()
+    rows = _connected_rows()
     up = sum(r["state"] == "ok" for r in rows)
     down = [r for r in rows if r["state"] == "down"]
-    waiting = [r for r in rows if r["state"] == "not_connected"]
-    kpis = html.Div(className="dash-kpis cols-4", children=[
+    kpis = html.Div(className="dash-kpis cols-3", children=[
         tile("Sources connected", f"{up} of {len(rows)}", "diagram-3", "ok", "responding normally"),
         tile("Sources down", len(down), "x-octagon", "danger" if down else "ok",
              ", ".join(r["name"] for r in down) or "none"),
-        tile("Awaiting partner APIs", len(waiting), "plug", "warn" if waiting else "ok",
-             f"{len(waiting)} systems not connected yet"),
         tile("Failed requests, 24 h", sum(r["failures_24h"] for r in rows), "exclamation-octagon", "info",
              f"of {sum(r['calls_24h'] for r in rows)} requests"),
     ])
@@ -332,13 +335,7 @@ def status_page(user: dict, theme: str, flt: dict | None = None) -> list:
         html.Tbody([html.Tr([html.Td(local_time(f["at"])), html.Td(f["source_key"]),
                              html.Td(f["error"] or "", className="dash-cell-muted")]) for f in failed]),
     ])) if failed else html.P("No failed requests in the last 7 days.", className="dash-empty")
-    partners = [r for r in rows if r["kind"] == "partner"]
-    setup = html.Ul(className="ops-setup", children=[
-        html.Li([html.Span(r["system"], className="dash-cell-strong"), " — ",
-                 html.Code(registry.get(r["key"]).env_url), " and ", html.Code(registry.get(r["key"]).env_key),
-                 html.Span(" (set)" if r["configured"] else " (not set)", className="dash-cell-muted")])
-        for r in partners])
-    layer_rows = get_ops_store().layers()
+    layer_rows = [l for l in get_ops_store().layers() if "IoT" not in (l.get("source") or "")]
     catalogue = html.Div(className="dash-table-wrap", children=html.Table(className="dash-table", children=[
         html.Thead(html.Tr([html.Th("Map layer"), html.Th("Type"), html.Th("What it shows"), html.Th("Source")])),
         html.Tbody([html.Tr([html.Td(l["name"], className="dash-cell-strong"), html.Td(l["category"]),
@@ -347,12 +344,7 @@ def status_page(user: dict, theme: str, flt: dict | None = None) -> list:
     ])) if layer_rows else html.P("The layer catalogue is recorded when the app starts.", className="dash-empty")
     return [kpis, panel("Data sources", table, icon="hdd-network"),
             panel("Map layers", catalogue, icon="layers"),
-            html.Div(className="dash-grid cols-7-5", children=[
-                panel("Failed requests", failed_view, icon="exclamation-octagon"),
-                panel("Connecting partner systems",
-                      html.P("Each partner system is connected by setting its API address and key in the server's "
-                             "environment. The contract each adapter expects is in docs/capstone/TASKLIST.md.",
-                             className="dash-hint"), setup, icon="plug")])]
+            panel("Failed requests", failed_view, icon="exclamation-octagon")]
 
 
 # ---------------------------------------------------------------- pages --

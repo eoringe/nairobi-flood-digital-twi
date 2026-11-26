@@ -54,13 +54,11 @@ def test_exposed_facilities_include_predicted_and_reported_flooding(fakes):
     assert "OpenStreetMap (interim" in page
 
 
-def test_supplies_and_beneficiaries_are_restricted(fakes):
+def test_unconnected_supply_and_beneficiary_panels_are_not_shown(fakes):
     from src.dashboard import ops_assets
-    officer = _text(ops_assets.infrastructure_page(_user("planner"), "dark"))
-    assert "Vulnerable communities" not in officer and "Emergency supplies" not in officer
-    emergency = _text(ops_assets.infrastructure_page(_user("responder"), "dark"))
-    assert "Vulnerable communities" in emergency and "Aggregated counts only" in emergency
-    assert "supply system not connected" in emergency, "a missing partner is named, not hidden"
+    for role in ("planner", "responder"):
+        page = _text(ops_assets.infrastructure_page(_user(role), "dark"))
+        assert "Vulnerable communities" not in page and "Emergency supplies" not in page
 
 
 def test_incidents_combine_sources_and_filter_by_type(fakes):

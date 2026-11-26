@@ -26,7 +26,13 @@ data
 models
 !data/processed/arrays/segmentation_dataset_v2_nwp_drainage.npz
 !data/processed/arrays/population_grid_worldpop2025.npy
+!data/processed/arrays/population_grid_worldpop2025.json
 !data/processed/nairobi_buildings_3d.json
+!data/processed/nairobi_boundaries.json
+!data/processed/nairobi_building_names.json
+!data/processed/nairobi_groundsource.json
+!data/processed/nairobi_infrastructure.json
+!data/processed/nairobi_rivers.json
 !data/processed/nairobi_places.json
 !data/processed/nairobi_roads.json.gz
 !data/processed/nairobi_search_index.json.gz

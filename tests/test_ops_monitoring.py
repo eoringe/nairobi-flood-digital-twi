@@ -74,4 +74,5 @@ def test_monitoring_pages_are_in_the_console_before_system_status():
     from src.dashboard import ops_monitoring  # noqa: F401  registers the pages
     from src.dashboard.ops_console import PAGES
     keys = list(PAGES)
-    assert keys.index("/ops/sensors") < keys.index("/ops/status") and keys[-1] == "/ops/status"
+    assert keys.index("/ops/rainfall") < keys.index("/ops/status") and keys[-1] == "/ops/status"
+    assert "/ops/sensors" not in PAGES and "/ops/water-levels" not in PAGES, "no pages for unconnected sensors"

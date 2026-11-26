@@ -66,8 +66,8 @@ def test_model_warnings_are_never_presented_as_published_alerts(store, monkeypat
              "recommended_actions": ["Move valuables above floor level"], "acknowledged": None}]),
     })
     page = _text(op.alerts_page(_user("responder"), "dark"))
-    assert "Automated Alert System not connected" in page and "not published alerts" in page
-    assert "not published" in page and "available when the alert system is connected" in page
+    assert "Active model warnings" in page and "12-hour outlook" in page
+    assert "Automated Alert System" not in page and "Published" not in page
     assert "Move valuables above floor level" in page and "Full record" in page
     assert "Full record" not in _text(op.alert_cards(
         registry.SOURCES["outlook_alerts"].fetch("active").records, _user("planner"), "all", "all")), \
